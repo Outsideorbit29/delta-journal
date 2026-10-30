@@ -212,7 +212,9 @@ export const telegramMessages = sqliteTable(
     chatId: text("chat_id").notNull(),
     messageId: integer("message_id").notNull(),
     tradeId: text("trade_id").notNull(),
-    kind: text("kind", { enum: ["trade", "note_prompt"] }).notNull(),
+    kind: text("kind", { enum: ["trade", "note_prompt", "suggestion"] }).notNull(),
+    // For "suggestion" messages: the AI-suggested answers waiting for a tap.
+    payload: text("payload", { mode: "json" }),
     createdAt: integer("created_at").notNull(),
   },
   (t) => [primaryKey({ columns: [t.chatId, t.messageId] }), index("telegram_messages_trade").on(t.tradeId)],
@@ -223,3 +225,20 @@ export const appState = sqliteTable("app_state", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
 });
+
+// AI coaching reviews, kept so you can look back at past advice.
+export const aiReviews = sqliteTable(
+  "ai_reviews",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    periodStart: integer("period_start").notNull(),
+    periodEnd: integer("period_end").notNull(),
+    tradeCount: integer("trade_count").notNull(),
+    model: text("model").notNull(),
+    review: text("review", { mode: "json" }).$type<import("@/lib/ai/review").Review>().notNull(),
+    inputTokens: integer("input_tokens"),
+    outputTokens: integer("output_tokens"),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [index("ai_reviews_created").on(t.createdAt)],
+);
