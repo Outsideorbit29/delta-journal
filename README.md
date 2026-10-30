@@ -16,6 +16,10 @@ behaviour patterns (after a loss, oversized, no stop, moved stop, overtrading, a
   `mistake:*`, `plan:*`) so the dashboard analyses them like the automatic ones. A
   planned stop sets the trade's risk and R-multiple.
 
+- **Telegram bot** (`npm run bot`): messages you when a trade closes, with buttons to
+  journal it in a few taps (setup, feelings, mistakes, followed plan, rating). Reply to
+  a trade message to add a note. Commands: `/journal`, `/today`, `/sync`.
+
 Everything runs on your machine. Data lives in `data/journal.db` (SQLite).
 
 ## Setup
@@ -27,12 +31,23 @@ Everything runs on your machine. Data lives in `data/journal.db` (SQLite).
 
 After that, use the **Sync from Delta** button, or `npm run sync`.
 
+### Telegram bot (optional)
+
+1. In Telegram, message **@BotFather**, send `/newbot`, and add the token it gives you
+   to `.env.local` as `TELEGRAM_BOT_TOKEN=...`.
+2. Run `npm run bot` and send `/start` to your bot. It replies with your chat id; add it
+   as `TELEGRAM_CHAT_ID=...` and run `npm run bot` again. The bot only answers that chat.
+3. Keep `npm run bot` running. It syncs Delta every minute (`TELEGRAM_SYNC_SECONDS`)
+   and sends each newly closed trade. Trades closed before its first run are not sent;
+   use `/journal` for the last 7 days.
+
 ## Commands
 
 | Command | What it does |
 |---|---|
 | `npm run dev` | Start the app on 127.0.0.1:3000 (not visible to other devices) |
 | `npm run sync` | Pull new fills, orders and wallet records, then rebuild trades |
+| `npm run bot` | Run the Telegram journaling bot (needs `TELEGRAM_BOT_TOKEN`) |
 | `npm run rebuild` | Rebuild trades and auto tags from stored data (after changing `src/lib/config.ts`) |
 | `npm test` | Unit tests for trade reconstruction and tagging |
 | `npm run db:generate` | Create a migration after changing `src/db/schema.ts` |
