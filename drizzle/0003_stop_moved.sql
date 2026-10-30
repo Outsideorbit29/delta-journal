@@ -1,0 +1,1 @@
+ALTER TABLE `trades` ADD `stop_moved_after_sec` integer;

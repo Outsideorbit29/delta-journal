@@ -1,0 +1,1 @@
+ALTER TABLE `trades` ADD `liquidation_fees` real DEFAULT 0 NOT NULL;
