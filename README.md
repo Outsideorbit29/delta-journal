@@ -1,0 +1,64 @@
+# Delta Journal
+
+A local trading journal for Delta Exchange India. It syncs your fills, orders and
+wallet ledger, rebuilds them into round-trip trades, and tags each trade with
+behaviour patterns (after a loss, oversized, no stop, moved stop, overtrading, and so on).
+
+- **Dashboard** (`/`): net P&L, key stats, equity curve with drawdown, daily P&L
+  calendar, where the P&L went (fees, liquidation fees, funding), results by symbol,
+  side and tag. One filter row (date range, symbol) scopes the whole page.
+- **Trades** (`/trades`): every trade with its tags; each trade page has a price
+  chart with the fills, entry, exit and stop marked, and your journal entry.
+- **Journal** (`/journal`): a queue of closed trades without a journal entry, newest
+  first. Pick a setup, emotions, mistakes, whether you followed your plan, a 1-5
+  execution rating, notes, and your planned stop and target. Choices come from the
+  fixed lists in `src/lib/journal/vocab.ts`; they become tags (`setup:*`, `emotion:*`,
+  `mistake:*`, `plan:*`) so the dashboard analyses them like the automatic ones. A
+  planned stop sets the trade's risk and R-multiple.
+
+Everything runs on your machine. Data lives in `data/journal.db` (SQLite).
+
+## Setup
+
+1. Create a Delta API key with only the **Read Data** permission, whitelisted to your IP.
+2. `cp .env.example .env.local` and fill in `DELTA_API_KEY` and `DELTA_API_SECRET`.
+3. `npm install`
+4. `npm run sync` for the first full sync, then `npm run dev` and open http://127.0.0.1:3000.
+
+After that, use the **Sync from Delta** button, or `npm run sync`.
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Start the app on 127.0.0.1:3000 (not visible to other devices) |
+| `npm run sync` | Pull new fills, orders and wallet records, then rebuild trades |
+| `npm run rebuild` | Rebuild trades and auto tags from stored data (after changing `src/lib/config.ts`) |
+| `npm test` | Unit tests for trade reconstruction and tagging |
+| `npm run db:generate` | Create a migration after changing `src/db/schema.ts` |
+
+## How it works
+
+- **Sync** (`src/lib/sync.ts`): signed requests to `/v2/fills`, `/v2/orders/history`,
+  `/v2/orders` and `/v2/wallet/transactions`. The first run fetches all history; later
+  runs re-read a short overlap window and upsert by Delta's ids.
+- **Trades** (`src/lib/trades/reconstruct.ts`): a trade runs from the fill that opens a
+  position to the fill that brings it back to zero. Average cost is tracked the way Delta
+  does it, and a fill that flips long to short is split across two trades. Each trade is
+  checked against the position size and realized P&L Delta reports on the fills.
+- **Charges and tags** (`src/lib/trades/analyze.ts`): funding, liquidation fees and fee
+  credits from the wallet ledger are attached to trades; stops come from order history;
+  behaviour tags use the thresholds in `src/lib/config.ts`.
+- **Charts** use public candles from `/v2/history/candles`, cached per trade in the
+  `trade_candles` table. Chart colours are CSS variables in `src/app/globals.css`.
+- **Delta API quirks handled:** order history is read without a time window, because
+  windowed queries silently drop orders. Moved stops are detected from
+  `meta_data.edit_timestamp`; Delta keeps only the final stop price, so planned risk
+  and R are only computed for stops that were never moved.
+- Net P&L = gross − fees − liquidation fees + funding. Summed over all trades, this
+  equals the trading lines of your wallet ledger.
+
+## API
+
+- `GET /api/trades?symbol=XAUTUSD&tag=no_stop` returns stats and trades as JSON
+- `POST /api/sync` runs a sync
