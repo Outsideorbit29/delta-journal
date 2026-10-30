@@ -203,3 +203,23 @@ export const journalEntries = sqliteTable("journal_entries", {
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
+
+// Telegram messages the bot sent, so a button tap or a reply can be traced
+// back to its trade. Also marks which closed trades were already announced.
+export const telegramMessages = sqliteTable(
+  "telegram_messages",
+  {
+    chatId: text("chat_id").notNull(),
+    messageId: integer("message_id").notNull(),
+    tradeId: text("trade_id").notNull(),
+    kind: text("kind", { enum: ["trade", "note_prompt"] }).notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.chatId, t.messageId] }), index("telegram_messages_trade").on(t.tradeId)],
+);
+
+// Small key/value store for process state such as the Telegram update offset.
+export const appState = sqliteTable("app_state", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+});
