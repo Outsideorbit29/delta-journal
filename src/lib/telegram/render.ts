@@ -2,9 +2,11 @@
 // no network or database, so the whole journaling flow is unit-testable.
 
 import type { schema } from "@/db";
+import type { NoteSuggestion } from "@/lib/ai/suggest";
+import type { Review } from "@/lib/ai/review";
 import type { JournalInput } from "@/lib/journal/entry";
 import { EMOTIONS, MISTAKES, SETUPS, type Emotion, type Mistake, type Setup } from "@/lib/journal/vocab";
-import { formatDuration, formatMoney, formatPrice, formatR } from "@/lib/format";
+import { formatDateTime, formatDuration, formatMoney, formatPrice, formatR } from "@/lib/format";
 import { isJournalTag, isWarningTag, tagLabel } from "@/lib/tags";
 import type { InlineButton, ReplyMarkup } from "./api";
 
@@ -189,6 +191,35 @@ function keyboard(e: JournalInput, stage: Stage, s: Suggestions): InlineButton[]
     case "done":
       return [[btn("📝 Add note", { kind: "note" }), btn("✏️ Edit answers", { kind: "edit" })]];
   }
+}
+
+// --- AI ----------------------------------------------------------------------
+
+/** "Felt FOMO · mistakes: Chased entry" for answers suggested from a note. */
+export function suggestionSummary(s: NoteSuggestion): string {
+  return journalSummary({ ...s, rating: null, notes: null, plannedStop: null, plannedTarget: null });
+}
+
+const TELEGRAM_MAX_CHARS = 4096;
+
+/** A coaching review as one Telegram message. Model text is escaped. */
+export function renderReview(review: Review, meta: { periodStart: number; periodEnd: number; tradeCount: number }): string {
+  const e = escapeHtml;
+  const day = (ts: number) => formatDateTime(ts).split(",")[0];
+  const lines = [
+    `<b>Trading review</b> · ${day(meta.periodStart)} – ${day(meta.periodEnd)} · ${meta.tradeCount} trades`,
+    "",
+    `<b>${e(review.headline)}</b>`,
+    e(review.summary),
+    "",
+    "<b>Costly habits</b>",
+    ...review.leaks.map((l) => `• ${e(l.pattern)}: ${e(l.evidence)}${l.costUsd !== null ? ` (${formatMoney(l.costUsd, { sign: true })})` : ""}`),
+  ];
+  if (review.strengths.length) lines.push("", "<b>What helped</b>", ...review.strengths.map((s) => `• ${e(s.point)}: ${e(s.evidence)}`));
+  lines.push("", "<b>Rules for next week</b>", ...review.rules.map((r, i) => `${i + 1}. ${e(r)}`));
+  if (review.journaling) lines.push("", `<i>${e(review.journaling)}</i>`);
+  const text = lines.join("\n");
+  return text.length <= TELEGRAM_MAX_CHARS ? text : `${text.slice(0, TELEGRAM_MAX_CHARS - 40)}…\n\n(Full review in the app.)`;
 }
 
 function rows<T>(items: T[], size: number): T[][] {

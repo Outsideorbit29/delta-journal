@@ -3,10 +3,23 @@
 // It long-polls Telegram (no public URL needed), syncs Delta every minute,
 // and messages you each newly closed trade with buttons to journal it.
 
-import { getDb } from "@/db";
+import { transcribe } from "ai";
+import { getDb, type Db } from "@/db";
+import { AI_MODELS, aiConfigured } from "@/lib/ai/models";
+import { generateReview } from "@/lib/ai/review";
+import { suggestFromNote } from "@/lib/ai/suggest";
 import { syncAll } from "@/lib/sync";
 import { TelegramApi, TelegramError } from "@/lib/telegram/api";
-import { COMMANDS, getState, handleUpdate, notifyClosedTrades, setState, type BotContext } from "@/lib/telegram/bot";
+import {
+  COMMANDS,
+  getState,
+  handleUpdate,
+  maybeSendWeeklyReview,
+  notifyClosedTrades,
+  setState,
+  type BotAi,
+  type BotContext,
+} from "@/lib/telegram/bot";
 
 const POLL_TIMEOUT_SEC = 25;
 const SYNC_EVERY_MS = Math.max(15, Number(process.env.TELEGRAM_SYNC_SECONDS) || 60) * 1000;
@@ -22,13 +35,15 @@ async function main() {
   if (!token) throw new Error("Set TELEGRAM_BOT_TOKEN in .env.local (create a bot with @BotFather in Telegram).");
   const chatId = process.env.TELEGRAM_CHAT_ID?.trim() || null;
 
-  const ctx: BotContext = { db: await getDb(), tg: new TelegramApi(token), chatId, sync: () => syncAll() };
+  const db = await getDb();
+  const ctx: BotContext = { db, tg: new TelegramApi(token), chatId, sync: () => syncAll(), ai: aiConfigured() ? botAi(db) : null };
   await ctx.tg.setCommands(COMMANDS);
 
   if (!chatId) {
     log("TELEGRAM_CHAT_ID is not set. Send /start to your bot in Telegram to get it.");
   } else {
     log(`Bot running for chat ${chatId}. Syncing Delta every ${SYNC_EVERY_MS / 1000}s. Ctrl+C to stop.`);
+    log(ctx.ai ? "AI features on: voice notes, note suggestions and weekly reviews." : "AI features off (no AI_GATEWAY_API_KEY).");
     void syncLoop(ctx);
   }
   await pollLoop(ctx);
@@ -69,6 +84,7 @@ async function syncLoop(ctx: BotContext) {
       await ctx.sync();
       const sent = await notifyClosedTrades(ctx);
       if (sent) log(`Sent ${sent} trade(s) to journal.`);
+      if (await maybeSendWeeklyReview(ctx)) log("Sent the weekly review.");
       if (lastError) {
         await ctx.tg.sendMessage(ctx.chatId!, "Delta sync is working again.");
         lastError = null;
@@ -84,6 +100,15 @@ async function syncLoop(ctx: BotContext) {
     }
     await sleep(SYNC_EVERY_MS);
   }
+}
+
+/** The AI calls the bot makes, all through AI Gateway. */
+function botAi(db: Db): BotAi {
+  return {
+    transcribe: async (audio) => (await transcribe({ model: AI_MODELS.transcribe, audio })).text,
+    suggest: (note, trade) => suggestFromNote(note, trade),
+    review: (days) => generateReview(db, days),
+  };
 }
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {

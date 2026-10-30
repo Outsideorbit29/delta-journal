@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { openDatabase, schema, type Db } from "@/db";
 import type { ReplyMarkup, TelegramClient, TgMessage, TgUpdate } from "./api";
-import { handleUpdate, notifyClosedTrades, type BotContext } from "./bot";
+import { handleUpdate, maybeSendWeeklyReview, notifyClosedTrades, type BotAi, type BotContext } from "./bot";
 
 const CHAT = "1001";
 const STRANGER = "666";
@@ -41,6 +41,9 @@ class FakeTelegram implements TelegramClient {
     this.answers.push({ id, text });
   }
   async setCommands() {}
+  async downloadFile(fileId: string) {
+    return new TextEncoder().encode(`audio:${fileId}`);
+  }
 }
 
 let dir: string;
@@ -62,8 +65,8 @@ const say = (text: string, opts: { chatId?: string; replyTo?: number } = {}): Tg
   },
 });
 
-function ctx(tg: FakeTelegram, chatId: string | null = CHAT): BotContext {
-  return { db, tg, chatId, sync: async () => ({ fills: 0, rebuild: { trades: 0 } }), now: () => now };
+function ctx(tg: FakeTelegram, chatId: string | null = CHAT, ai: BotAi | null = null): BotContext {
+  return { db, tg, chatId, sync: async () => ({ fills: 0, rebuild: { trades: 0 } }), ai, now: () => now };
 }
 
 async function insertTrade(id: string, closedTs: number, netPnl = -4.75) {
@@ -213,5 +216,90 @@ describe("Telegram bot", () => {
     await handleUpdate(ctx(tg), say("/journal"));
     // t1 and t2 are journaled; "old" closed within the last week and is not.
     expect(tg.sent.slice(1).map((s) => s.text.split("\n")[0])).toEqual(["<b>XAUTUSD short</b> · <b>-$4.75</b>"]);
+  });
+});
+
+describe("Telegram bot with AI", () => {
+  const review = {
+    headline: "Moving stops cost you most this week",
+    summary: "3 trades, all losses.",
+    strengths: [],
+    leaks: [{ pattern: "Moving the stop", evidence: "2 trades, -$9.50", costUsd: -9.5 }],
+    rules: ["Never widen a stop once placed"],
+    journaling: null,
+  };
+  const calls: string[] = [];
+  const fakeAi: BotAi = {
+    transcribe: async (audio) => {
+      calls.push(`transcribe:${new TextDecoder().decode(audio)}`);
+      return "jumped in late, felt fomo, moved my stop";
+    },
+    suggest: async (note) => {
+      calls.push(`suggest:${note}`);
+      return { setup: null, emotions: ["fomo", "revenge"], mistakes: ["chased_entry"], followedPlan: false };
+    },
+    review: async (days) => {
+      calls.push(`review:${days}`);
+      return { id: 1, periodStart: T0 - 7 * 86_400_000, periodEnd: T0, tradeCount: 3, model: "fake", review, inputTokens: 1, outputTokens: 1, createdAt: T0 };
+    },
+  };
+  const voice = (replyTo: number): TgUpdate => ({
+    update_id: updateId++,
+    message: {
+      message_id: updateId + 5000,
+      chat: { id: Number(CHAT) },
+      voice: { file_id: "file-1", duration: 4 },
+      reply_to_message: { message_id: replyTo, chat: { id: Number(CHAT) } },
+    },
+  });
+
+  it("transcribes a voice reply, saves it as a note and offers only new answers", async () => {
+    const tg = new FakeTelegram();
+    await insertTrade("t3", T0 + 200_000);
+    now = T0 + 240_000;
+    await notifyClosedTrades(ctx(tg, CHAT, fakeAi));
+    const card = tg.sent[0];
+    // Already answered "revenge", so only fomo and chased_entry are new.
+    await handleUpdate(ctx(tg, CHAT, fakeAi), tap(card.messageId, "s:v:breakout"));
+    await handleUpdate(ctx(tg, CHAT, fakeAi), tap(card.messageId, "e:t:revenge"));
+
+    await handleUpdate(ctx(tg, CHAT, fakeAi), voice(card.messageId));
+    expect(calls).toContain("transcribe:audio:file-1");
+    const [entry] = await db.select().from(schema.journalEntries).where(eq(schema.journalEntries.tradeId, "t3"));
+    expect(entry.notes).toBe("jumped in late, felt fomo, moved my stop");
+
+    const offer = tg.sent.at(-1)!;
+    expect(offer.text).toBe("From your note: <b>felt FOMO · mistakes: Chased entry · broke plan</b>");
+    expect(tg.sent.at(-2)!.text).toContain("Note saved from your voice");
+
+    await handleUpdate(ctx(tg, CHAT, fakeAi), tap(offer.messageId, "a:y"));
+    const [after] = await db.select().from(schema.journalEntries).where(eq(schema.journalEntries.tradeId, "t3"));
+    expect(after).toMatchObject({ setup: "breakout", emotions: ["revenge", "fomo"], mistakes: ["chased_entry"], followedPlan: false });
+    expect(tg.edits.find((e) => e.messageId === offer.messageId)?.text).toContain("Added:");
+  });
+
+  it("says AI is off instead of failing when there is no key", async () => {
+    const tg = new FakeTelegram();
+    const [card] = await db.select().from(schema.telegramMessages).where(eq(schema.telegramMessages.tradeId, "t3"));
+    await handleUpdate(ctx(tg), voice(card.messageId));
+    await handleUpdate(ctx(tg), say("/review"));
+    expect(tg.sent.map((s) => s.text)).toEqual([expect.stringContaining("AI_GATEWAY_API_KEY"), expect.stringContaining("AI_GATEWAY_API_KEY")]);
+  });
+
+  it("sends the review on request and once on Sunday evening IST", async () => {
+    const tg = new FakeTelegram();
+    await handleUpdate(ctx(tg, CHAT, fakeAi), say("/review"));
+    expect(tg.sent.at(-1)!.text).toContain("<b>Moving stops cost you most this week</b>");
+    expect(tg.sent.at(-1)!.text).toContain("1. Never widen a stop once placed");
+
+    const sentBefore = tg.sent.length;
+    now = Date.UTC(2026, 10, 1, 14, 0); // Sunday 19:30 IST: too early
+    expect(await maybeSendWeeklyReview(ctx(tg, CHAT, fakeAi))).toBe(false);
+    now = Date.UTC(2026, 10, 1, 14, 31); // Sunday 20:01 IST
+    expect(await maybeSendWeeklyReview(ctx(tg, CHAT, fakeAi))).toBe(true);
+    expect(await maybeSendWeeklyReview(ctx(tg, CHAT, fakeAi))).toBe(false);
+    now = Date.UTC(2026, 10, 2, 14, 31); // Monday
+    expect(await maybeSendWeeklyReview(ctx(tg, CHAT, fakeAi))).toBe(false);
+    expect(tg.sent.length).toBe(sentBefore + 1);
   });
 });

@@ -14,7 +14,7 @@ export interface TgMessage {
   chat: TgChat;
   from?: TgUser;
   text?: string;
-  voice?: unknown;
+  voice?: { file_id: string; duration: number; file_size?: number };
   reply_to_message?: TgMessage;
 }
 
@@ -55,6 +55,8 @@ export interface TelegramClient {
   editMessage(chatId: string, messageId: number, text: string, markup?: ReplyMarkup): Promise<void>;
   answerCallback(callbackId: string, text?: string): Promise<void>;
   setCommands(commands: { command: string; description: string }[]): Promise<void>;
+  /** Downloads a file the user sent, such as a voice note. */
+  downloadFile(fileId: string): Promise<Uint8Array>;
 }
 
 export class TelegramApi implements TelegramClient {
@@ -106,5 +108,13 @@ export class TelegramApi implements TelegramClient {
 
   async setCommands(commands: { command: string; description: string }[]) {
     await this.call("setMyCommands", { commands });
+  }
+
+  async downloadFile(fileId: string) {
+    const file = await this.call<{ file_path?: string }>("getFile", { file_id: fileId });
+    if (!file.file_path) throw new TelegramError("getFile", 404, "Telegram returned no file path");
+    const res = await fetch(`https://api.telegram.org/file/bot${this.token}/${file.file_path}`);
+    if (!res.ok) throw new TelegramError("downloadFile", res.status, res.statusText);
+    return new Uint8Array(await res.arrayBuffer());
   }
 }
