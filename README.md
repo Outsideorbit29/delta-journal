@@ -20,7 +20,14 @@ behaviour patterns (after a loss, oversized, no stop, moved stop, overtrading, a
   journal it in a few taps (setup, feelings, mistakes, followed plan, rating). Reply to
   a trade message to add a note. Commands: `/journal`, `/today`, `/sync`.
 
-Everything runs on your machine. Data lives in `data/journal.db` (SQLite).
+- **AI review** (`/review`, optional): a coach reads your trades, tags and journal notes
+  and writes up the costliest habits with numbers, plus rules for next week. Also: suggested
+  journal answers from your notes (web and Telegram) and transcribed Telegram voice notes.
+  Uses Vercel AI Gateway (`AI_GATEWAY_API_KEY`). The default models (`google/gemini-2.5-flash` and
+  `openai/gpt-4o-mini-transcribe`) work on the free tier; set
+  `AI_REVIEW_MODEL` / `AI_FAST_MODEL` to use others with paid credits.
+
+Everything runs on your machine except the optional AI calls. Data lives in `data/journal.db` (SQLite).
 
 ## Setup
 
