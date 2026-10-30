@@ -1,11 +1,13 @@
+import Link from "next/link";
 import { connection } from "next/server";
 import { CostBreakdown } from "@/components/charts/cost-breakdown";
 import { EquityChart } from "@/components/charts/equity-chart";
 import { PnlCalendar } from "@/components/charts/pnl-calendar";
 import { FilterBar } from "@/components/filter-bar";
 import { TagChip } from "@/components/tag-chip";
+import { getDb } from "@/db";
+import { listReviews } from "@/lib/ai/review";
 import { formatDateTime, formatMoney, formatPercent, pnlClass } from "@/lib/format";
-import Link from "next/link";
 import { getSyncStatus, journaledTradeIds, listSymbols, listTrades } from "@/lib/queries";
 import { filterHref, RANGES, rangeStart, readFilters } from "@/lib/range";
 import { computeStats, dailyPnl, equityCurve, groupStats, tagPerformance, type GroupStats } from "@/lib/stats";
@@ -13,11 +15,12 @@ import { computeStats, dailyPnl, equityCurve, groupStats, tagPerformance, type G
 export default async function Dashboard({ searchParams }: PageProps<"/">) {
   await connection();
   const filters = readFilters(await searchParams);
-  const [trades, symbols, syncStatus, journaled] = await Promise.all([
+  const [trades, symbols, syncStatus, journaled, [latestReview]] = await Promise.all([
     listTrades({ symbol: filters.symbol, tag: filters.tag, sinceTs: rangeStart(filters.range) }),
     listSymbols(),
     getSyncStatus(),
     journaledTradeIds(),
+    getDb().then((db) => listReviews(db, 1)),
   ]);
   const journaledHere = trades.filter((t) => t.status === "closed" && journaled.has(t.id)).length;
 
@@ -74,6 +77,16 @@ export default async function Dashboard({ searchParams }: PageProps<"/">) {
               <Tile label="Trading costs" value={formatMoney(stats.fees + stats.liquidationFees)} hint="fees and liquidation fees" />
             </dl>
           </section>
+
+          {latestReview && (
+            <Link
+              href="/review"
+              className="block rounded-lg border border-zinc-200 px-4 py-3 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+            >
+              <span className="text-xs text-zinc-500">Latest AI review · {formatDateTime(latestReview.createdAt)} IST</span>
+              <span className="mt-0.5 block font-medium">{latestReview.review.headline}</span>
+            </Link>
+          )}
 
           <Card title="Equity curve" subtitle="Cumulative net P&L after each closed trade, oldest to newest">
             <EquityChart points={curve} />

@@ -1,4 +1,5 @@
 import { JournalForm } from "@/components/journal-form";
+import { aiConfigured } from "@/lib/ai/models";
 import { suggestionsFor, type JournalInput } from "@/lib/journal/entry";
 import type { Emotion, Mistake, Setup } from "@/lib/journal/vocab";
 import type { JournalEntry, TradeWithTags } from "@/lib/queries";
@@ -30,6 +31,7 @@ export function JournalSection({ trade, entry, submitLabel }: { trade: TradeWith
         suggested={suggestionsFor(autoTags)}
         trade={{ direction: trade.direction, avgEntry: trade.avgEntry, stopPrice: trade.stopPrice, stopMoved: trade.stopMovedAfterSec !== null }}
         submitLabel={submitLabel}
+        aiEnabled={aiConfigured()}
       />
     </section>
   );

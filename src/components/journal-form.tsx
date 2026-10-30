@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useTransition, type KeyboardEvent } from "react";
+import { suggestAction } from "@/app/ai-actions";
 import { saveJournal, type SaveJournalResult } from "@/app/journal-actions";
+import type { NoteSuggestion } from "@/lib/ai/suggest";
 import type { JournalInput } from "@/lib/journal/entry";
 import { EMOTIONS, MISTAKES, RISKY_EMOTIONS, SETUPS, type Emotion, type Mistake, type Setup } from "@/lib/journal/vocab";
 import { formatPrice } from "@/lib/format";
@@ -13,6 +15,17 @@ interface Props {
   trade: { direction: "long" | "short"; avgEntry: number; stopPrice: number | null; stopMoved: boolean };
   /** Label for the save button, e.g. "Save & next" in the journal queue. */
   submitLabel?: string;
+  /** Whether AI suggestions from the note are available. */
+  aiEnabled?: boolean;
+}
+
+function suggestionLabels(s: NoteSuggestion): string[] {
+  return [
+    ...(s.setup ? [SETUPS[s.setup]] : []),
+    ...s.emotions.map((k) => EMOTIONS[k]),
+    ...s.mistakes.map((k) => MISTAKES[k]),
+    ...(s.followedPlan === null ? [] : [s.followedPlan ? "Followed plan" : "Broke plan"]),
+  ];
 }
 
 const EMPTY: JournalInput = {
@@ -26,7 +39,7 @@ const EMPTY: JournalInput = {
   plannedTarget: null,
 };
 
-export function JournalForm({ tradeId, initial, suggested, trade, submitLabel = "Save journal" }: Props) {
+export function JournalForm({ tradeId, initial, suggested, trade, submitLabel = "Save journal", aiEnabled = false }: Props) {
   const [entry, setEntry] = useState<JournalInput>(initial ?? EMPTY);
   const [stopText, setStopText] = useState(initial?.plannedStop?.toString() ?? "");
   const [targetText, setTargetText] = useState(initial?.plannedTarget?.toString() ?? "");
@@ -51,6 +64,32 @@ export function JournalForm({ tradeId, initial, suggested, trade, submitLabel = 
     }
   };
 
+  // AI suggestions from the note: shown dotted like the data suggestions, applied only on request.
+  const [ai, setAi] = useState<NoteSuggestion | null>(null);
+  const [aiMessage, setAiMessage] = useState<string | null>(null);
+  const [aiPending, startAi] = useTransition();
+  const suggest = () =>
+    startAi(async () => {
+      setAiMessage(null);
+      const r = await suggestAction(tradeId, entry.notes ?? "");
+      setAi(r.value ?? null);
+      if (!r.ok) setAiMessage(r.message);
+      else if (r.value && !suggestionLabels(r.value).length) setAiMessage("Nothing to add from this note.");
+    });
+  const applyAi = () => {
+    if (!ai) return;
+    update({
+      setup: entry.setup ?? ai.setup,
+      emotions: [...new Set([...entry.emotions, ...ai.emotions])],
+      mistakes: [...new Set([...entry.mistakes, ...ai.mistakes])],
+      followedPlan: entry.followedPlan ?? ai.followedPlan,
+    });
+    setAi(null);
+  };
+  const aiLabels = ai ? suggestionLabels(ai) : [];
+  const hintEmotions = [...suggested.emotions, ...(ai?.emotions ?? [])];
+  const hintMistakes = [...suggested.mistakes, ...(ai?.mistakes ?? [])];
+
   const stopHint =
     trade.stopPrice === null
       ? "No stop order was found on Delta."
@@ -69,18 +108,18 @@ export function JournalForm({ tradeId, initial, suggested, trade, submitLabel = 
     >
       <Field label="Setup">
         {(Object.keys(SETUPS) as Setup[]).map((k) => (
-          <Chip key={k} pressed={entry.setup === k} onClick={() => update({ setup: entry.setup === k ? null : k })}>
+          <Chip key={k} pressed={entry.setup === k} suggested={ai?.setup === k} onClick={() => update({ setup: entry.setup === k ? null : k })}>
             {SETUPS[k]}
           </Chip>
         ))}
       </Field>
 
-      <Field label="How you felt" hint={suggested.emotions.length ? "Dotted: suggested by the trade data" : undefined}>
+      <Field label="How you felt" hint={hintEmotions.length ? "Dotted: suggested" : undefined}>
         {(Object.keys(EMOTIONS) as Emotion[]).map((k) => (
           <Chip
             key={k}
             pressed={entry.emotions.includes(k)}
-            suggested={suggested.emotions.includes(k)}
+            suggested={hintEmotions.includes(k)}
             warning={RISKY_EMOTIONS.includes(k)}
             onClick={() => update({ emotions: toggle(entry.emotions, k) })}
           >
@@ -89,12 +128,12 @@ export function JournalForm({ tradeId, initial, suggested, trade, submitLabel = 
         ))}
       </Field>
 
-      <Field label="Mistakes" hint={suggested.mistakes.length ? "Dotted: suggested by the trade data" : undefined}>
+      <Field label="Mistakes" hint={hintMistakes.length ? "Dotted: suggested" : undefined}>
         {(Object.keys(MISTAKES) as Mistake[]).map((k) => (
           <Chip
             key={k}
             pressed={entry.mistakes.includes(k)}
-            suggested={suggested.mistakes.includes(k)}
+            suggested={hintMistakes.includes(k)}
             warning
             onClick={() => update({ mistakes: toggle(entry.mistakes, k) })}
           >
@@ -147,6 +186,28 @@ export function JournalForm({ tradeId, initial, suggested, trade, submitLabel = 
           className="w-full rounded-md border border-zinc-300 bg-transparent px-3 py-2 text-sm dark:border-zinc-700"
         />
       </label>
+
+      {aiEnabled && (
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <button
+            type="button"
+            disabled={aiPending || !entry.notes?.trim()}
+            onClick={suggest}
+            className="rounded-md border border-zinc-300 px-3 py-1.5 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+          >
+            {aiPending ? "Reading your note…" : "Suggest answers from note"}
+          </button>
+          {ai && aiLabels.length > 0 && (
+            <>
+              <span className="text-zinc-500">AI suggests: {aiLabels.join(" · ")} (dotted above)</span>
+              <button type="button" onClick={applyAi} className="text-[var(--viz-profit)] hover:underline">
+                Apply
+              </button>
+            </>
+          )}
+          {aiMessage && <span className="text-zinc-500">{aiMessage}</span>}
+        </div>
+      )}
 
       <div className="flex items-center gap-3">
         <button
