@@ -87,7 +87,6 @@ Scripts load `.env.local` via `node --env-file-if-exists=.env.local --import tsx
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` | PC + Vercel | Clerk accounts. On Vercel they come from the Marketplace integration (type "Config"); on the PC they were pulled once into `.env.local`. Currently a Clerk **development** instance (`pk_test`) on both |
 | `NEXT_PUBLIC_CLERK_SIGN_IN_URL`, `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | PC + Vercel | `/sign-in`, `/sign-up` (not secret) |
 | `OWNER_USER_ID` | PC + server | The owner's Clerk user id. `DELTA_API_KEY`, `npm run sync`, the bot and the local Sync button act for this account only. Unset = `legacy` |
-| `APP_PASSWORD` | Vercel (to remove) | Old password login, unused since Clerk. Delete it from Vercel after the Clerk rollout |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | PC only | Bot `@Jornalling_bot`; only that chat is answered |
 | `TELEGRAM_SYNC_SECONDS` | optional | Bot sync interval, default 60, minimum 15 |
 | `AI_GATEWAY_API_KEY` | PC + Vercel | AI Gateway (free tier, see AI section) |
@@ -95,9 +94,9 @@ Scripts load `.env.local` via `node --env-file-if-exists=.env.local --import tsx
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | PC + Vercel | Web push signing (generated with `web-push`). Subject is the app URL, not an email |
 | `VERCEL_OIDC_TOKEN` | added by `vercel link` | Unused by the app's own logic except as an AI-configured signal |
 
-Vercel production has seven "sensitive" variables: `APP_PASSWORD` (to remove), `DATABASE_URL`,
+Vercel production has six "sensitive" variables: `DATABASE_URL`,
 `DATABASE_AUTH_TOKEN`, `AI_GATEWAY_API_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
-`VAPID_SUBJECT`, plus the two Clerk keys from the Marketplace integration. **Never** put Delta or Telegram keys on Vercel. Add a variable with
+`VAPID_SUBJECT`, plus the two Clerk keys from the Marketplace integration and the two plain Clerk paths. **Never** put Delta or Telegram keys on Vercel. Add a variable with
 `node -e "<print value from .env.local>" | npx vercel env add NAME production --sensitive --force`,
 so the value is never shown.
 
@@ -353,19 +352,22 @@ Week plan and progress:
   Rollout as done: back up Turso → merge to `main` (Vercel deploys) → run `deploy/server/update.sh` on the server
   (it migrates Turso to 0008 and restarts the bot) → the owner signs up on the hosted app →
   `npm run claim-legacy -- user_…` → set `OWNER_USER_ID` in `.env.local` on the PC and the server, restart the bot →
-  remove `APP_PASSWORD` from Vercel (still to do). The old code breaks on the new `app_state` key, so deploy and migrate together.
+  remove `APP_PASSWORD` from Vercel (done). The old code breaks on the new `app_state` key, so deploy and migrate together.
   In practice: stop the bot first, pull + `npm ci` + `db:migrate` by hand, claim, set `OWNER_USER_ID`, then start the bot,
   so the new bot never syncs into an empty account. The owner signed in locally, so their `users` row was inserted
   into Turso with the same values before the claim.
 - Day 3: encrypted per-user Delta keys and the multi-user sync worker.
 - Day 4: landing page, onboarding key wizard (whitelist the server's IPv4 and IPv6), demo mode.
 - Day 5: shared Edgebook Telegram bot with account linking, per-user push and AI, invite codes capped at 10.
-- Day 6: legal pages (DPDP Act), export and delete, monitoring, rate limits, security review.
+- Day 6: legal pages (DPDP Act), export and delete, monitoring, rate limits, security review. Also store each
+  user's email in `users.email` (from Clerk; it is still empty) for support mail, export and deletion.
 - Day 7: rebrand to Edgebook and launch. A Clerk **production** instance needs a domain we own, and its
   user ids differ from the development instance's, so the owner's data would need claiming again.
 
 ## Changelog
 
+- **2026-10-31**: The owner confirmed the live site shows their journal after signing in (Days 1-2 done).
+  Removed `APP_PASSWORD` from Vercel. Clerk sign-ups should be set to Restricted until invites exist.
 - **2026-10-31**: Multi-user rollout: Turso migrated to 0008 (backup first), all original data claimed by the owner's
   Clerk account, `OWNER_USER_ID` set on the PC and the server, Clerk sign-in/up paths added on Vercel.
 - **2026-10-31**: Edgebook Day 1: Clerk sign-in/sign-up replaced the password login; `users` table and
