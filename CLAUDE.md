@@ -134,6 +134,7 @@ src/
   lib/push.ts              Web push: save/remove subscriptions, sendPush() (drops 404/410 and 5-failure devices)
   lib/candles.ts           Candle window choice + per-trade cache
   lib/insights.ts          biggestLeaks (costliest habit tags), whatWorks, TAG_HINTS (one line per habit); tested
+  lib/score.ts             behaviourScore: six 0-100 habit dimensions, overall, label, trend; weakest(); tested
   lib/sync-errors.ts       explainSyncError (Delta errors → plain fix), formatAgo; tested
   lib/queries.ts, format.ts, tags.ts (labels, warnings, topTags), range.ts, app-icon.tsx (teal Edgebook mark)
   app/                     page.tsx (dashboard), trades/, trades/[id]/, journal/ (queue), review/ (AI), settings/,
@@ -145,7 +146,8 @@ src/
                            trade-price-chart, review-view, review-buttons, push-settings, filter-bar, nav-links, sync-button,
                            tag-chip, hide-on-login, delta-key-form, delta-connect (key steps + status, shared by Settings and
                            onboarding), auto-refresh, dashboard-view (dashboard for a user or the demo: P&L hero, "Your biggest
-                           leaks", tiles, charts), landing (hero with a live preview of the demo), onboarding, logo, ui.ts
+                           leaks", score card + icon tiles, charts), landing (+ landing/steps, landing/trade-feed), score-card (radar),
+                           site-menu (visitor header: section links, ☰ on phones), onboarding, logo, ui.ts
                            (shared classes), sync-status (header pill: synced / problem / not connected → Settings),
                            nav-links (desktop links + phone BottomNav)
 public/sw.js               Service worker: shows pushes, opens the tapped notification's URL (no offline cache)
@@ -235,6 +237,12 @@ queue of un-journaled closed trades, newest first, with Save & next.
   and sync failures (→ `/settings`). A push failure never blocks the Telegram message (`notifyPhone`).
 
 ### Public pages, onboarding and the demo
+- The landing page (rebuilt 2026-11-01, inspired by the layout of a competitor's site but with our own words, colours and
+  data): hero with a gradient headline, a live demo dashboard window, a bento grid (equity, behaviour score, sessions,
+  sync, AI), alternating feature rows, auto-advancing "How it works" steps, an animated trade feed, a feature marquee,
+  a founding-member pricing card, a closing call to action and a footer. Every number comes from the demo account.
+  Effects are CSS only (`.bg-grid`, `.text-gradient`, `.reveal` scroll-driven fade-ins, `.scroll-progress`, `.marquee`,
+  `.wave` in `globals.css`) and switch off for reduced motion.
 - `/` decides: signed out → the landing page (`components/landing.tsx`); signed in but never synced and no working key →
   onboarding (connect Delta, auto-refreshing every 5 s while the key is `pending`); otherwise the dashboard.
 - The header shows Demo / Sign in / Join the waitlist when signed out (`<Show when="signed-in">` from Clerk, inside
@@ -243,6 +251,14 @@ queue of un-journaled closed trades, newest first, with Save & next.
   tag links stay on `/demo`). Its data is made up (`lib/demo.ts`): scalps lose to fees, stopped swings win, moved stops cost
   the most, trailed stops pay; about -$158 over 90 trades. Fill ids are `demo-…` and order ids negative, so they never clash
   with Delta's; Clerk ids start with `user_`, so no account can be `demo`. Re-seed with `npm run demo:seed`.
+
+### Behaviour score (`lib/score.ts`, `components/score-card.tsx`)
+Each dimension is the share of closed trades **without** a habit, from the auto tags: Risk control (no `no_stop`/`late_stop`),
+Stop discipline (no `moved_stop`, among trades with a stop), Position sizing (no `oversized`/`heavy_margin`/`high_leverage`),
+Emotional control (no `sized_up_after_loss`/`added_to_loser`/`liquidated`), Patience (no `overtrading`/`hold:scalp`),
+Journaling (journaled). Overall = average; 80+ Strong, 60+ Solid, 40+ Needs work, else Leaking. Trend = the last ≤20 trades
+vs the ≤20 before. Needs 5 closed trades. It measures process, not P&L. Shown on the dashboard (with the weakest dimension's
+tip) and on the landing page (the demo trader). Owner: 53 Needs work on 2026-11-01 (journaling 1%).
 
 ### Per-user Delta keys (`lib/keys/`, `/settings`)
 - On Settings → Delta Exchange a user creates a **Read Data** key on Delta, whitelists our server's IPv4 and IPv6
@@ -417,6 +433,9 @@ Week plan and progress:
 
 ## Changelog
 
+- **2026-11-01**: Behaviour score (six habit dimensions, trend, radar card); dashboard greeting and icon stat tiles; the
+  landing page rebuilt as a full product page (bento grid, feature rows, animated steps and trade feed, pricing card,
+  footer) with a ☰ visitor menu on phones.
 - **2026-11-01**: UI/UX pass: dark-only theme with a teal brand and Edgebook logo (the delta-triangle icon is gone),
   phone bottom tab bar and trade cards, dashboard led by net P&L and "Your biggest leaks", calendar shows 3 months first,
   top-3 tags plus "+N", a sync status pill with plain-language errors, swipeable filters on phones, a live demo
