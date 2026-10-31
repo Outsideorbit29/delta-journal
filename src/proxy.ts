@@ -17,7 +17,7 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Everything except static assets, the login page, and the manifest and icons
-  // (browsers fetch those without cookies when installing the app).
-  matcher: ["/((?!_next/static|_next/image|login|manifest\\.webmanifest|favicon\\.ico|icon|apple-icon|pwa-icon).*)"],
+  // Everything except static assets, the login page, and the manifest, icons
+  // and service worker (browsers fetch those without cookies).
+  matcher: ["/((?!_next/static|_next/image|login|manifest\\.webmanifest|favicon\\.ico|icon|apple-icon|pwa-icon|sw\\.js).*)"],
 };

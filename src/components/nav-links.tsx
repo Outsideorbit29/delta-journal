@@ -9,6 +9,7 @@ const LINKS = [
   { href: "/trades", label: "Trades" },
   { href: "/journal", label: "Journal" },
   { href: "/review", label: "AI review" },
+  { href: "/settings", label: "Settings" },
 ];
 
 /** Top navigation. The current page is only known at request time, so it streams in. */
