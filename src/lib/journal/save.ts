@@ -21,8 +21,11 @@ export const EMPTY_ENTRY: JournalInput = {
 };
 
 /** The saved journal entry for a trade, as a JournalInput, or null. */
-export async function loadJournalEntry(db: Db, tradeId: string): Promise<JournalInput | null> {
-  const [row] = await db.select().from(schema.journalEntries).where(eq(schema.journalEntries.tradeId, tradeId));
+export async function loadJournalEntry(db: Db, userId: string, tradeId: string): Promise<JournalInput | null> {
+  const [row] = await db
+    .select()
+    .from(schema.journalEntries)
+    .where(and(eq(schema.journalEntries.userId, userId), eq(schema.journalEntries.tradeId, tradeId)));
   if (!row) return null;
   return {
     setup: row.setup as Setup | null,
@@ -41,8 +44,12 @@ export async function loadJournalEntry(db: Db, tradeId: string): Promise<Journal
  * recomputes its risk and R from the planned stop. Shared by the web form and
  * the Telegram bot.
  */
-export async function saveJournalEntry(db: Db, tradeId: string, input: Record<string, unknown>): Promise<SaveJournalResult> {
-  const [trade] = await db.select().from(schema.trades).where(eq(schema.trades.id, tradeId));
+export async function saveJournalEntry(db: Db, userId: string, tradeId: string, input: Record<string, unknown>): Promise<SaveJournalResult> {
+  // Looking the trade up by owner too means nobody can journal someone else's trade by guessing its id.
+  const [trade] = await db
+    .select()
+    .from(schema.trades)
+    .where(and(eq(schema.trades.userId, userId), eq(schema.trades.id, tradeId)));
   if (!trade) return { ok: false, message: "That trade no longer exists. Sync and try again." };
 
   const parsed = parseJournalInput(input);
@@ -62,17 +69,22 @@ export async function saveJournalEntry(db: Db, tradeId: string, input: Record<st
   }
 
   const now = Date.now();
-  const values = { tradeId, ...entry, updatedAt: now };
+  const values = { tradeId, userId, ...entry, updatedAt: now };
   await db.transaction(async (tx) => {
     await tx
       .insert(schema.journalEntries)
       .values({ ...values, createdAt: now })
       .onConflictDoUpdate({ target: schema.journalEntries.tradeId, set: values });
-    await tx.delete(schema.tradeTags).where(and(eq(schema.tradeTags.tradeId, tradeId), eq(schema.tradeTags.source, "user")));
+    await tx
+      .delete(schema.tradeTags)
+      .where(and(eq(schema.tradeTags.userId, userId), eq(schema.tradeTags.tradeId, tradeId), eq(schema.tradeTags.source, "user")));
     // Journal tags have their own prefixes (setup:, emotion:, ...), so they never clash with automatic ones.
     const tags = journalTags(entry);
-    if (tags.length) await tx.insert(schema.tradeTags).values(tags.map((tag) => ({ tradeId, tag, source: "user" as const, detail: null })));
-    await tx.update(schema.trades).set(effectiveRisk(trade, entry.plannedStop)).where(eq(schema.trades.id, tradeId));
+    if (tags.length) await tx.insert(schema.tradeTags).values(tags.map((tag) => ({ tradeId, userId, tag, source: "user" as const, detail: null })));
+    await tx
+      .update(schema.trades)
+      .set(effectiveRisk(trade, entry.plannedStop))
+      .where(and(eq(schema.trades.userId, userId), eq(schema.trades.id, tradeId)));
   });
 
   return { ok: true, message: "Saved" };

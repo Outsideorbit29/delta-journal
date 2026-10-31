@@ -13,6 +13,7 @@ const T0 = Date.UTC(2026, 9, 13, 18);
 function trade(id: string, closeHours: number, netPnl: number, extra: Partial<Trade> = {}): Trade {
   return {
     id,
+    userId: "u1",
     productId: 1,
     symbol: "XAUTUSD",
     contractType: "perpetual_futures",

@@ -66,12 +66,13 @@ const say = (text: string, opts: { chatId?: string; replyTo?: number } = {}): Tg
 });
 
 function ctx(tg: FakeTelegram, chatId: string | null = CHAT, ai: BotAi | null = null): BotContext {
-  return { db, tg, chatId, sync: async () => ({ fills: 0, rebuild: { trades: 0 } }), ai, now: () => now };
+  return { userId: "u1", db, tg, chatId, sync: async () => ({ fills: 0, rebuild: { trades: 0 } }), ai, now: () => now };
 }
 
 async function insertTrade(id: string, closedTs: number, netPnl = -4.75) {
   await db.insert(schema.trades).values({
     id,
+    userId: "u1",
     productId: 1,
     symbol: "XAUTUSD",
     contractType: "perpetual_futures",
@@ -101,8 +102,8 @@ async function insertTrade(id: string, closedTs: number, netPnl = -4.75) {
     warnings: [],
   });
   await db.insert(schema.tradeTags).values([
-    { tradeId: id, tag: "after_loss", source: "auto", detail: null },
-    { tradeId: id, tag: "moved_stop", source: "auto", detail: null },
+    { tradeId: id, userId: "u1", tag: "after_loss", source: "auto", detail: null },
+    { tradeId: id, userId: "u1", tag: "moved_stop", source: "auto", detail: null },
   ]);
 }
 
@@ -240,7 +241,7 @@ describe("Telegram bot with AI", () => {
     },
     review: async (days) => {
       calls.push(`review:${days}`);
-      return { id: 1, periodStart: T0 - 7 * 86_400_000, periodEnd: T0, tradeCount: 3, model: "fake", review, inputTokens: 1, outputTokens: 1, createdAt: T0 };
+      return { id: 1, userId: "u1", periodStart: T0 - 7 * 86_400_000, periodEnd: T0, tradeCount: 3, model: "fake", review, inputTokens: 1, outputTokens: 1, createdAt: T0 };
     },
   };
   const voice = (replyTo: number): TgUpdate => ({

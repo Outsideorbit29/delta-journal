@@ -2,7 +2,7 @@
 // notifications come from this app; push services (Google, Apple, Mozilla)
 // deliver them even when the app is closed.
 
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import webpush, { WebPushError } from "web-push";
 import { schema, type Db } from "@/db";
 
@@ -51,24 +51,27 @@ export function isBrowserSubscription(v: unknown): v is BrowserSubscription {
   );
 }
 
-export async function saveSubscription(db: Db, sub: BrowserSubscription, label: string | null, now = Date.now()) {
-  const values = { endpoint: sub.endpoint, p256dh: sub.keys.p256dh, auth: sub.keys.auth, label, createdAt: now, failures: 0 };
+/** Stores a device for a user. A browser that signs in as someone else moves to that user. */
+export async function saveSubscription(db: Db, userId: string, sub: BrowserSubscription, label: string | null, now = Date.now()) {
+  const values = { userId, endpoint: sub.endpoint, p256dh: sub.keys.p256dh, auth: sub.keys.auth, label, createdAt: now, failures: 0 };
   await db.insert(schema.pushSubscriptions).values(values).onConflictDoUpdate({ target: schema.pushSubscriptions.endpoint, set: values });
 }
 
-export async function removeSubscription(db: Db, endpoint: string) {
-  await db.delete(schema.pushSubscriptions).where(eq(schema.pushSubscriptions.endpoint, endpoint));
+export async function removeSubscription(db: Db, userId: string, endpoint: string) {
+  await db
+    .delete(schema.pushSubscriptions)
+    .where(and(eq(schema.pushSubscriptions.userId, userId), eq(schema.pushSubscriptions.endpoint, endpoint)));
 }
 
 type Sender = (sub: BrowserSubscription, payload: string) => Promise<unknown>;
 
 /**
- * Sends a notification to every subscribed device. Subscriptions the push
- * service reports as gone (404/410), or that keep failing, are removed.
+ * Sends a notification to every device the user subscribed. Subscriptions the
+ * push service reports as gone (404/410), or that keep failing, are removed.
  * `send` is injectable for tests.
  */
-export async function sendPush(db: Db, message: PushMessage, send?: Sender, now = Date.now()): Promise<PushResult> {
-  const subs = await db.select().from(schema.pushSubscriptions);
+export async function sendPush(db: Db, userId: string, message: PushMessage, send?: Sender, now = Date.now()): Promise<PushResult> {
+  const subs = await db.select().from(schema.pushSubscriptions).where(eq(schema.pushSubscriptions.userId, userId));
   if (!subs.length) return { sent: 0, removed: 0, failed: 0 };
   const deliver: Sender =
     send ??
@@ -87,7 +90,7 @@ export async function sendPush(db: Db, message: PushMessage, send?: Sender, now 
     } catch (err) {
       const gone = err instanceof WebPushError && (err.statusCode === 404 || err.statusCode === 410);
       if (gone || s.failures + 1 >= MAX_FAILURES) {
-        await removeSubscription(db, s.endpoint);
+        await removeSubscription(db, userId, s.endpoint);
         result.removed++;
       } else {
         await db

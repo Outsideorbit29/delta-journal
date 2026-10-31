@@ -8,7 +8,9 @@ import { getDb, type Db } from "@/db";
 import { AI_MODELS, aiConfigured } from "@/lib/ai/models";
 import { generateReview } from "@/lib/ai/review";
 import { suggestFromNote } from "@/lib/ai/suggest";
+import { DeltaClient } from "@/lib/delta/client";
 import { pushConfigured, sendPush } from "@/lib/push";
+import { ownerUserId } from "@/lib/runtime";
 import { syncAll } from "@/lib/sync";
 import { TelegramApi, TelegramError } from "@/lib/telegram/api";
 import {
@@ -38,20 +40,23 @@ async function main() {
   const chatId = process.env.TELEGRAM_CHAT_ID?.trim() || null;
 
   const db = await getDb();
+  // Until accounts can link their own Telegram chats, the bot serves the owner.
+  const userId = ownerUserId();
   const ctx: BotContext = {
+    userId,
     db,
     tg: new TelegramApi(token),
     chatId,
-    sync: () => syncAll(),
-    ai: aiConfigured() ? botAi(db) : null,
-    push: pushConfigured() ? (message) => sendPush(db, message) : null,
+    sync: () => syncAll(userId, DeltaClient.fromEnv()),
+    ai: aiConfigured() ? botAi(db, userId) : null,
+    push: pushConfigured() ? (message) => sendPush(db, userId, message) : null,
   };
   await ctx.tg.setCommands(COMMANDS);
 
   if (!chatId) {
     log("TELEGRAM_CHAT_ID is not set. Send /start to your bot in Telegram to get it.");
   } else {
-    log(`Bot running for chat ${chatId}. Syncing Delta every ${SYNC_EVERY_MS / 1000}s. Ctrl+C to stop.`);
+    log(`Bot running for chat ${chatId} as user ${userId}. Syncing Delta every ${SYNC_EVERY_MS / 1000}s. Ctrl+C to stop.`);
     log(ctx.ai ? "AI features on: voice notes, note suggestions and weekly reviews." : "AI features off (no AI_GATEWAY_API_KEY).");
     log(ctx.push ? "Phone notifications on." : "Phone notifications off (no VAPID keys).");
     void syncLoop(ctx);
@@ -114,11 +119,11 @@ async function syncLoop(ctx: BotContext) {
 }
 
 /** The AI calls the bot makes, all through AI Gateway. */
-function botAi(db: Db): BotAi {
+function botAi(db: Db, userId: string): BotAi {
   return {
     transcribe: async (audio) => (await transcribe({ model: AI_MODELS.transcribe, audio })).text,
     suggest: (note, trade) => suggestFromNote(note, trade),
-    review: (days) => generateReview(db, days),
+    review: (days) => generateReview(db, userId, days),
   };
 }
 

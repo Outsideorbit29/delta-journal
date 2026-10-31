@@ -1,5 +1,28 @@
 import { index, integer, primaryKey, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
+/**
+ * Owner of rows created before accounts existed. `npm run claim-legacy` hands
+ * them to a real user; no signed-in user ever has this id.
+ */
+export const LEGACY_USER = "legacy";
+
+/** Every per-user row carries its owner's id (the Clerk user id). */
+const ownerId = () => text("user_id").notNull().default(LEGACY_USER);
+
+// ---------------------------------------------------------------------------
+// People who signed up. The id is the Clerk user id.
+// ---------------------------------------------------------------------------
+
+export const users = sqliteTable("users", {
+  id: text("id").primaryKey(),
+  email: text("email"),
+  createdAt: integer("created_at").notNull(),
+  /** "founder" for the first 10 free users; paid plans come later. */
+  plan: text("plan").notNull().default("founder"),
+  /** Free access ends at this time (ms); null means no limit. */
+  accessUntil: integer("access_until"),
+});
+
 // ---------------------------------------------------------------------------
 // Raw data synced from Delta. Rows are upserted by Delta's own ids, so a sync
 // can safely be re-run. `raw` keeps the full API record for anything we have
@@ -10,6 +33,7 @@ export const fills = sqliteTable(
   "fills",
   {
     id: text("id").primaryKey(),
+    userId: ownerId(),
     orderId: text("order_id").notNull(),
     productId: integer("product_id").notNull(),
     symbol: text("symbol").notNull(),
@@ -32,13 +56,14 @@ export const fills = sqliteTable(
     ts: integer("ts").notNull(),
     raw: text("raw", { mode: "json" }).notNull(),
   },
-  (t) => [index("fills_product_ts").on(t.productId, t.ts)],
+  (t) => [index("fills_user_product_ts").on(t.userId, t.productId, t.ts)],
 );
 
 export const orders = sqliteTable(
   "orders",
   {
     id: integer("id").primaryKey(),
+    userId: ownerId(),
     productId: integer("product_id").notNull(),
     symbol: text("symbol").notNull(),
     side: text("side").notNull(),
@@ -58,13 +83,14 @@ export const orders = sqliteTable(
     updatedTs: integer("updated_ts"),
     raw: text("raw", { mode: "json" }).notNull(),
   },
-  (t) => [index("orders_product_ts").on(t.productId, t.ts)],
+  (t) => [index("orders_user_product_ts").on(t.userId, t.productId, t.ts)],
 );
 
 export const walletTransactions = sqliteTable(
   "wallet_transactions",
   {
     uuid: text("uuid").primaryKey(),
+    userId: ownerId(),
     type: text("type").notNull(),
     amount: real("amount").notNull(),
     balance: real("balance"),
@@ -74,16 +100,21 @@ export const walletTransactions = sqliteTable(
     ts: integer("ts").notNull(),
     raw: text("raw", { mode: "json" }).notNull(),
   },
-  (t) => [index("wallet_type_ts").on(t.type, t.ts)],
+  (t) => [index("wallet_user_type_ts").on(t.userId, t.type, t.ts)],
 );
 
-export const syncState = sqliteTable("sync_state", {
-  resource: text("resource").primaryKey(),
-  lastTs: integer("last_ts"),
-  lastRunAt: integer("last_run_at"),
-  lastCount: integer("last_count"),
-  lastError: text("last_error"),
-});
+export const syncState = sqliteTable(
+  "sync_state",
+  {
+    userId: ownerId(),
+    resource: text("resource").notNull(),
+    lastTs: integer("last_ts"),
+    lastRunAt: integer("last_run_at"),
+    lastCount: integer("last_count"),
+    lastError: text("last_error"),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.resource] })],
+);
 
 // ---------------------------------------------------------------------------
 // Derived data, rebuilt from the raw tables. A trade's id is the id of the
@@ -95,6 +126,7 @@ export const trades = sqliteTable(
   "trades",
   {
     id: text("id").primaryKey(),
+    userId: ownerId(),
     productId: integer("product_id").notNull(),
     symbol: text("symbol").notNull(),
     contractType: text("contract_type").notNull(),
@@ -139,13 +171,14 @@ export const trades = sqliteTable(
     rMultiple: real("r_multiple"),
     warnings: text("warnings", { mode: "json" }).$type<string[]>().notNull(),
   },
-  (t) => [index("trades_opened").on(t.openedTs)],
+  (t) => [index("trades_user_opened").on(t.userId, t.openedTs)],
 );
 
 export const tradeFills = sqliteTable(
   "trade_fills",
   {
     tradeId: text("trade_id").notNull(),
+    userId: ownerId(),
     fillId: text("fill_id").notNull(),
     // Signed contracts of this fill that belong to the trade (a flip fill is split).
     qty: integer("qty").notNull(),
@@ -181,17 +214,19 @@ export const tradeTags = sqliteTable(
   "trade_tags",
   {
     tradeId: text("trade_id").notNull(),
+    userId: ownerId(),
     tag: text("tag").notNull(),
     source: text("source", { enum: ["auto", "user"] }).notNull(),
     detail: text("detail"),
   },
-  (t) => [primaryKey({ columns: [t.tradeId, t.tag] }), index("trade_tags_tag").on(t.tag)],
+  (t) => [primaryKey({ columns: [t.tradeId, t.tag] }), index("trade_tags_user_tag").on(t.userId, t.tag)],
 );
 
 // What you write about a trade. Keyed by trade id, which is stable across
 // rebuilds, and never touched by a sync. Choices are keys from src/lib/journal/vocab.ts.
 export const journalEntries = sqliteTable("journal_entries", {
   tradeId: text("trade_id").primaryKey(),
+  userId: ownerId(),
   setup: text("setup"),
   emotions: text("emotions", { mode: "json" }).$type<string[]>().notNull(),
   mistakes: text("mistakes", { mode: "json" }).$type<string[]>().notNull(),
@@ -211,6 +246,7 @@ export const telegramMessages = sqliteTable(
   {
     chatId: text("chat_id").notNull(),
     messageId: integer("message_id").notNull(),
+    userId: ownerId(),
     tradeId: text("trade_id").notNull(),
     kind: text("kind", { enum: ["trade", "note_prompt", "suggestion"] }).notNull(),
     // For "suggestion" messages: the AI-suggested answers waiting for a tap.
@@ -220,17 +256,24 @@ export const telegramMessages = sqliteTable(
   (t) => [primaryKey({ columns: [t.chatId, t.messageId] }), index("telegram_messages_trade").on(t.tradeId)],
 );
 
-// Small key/value store for process state such as the Telegram update offset.
-export const appState = sqliteTable("app_state", {
-  key: text("key").primaryKey(),
-  value: text("value").notNull(),
-});
+// Small key/value store for process state. userId "" holds process-wide state
+// (such as the Telegram update offset); otherwise the value belongs to that user.
+export const appState = sqliteTable(
+  "app_state",
+  {
+    userId: text("user_id").notNull().default(""),
+    key: text("key").notNull(),
+    value: text("value").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.key] })],
+);
 
 // AI coaching reviews, kept so you can look back at past advice.
 export const aiReviews = sqliteTable(
   "ai_reviews",
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: ownerId(),
     periodStart: integer("period_start").notNull(),
     periodEnd: integer("period_end").notNull(),
     tradeCount: integer("trade_count").notNull(),
@@ -240,13 +283,14 @@ export const aiReviews = sqliteTable(
     outputTokens: integer("output_tokens"),
     createdAt: integer("created_at").notNull(),
   },
-  (t) => [index("ai_reviews_created").on(t.createdAt)],
+  (t) => [index("ai_reviews_user_created").on(t.userId, t.createdAt)],
 );
 
 // Browsers (phones) that asked for push notifications. The endpoint is the
 // push service URL for that browser; p256dh/auth encrypt the payload.
 export const pushSubscriptions = sqliteTable("push_subscriptions", {
   endpoint: text("endpoint").primaryKey(),
+  userId: ownerId(),
   p256dh: text("p256dh").notNull(),
   auth: text("auth").notNull(),
   label: text("label"),

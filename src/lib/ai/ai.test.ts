@@ -67,6 +67,7 @@ describe("weekly review", () => {
     dir = mkdtempSync(path.join(tmpdir(), "journal-ai-"));
     db = await openDatabase(`file:${path.join(dir, "test.db")}`);
     const base = {
+      userId: "u1",
       productId: 1,
       symbol: "XAUTUSD",
       contractType: "perpetual_futures",
@@ -97,12 +98,13 @@ describe("weekly review", () => {
       { ...base, id: "old", openedTs: NOW - 30 * 86_400_000, closedTs: NOW - 30 * 86_400_000 + 1, netPnl: 10 },
     ]);
     await db.insert(schema.tradeTags).values([
-      { tradeId: "in1", tag: "hold:scalp", source: "auto" },
-      { tradeId: "in2", tag: "hold:scalp", source: "auto" },
-      { tradeId: "in2", tag: "emotion:fomo", source: "user" },
+      { tradeId: "in1", userId: "u1", tag: "hold:scalp", source: "auto" },
+      { tradeId: "in2", userId: "u1", tag: "hold:scalp", source: "auto" },
+      { tradeId: "in2", userId: "u1", tag: "emotion:fomo", source: "user" },
     ]);
     await db.insert(schema.journalEntries).values({
       tradeId: "in2",
+      userId: "u1",
       setup: "breakout",
       emotions: ["fomo"],
       mistakes: [],
@@ -120,7 +122,7 @@ describe("weekly review", () => {
   });
 
   it("gives the coach the period's stats, tag results and trades with journal notes", async () => {
-    const input = await buildReviewInput(db, { start: NOW - 7 * 86_400_000, end: NOW });
+    const input = await buildReviewInput(db, "u1", { start: NOW - 7 * 86_400_000, end: NOW });
     expect(input.stats).toMatchObject({ trades: 2, netPnl: -3, winRatePct: 0 });
     expect(input.allTimeStats.trades).toBe(3);
     expect(input.journaled).toBe("1 of 2 trades");
@@ -132,15 +134,15 @@ describe("weekly review", () => {
 
   it("stores the review with its period and token usage", async () => {
     const { model, prompts } = mockModel(review);
-    const row = await generateReview(db, 7, model, NOW);
+    const row = await generateReview(db, "u1", 7, model, NOW);
     expect(row).toMatchObject({ tradeCount: 2, review, inputTokens: 1200, outputTokens: 300, periodEnd: NOW });
     expect(prompts[0]).toContain("Do not recommend specific trades");
-    expect((await listReviews(db)).map((r) => r.review.headline)).toEqual(["Fees ate your edge"]);
+    expect((await listReviews(db, "u1")).map((r) => r.review.headline)).toEqual(["Fees ate your edge"]);
   });
 
   it("skips a period with no closed trades", async () => {
     const { model, prompts } = mockModel(review);
-    expect(await generateReview(db, 7, model, NOW - 60 * 86_400_000)).toBeNull();
+    expect(await generateReview(db, "u1", 7, model, NOW - 60 * 86_400_000)).toBeNull();
     expect(prompts).toHaveLength(0);
   });
 });

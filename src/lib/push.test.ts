@@ -33,10 +33,10 @@ describe("push", () => {
   });
 
   it("sends the message to every device and drops devices the push service says are gone", async () => {
-    await saveSubscription(db, sub(1), "Android · Chrome");
-    await saveSubscription(db, sub(2), "iPhone/iPad · Safari");
+    await saveSubscription(db, "u1", sub(1), "Android · Chrome");
+    await saveSubscription(db, "u1", sub(2), "iPhone/iPad · Safari");
     const delivered: string[] = [];
-    const result = await sendPush(db, message, async (s, payload) => {
+    const result = await sendPush(db, "u1", message, async (s, payload) => {
       if (s.endpoint.endsWith("/2")) throw gone();
       delivered.push(`${s.endpoint} ${payload}`);
     });
@@ -49,18 +49,18 @@ describe("push", () => {
     const failing = async () => {
       throw new WebPushError("Unavailable", 503, {}, "", "");
     };
-    for (let i = 0; i < 4; i++) expect(await sendPush(db, message, failing)).toEqual({ sent: 0, removed: 0, failed: 1 });
-    expect(await sendPush(db, message, failing)).toEqual({ sent: 0, removed: 1, failed: 0 });
+    for (let i = 0; i < 4; i++) expect(await sendPush(db, "u1", message, failing)).toEqual({ sent: 0, removed: 0, failed: 1 });
+    expect(await sendPush(db, "u1", message, failing)).toEqual({ sent: 0, removed: 1, failed: 0 });
     expect(await db.select().from(schema.pushSubscriptions)).toHaveLength(0);
   });
 
   it("does nothing without subscriptions, and re-subscribing replaces the keys", async () => {
-    expect(await sendPush(db, message, async () => {})).toEqual({ sent: 0, removed: 0, failed: 0 });
-    await saveSubscription(db, sub(3), null);
-    await saveSubscription(db, { ...sub(3), keys: { p256dh: "new", auth: "new" } }, "Windows · Edge");
+    expect(await sendPush(db, "u1", message, async () => {})).toEqual({ sent: 0, removed: 0, failed: 0 });
+    await saveSubscription(db, "u1", sub(3), null);
+    await saveSubscription(db, "u1", { ...sub(3), keys: { p256dh: "new", auth: "new" } }, "Windows · Edge");
     const rows = await db.select().from(schema.pushSubscriptions);
     expect(rows).toMatchObject([{ endpoint: "https://push.example/3", p256dh: "new", label: "Windows · Edge" }]);
-    await removeSubscription(db, sub(3).endpoint);
+    await removeSubscription(db, "u1", sub(3).endpoint);
     expect(await db.select().from(schema.pushSubscriptions)).toHaveLength(0);
   });
 });

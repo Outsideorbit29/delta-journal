@@ -1,4 +1,5 @@
 import { connection } from "next/server";
+import { requireUserId } from "@/lib/session";
 import { PushSettings } from "@/components/push-settings";
 import { aiConfigured } from "@/lib/ai/models";
 import { formatDateTime } from "@/lib/format";
@@ -8,7 +9,8 @@ import { canSyncHere } from "@/lib/runtime";
 
 export default async function SettingsPage() {
   await connection();
-  const sync = await getSyncStatus();
+  const userId = await requireUserId();
+  const sync = await getSyncStatus(userId);
   const lastRun = Math.max(0, ...sync.map((s) => s.lastRunAt ?? 0));
   const error = sync.find((s) => s.lastError)?.lastError;
 

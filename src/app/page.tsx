@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { connection } from "next/server";
+import { requireUserId } from "@/lib/session";
 import { CostBreakdown } from "@/components/charts/cost-breakdown";
 import { EquityChart } from "@/components/charts/equity-chart";
 import { PnlCalendar } from "@/components/charts/pnl-calendar";
@@ -14,13 +15,14 @@ import { computeStats, dailyPnl, equityCurve, groupStats, tagPerformance, type G
 
 export default async function Dashboard({ searchParams }: PageProps<"/">) {
   await connection();
+  const userId = await requireUserId();
   const filters = readFilters(await searchParams);
   const [trades, symbols, syncStatus, journaled, [latestReview]] = await Promise.all([
-    listTrades({ symbol: filters.symbol, tag: filters.tag, sinceTs: rangeStart(filters.range) }),
-    listSymbols(),
-    getSyncStatus(),
-    journaledTradeIds(),
-    getDb().then((db) => listReviews(db, 1)),
+    listTrades(userId, { symbol: filters.symbol, tag: filters.tag, sinceTs: rangeStart(filters.range) }),
+    listSymbols(userId),
+    getSyncStatus(userId),
+    journaledTradeIds(userId),
+    getDb().then((db) => listReviews(db, userId, 1)),
   ]);
   const journaledHere = trades.filter((t) => t.status === "closed" && journaled.has(t.id)).length;
 

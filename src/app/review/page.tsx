@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { connection } from "next/server";
+import { requireUserId } from "@/lib/session";
 import { ReviewButtons } from "@/components/review-buttons";
 import { ReviewView } from "@/components/review-view";
 import { getDb } from "@/db";
@@ -9,7 +10,8 @@ import { formatDateTime } from "@/lib/format";
 
 export default async function ReviewPage({ searchParams }: PageProps<"/review">) {
   await connection();
-  const reviews = await listReviews(await getDb());
+  const userId = await requireUserId();
+  const reviews = await listReviews(await getDb(), userId);
   const id = Number((await searchParams).id);
   const shown = reviews.find((r) => r.id === id) ?? reviews[0];
 

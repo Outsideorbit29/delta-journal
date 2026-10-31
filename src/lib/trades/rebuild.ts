@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { effectiveRisk } from "@/lib/journal/entry";
 import { schema, type Db } from "@/db";
 import { analyzeTrades } from "./analyze";
@@ -13,13 +13,16 @@ export interface RebuildSummary {
   warnings: number;
 }
 
-/** Recomputes trades, their fill legs and auto tags from the raw synced tables. */
-export async function rebuildTrades(db: Db): Promise<RebuildSummary> {
+/** Recomputes one user's trades, their fill legs and auto tags from that user's raw synced data. */
+export async function rebuildTrades(db: Db, userId: string): Promise<RebuildSummary> {
   const [fills, orders, wallet, journal] = await Promise.all([
-    db.select().from(schema.fills),
-    db.select().from(schema.orders),
-    db.select().from(schema.walletTransactions),
-    db.select({ tradeId: schema.journalEntries.tradeId, plannedStop: schema.journalEntries.plannedStop }).from(schema.journalEntries),
+    db.select().from(schema.fills).where(eq(schema.fills.userId, userId)),
+    db.select().from(schema.orders).where(eq(schema.orders.userId, userId)),
+    db.select().from(schema.walletTransactions).where(eq(schema.walletTransactions.userId, userId)),
+    db
+      .select({ tradeId: schema.journalEntries.tradeId, plannedStop: schema.journalEntries.plannedStop })
+      .from(schema.journalEntries)
+      .where(eq(schema.journalEntries.userId, userId)),
   ]);
   const plannedStops = new Map(journal.map((j) => [j.tradeId, j.plannedStop]));
 
@@ -30,6 +33,7 @@ export async function rebuildTrades(db: Db): Promise<RebuildSummary> {
     ...effectiveRisk({ ...t, stopOrderRisk: t.riskAmount }, plannedStops.get(t.id) ?? null),
     stopOrderRisk: t.riskAmount,
     id: t.id,
+    userId,
     productId: t.productId,
     symbol: t.symbol,
     contractType: t.contractType,
@@ -66,14 +70,14 @@ export async function rebuildTrades(db: Db): Promise<RebuildSummary> {
     warnings: t.warnings,
   }));
   const legRows = analyzed.flatMap((t) =>
-    t.legs.map((l) => ({ tradeId: t.id, fillId: l.fillId, qty: l.qty, kind: l.kind, price: l.price, fee: l.fee, ts: l.ts })),
+    t.legs.map((l) => ({ tradeId: t.id, userId, fillId: l.fillId, qty: l.qty, kind: l.kind, price: l.price, fee: l.fee, ts: l.ts })),
   );
-  const tagRows = analyzed.flatMap((t) => t.tags.map((g) => ({ tradeId: t.id, tag: g.tag, detail: g.detail, source: "auto" as const })));
+  const tagRows = analyzed.flatMap((t) => t.tags.map((g) => ({ tradeId: t.id, userId, tag: g.tag, detail: g.detail, source: "auto" as const })));
 
   await db.transaction(async (tx) => {
-    await tx.delete(schema.trades);
-    await tx.delete(schema.tradeFills);
-    await tx.delete(schema.tradeTags).where(eq(schema.tradeTags.source, "auto"));
+    await tx.delete(schema.trades).where(eq(schema.trades.userId, userId));
+    await tx.delete(schema.tradeFills).where(eq(schema.tradeFills.userId, userId));
+    await tx.delete(schema.tradeTags).where(and(eq(schema.tradeTags.userId, userId), eq(schema.tradeTags.source, "auto")));
     for (let i = 0; i < tradeRows.length; i += BATCH) await tx.insert(schema.trades).values(tradeRows.slice(i, i + BATCH));
     for (let i = 0; i < legRows.length; i += BATCH) await tx.insert(schema.tradeFills).values(legRows.slice(i, i + BATCH));
     for (let i = 0; i < tagRows.length; i += BATCH) {

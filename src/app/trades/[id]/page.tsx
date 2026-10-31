@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
+import { requireUserId } from "@/lib/session";
 import { JournalSection } from "@/components/journal-section";
 import { TagChip } from "@/components/tag-chip";
 import { TradePriceChart } from "@/components/trade-price-chart";
@@ -11,9 +12,10 @@ const EXIT_LABELS = { stop: "Stop-loss", target: "Take-profit", liquidation: "Li
 
 export default async function TradePage({ params }: PageProps<"/trades/[id]">) {
   await connection();
+  const userId = await requireUserId();
   const { id } = await params;
   const tradeId = decodeURIComponent(id);
-  const [trade, entry] = await Promise.all([getTrade(tradeId), getJournalEntry(tradeId)]);
+  const [trade, entry] = await Promise.all([getTrade(userId, tradeId), getJournalEntry(userId, tradeId)]);
   if (!trade) notFound();
   const plannedReward =
     entry?.plannedTarget && trade.riskSource === "journal" && trade.riskAmount

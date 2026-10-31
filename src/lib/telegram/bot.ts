@@ -19,6 +19,8 @@ export interface BotAi {
 }
 
 export interface BotContext {
+  /** The Edgebook user this bot serves (the owner until accounts can link their own chats). */
+  userId: string;
   db: Db;
   tg: TelegramClient;
   /** The only chat the bot answers. Null until configured, when it only helps you find your chat id. */
@@ -75,19 +77,23 @@ export async function handleUpdate(ctx: BotContext, update: TgUpdate): Promise<v
 export async function notifyClosedTrades(ctx: BotContext): Promise<number> {
   if (!ctx.chatId) return 0;
   const now = ctx.now?.() ?? Date.now();
-  const since = await getState(ctx.db, STATE_NOTIFY_SINCE);
+  const since = await getState(ctx.db, STATE_NOTIFY_SINCE, ctx.userId);
   if (since === null) {
-    await setState(ctx.db, STATE_NOTIFY_SINCE, String(now));
+    await setState(ctx.db, STATE_NOTIFY_SINCE, String(now), ctx.userId);
     return 0;
   }
 
-  const carded = ctx.db.select({ id: schema.telegramMessages.tradeId }).from(schema.telegramMessages).where(eq(schema.telegramMessages.kind, "trade"));
-  const journaled = ctx.db.select({ id: schema.journalEntries.tradeId }).from(schema.journalEntries);
+  const carded = ctx.db
+    .select({ id: schema.telegramMessages.tradeId })
+    .from(schema.telegramMessages)
+    .where(and(eq(schema.telegramMessages.userId, ctx.userId), eq(schema.telegramMessages.kind, "trade")));
+  const journaled = ctx.db.select({ id: schema.journalEntries.tradeId }).from(schema.journalEntries).where(eq(schema.journalEntries.userId, ctx.userId));
   const due = await ctx.db
     .select({ id: schema.trades.id, symbol: schema.trades.symbol, direction: schema.trades.direction, netPnl: schema.trades.netPnl })
     .from(schema.trades)
     .where(
       and(
+        eq(schema.trades.userId, ctx.userId),
         eq(schema.trades.status, "closed"),
         gte(schema.trades.closedTs, Number(since)),
         notInArray(schema.trades.id, carded),
@@ -170,9 +176,9 @@ async function addNote(ctx: BotContext, tradeId: string, text: string | undefine
     await ctx.tg.sendMessage(chatId, "Notes need to be typed text.");
     return;
   }
-  const entry = (await loadJournalEntry(ctx.db, tradeId)) ?? EMPTY_ENTRY;
+  const entry = (await loadJournalEntry(ctx.db, ctx.userId, tradeId)) ?? EMPTY_ENTRY;
   const notes = entry.notes ? `${entry.notes}\n${note}` : note;
-  const result = await saveJournalEntry(ctx.db, tradeId, { ...entry, notes });
+  const result = await saveJournalEntry(ctx.db, ctx.userId, tradeId, { ...entry, notes });
   if (!result.ok) {
     await ctx.tg.sendMessage(chatId, `Not saved: ${escapeHtml(result.message)}`);
     return;
@@ -187,7 +193,7 @@ async function addNote(ctx: BotContext, tradeId: string, text: string | undefine
 /** Asks the AI which journal answers the note implies, and offers the new ones as one tap. */
 async function offerSuggestions(ctx: BotContext, tradeId: string, note: string) {
   if (!ctx.ai) return;
-  const [trade] = await ctx.db.select().from(schema.trades).where(eq(schema.trades.id, tradeId));
+  const [trade] = await ctx.db.select().from(schema.trades).where(and(eq(schema.trades.userId, ctx.userId), eq(schema.trades.id, tradeId)));
   if (!trade) return;
   let suggestion: NoteSuggestion;
   try {
@@ -195,7 +201,7 @@ async function offerSuggestions(ctx: BotContext, tradeId: string, note: string) 
   } catch {
     return; // Suggestions are a nicety; the note itself is already saved.
   }
-  const entry = (await loadJournalEntry(ctx.db, tradeId)) ?? EMPTY_ENTRY;
+  const entry = (await loadJournalEntry(ctx.db, ctx.userId, tradeId)) ?? EMPTY_ENTRY;
   const fresh = newSuggestions(suggestion, entry);
   if (isEmptySuggestion(fresh)) return;
   const sent = await ctx.tg.sendMessage(ctx.chatId!, `From your note: <b>${escapeHtml(suggestionSummary(fresh))}</b>`, {
@@ -226,8 +232,8 @@ async function handleSuggestionTap(ctx: BotContext, cq: TgCallbackQuery, accept:
     await ctx.tg.answerCallback(cq.id);
     return;
   }
-  const entry = (await loadJournalEntry(ctx.db, row.tradeId)) ?? EMPTY_ENTRY;
-  const result = await saveJournalEntry(ctx.db, row.tradeId, {
+  const entry = (await loadJournalEntry(ctx.db, ctx.userId, row.tradeId)) ?? EMPTY_ENTRY;
+  const result = await saveJournalEntry(ctx.db, ctx.userId, row.tradeId, {
     ...entry,
     setup: entry.setup ?? s.setup,
     emotions: [...new Set([...entry.emotions, ...s.emotions])],
@@ -275,9 +281,9 @@ export async function maybeSendWeeklyReview(ctx: BotContext): Promise<boolean> {
   const ist = new Date(now + IST_OFFSET_MS);
   if (ist.getUTCDay() !== 0 || ist.getUTCHours() < WEEKLY_REVIEW_HOUR) return false;
   const week = istDate(now);
-  if ((await getState(ctx.db, STATE_WEEKLY_REVIEW)) === week) return false;
+  if ((await getState(ctx.db, STATE_WEEKLY_REVIEW, ctx.userId)) === week) return false;
   // Marked before sending, so a failure is not retried every minute; /review can be used instead.
-  await setState(ctx.db, STATE_WEEKLY_REVIEW, week);
+  await setState(ctx.db, STATE_WEEKLY_REVIEW, week, ctx.userId);
   const sent = await sendReview(ctx);
   if (sent) await notifyPhone(ctx, { title: "Your weekly trading review is ready", body: "See the habits that cost you most this week.", url: "/review", tag: "weekly-review" });
   return sent;
@@ -295,11 +301,18 @@ export async function notifyPhone(ctx: BotContext, message: PushMessage): Promis
 
 async function journalCommand(ctx: BotContext) {
   const since = (ctx.now?.() ?? Date.now()) - JOURNAL_COMMAND_DAYS * DAY_MS;
-  const journaled = ctx.db.select({ id: schema.journalEntries.tradeId }).from(schema.journalEntries);
+  const journaled = ctx.db.select({ id: schema.journalEntries.tradeId }).from(schema.journalEntries).where(eq(schema.journalEntries.userId, ctx.userId));
   const due = await ctx.db
     .select({ id: schema.trades.id })
     .from(schema.trades)
-    .where(and(eq(schema.trades.status, "closed"), gte(schema.trades.closedTs, since), notInArray(schema.trades.id, journaled)))
+    .where(
+      and(
+        eq(schema.trades.userId, ctx.userId),
+        eq(schema.trades.status, "closed"),
+        gte(schema.trades.closedTs, since),
+        notInArray(schema.trades.id, journaled),
+      ),
+    )
     .orderBy(desc(schema.trades.closedTs))
     .limit(JOURNAL_COMMAND_LIMIT);
   if (!due.length) {
@@ -315,7 +328,7 @@ async function todayCommand(ctx: BotContext) {
   const trades = await ctx.db
     .select({ netPnl: schema.trades.netPnl })
     .from(schema.trades)
-    .where(and(eq(schema.trades.status, "closed"), gte(schema.trades.closedTs, since)));
+    .where(and(eq(schema.trades.userId, ctx.userId), eq(schema.trades.status, "closed"), gte(schema.trades.closedTs, since)));
   if (!trades.length) {
     await ctx.tg.sendMessage(ctx.chatId!, "No closed trades today.");
     return;
@@ -365,10 +378,10 @@ async function handleCallback(ctx: BotContext, cq: TgCallbackQuery) {
     return;
   }
 
-  const current = (await loadJournalEntry(ctx.db, tradeId)) ?? EMPTY_ENTRY;
+  const current = (await loadJournalEntry(ctx.db, ctx.userId, tradeId)) ?? EMPTY_ENTRY;
   const { entry, stage } = applyCallback(current, cb);
   if (changesEntry(cb)) {
-    const result = await saveJournalEntry(ctx.db, tradeId, { ...entry });
+    const result = await saveJournalEntry(ctx.db, ctx.userId, tradeId, { ...entry });
     if (!result.ok) {
       await ctx.tg.answerCallback(cq.id, result.message);
       return;
@@ -381,11 +394,12 @@ async function handleCallback(ctx: BotContext, cq: TgCallbackQuery) {
 // --- helpers -------------------------------------------------------------------
 
 async function renderCard(ctx: BotContext, tradeId: string, stage: Stage) {
-  const [trade] = await ctx.db.select().from(schema.trades).where(eq(schema.trades.id, tradeId));
+  const [trade] = await ctx.db.select().from(schema.trades).where(and(eq(schema.trades.userId, ctx.userId), eq(schema.trades.id, tradeId)));
   if (!trade) return null;
-  const tags = await ctx.db.select({ tag: schema.tradeTags.tag, source: schema.tradeTags.source }).from(schema.tradeTags).where(eq(schema.tradeTags.tradeId, tradeId));
+  const tags = await ctx.db.select({ tag: schema.tradeTags.tag, source: schema.tradeTags.source }).from(schema.tradeTags)
+    .where(and(eq(schema.tradeTags.userId, ctx.userId), eq(schema.tradeTags.tradeId, tradeId)));
   const autoTags = tags.filter((t) => t.source === "auto").map((t) => t.tag);
-  return renderTradeCard(trade, autoTags, await loadJournalEntry(ctx.db, tradeId), stage, suggestionsFor(autoTags));
+  return renderTradeCard(trade, autoTags, await loadJournalEntry(ctx.db, ctx.userId, tradeId), stage, suggestionsFor(autoTags));
 }
 
 export async function sendTradeCard(ctx: BotContext, tradeId: string): Promise<void> {
@@ -411,7 +425,7 @@ async function tradeForMessage(ctx: BotContext, messageId: number): Promise<stri
 async function recordMessage(ctx: BotContext, messageId: number, tradeId: string, kind: "trade" | "note_prompt" | "suggestion", payload?: unknown) {
   await ctx.db
     .insert(schema.telegramMessages)
-    .values({ chatId: ctx.chatId!, messageId, tradeId, kind, payload: payload ?? null, createdAt: ctx.now?.() ?? Date.now() });
+    .values({ chatId: ctx.chatId!, messageId, tradeId, userId: ctx.userId, kind, payload: payload ?? null, createdAt: ctx.now?.() ?? Date.now() });
 }
 
 /** The most recent journaling card sent for a trade. */
@@ -425,11 +439,18 @@ async function latestCard(ctx: BotContext, tradeId: string): Promise<number | nu
   return card?.messageId ?? null;
 }
 
-export async function getState(db: Db, key: string): Promise<string | null> {
-  const [row] = await db.select().from(schema.appState).where(eq(schema.appState.key, key));
+/** Process state; pass a userId for per-user state, or leave it "" for process-wide state. */
+export async function getState(db: Db, key: string, userId = ""): Promise<string | null> {
+  const [row] = await db
+    .select()
+    .from(schema.appState)
+    .where(and(eq(schema.appState.userId, userId), eq(schema.appState.key, key)));
   return row?.value ?? null;
 }
 
-export async function setState(db: Db, key: string, value: string): Promise<void> {
-  await db.insert(schema.appState).values({ key, value }).onConflictDoUpdate({ target: schema.appState.key, set: { value } });
+export async function setState(db: Db, key: string, value: string, userId = ""): Promise<void> {
+  await db
+    .insert(schema.appState)
+    .values({ userId, key, value })
+    .onConflictDoUpdate({ target: [schema.appState.userId, schema.appState.key], set: { value } });
 }

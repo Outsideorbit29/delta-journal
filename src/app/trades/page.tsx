@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { connection } from "next/server";
+import { requireUserId } from "@/lib/session";
 import { FilterBar } from "@/components/filter-bar";
 import { TagChip } from "@/components/tag-chip";
 import { formatDateTime, formatDuration, formatMoney, formatPercent, formatPrice, formatR, pnlClass } from "@/lib/format";
@@ -9,11 +10,12 @@ import { computeStats } from "@/lib/stats";
 
 export default async function TradesPage({ searchParams }: PageProps<"/trades">) {
   await connection();
+  const userId = await requireUserId();
   const filters = readFilters(await searchParams);
   const [trades, symbols, journaled] = await Promise.all([
-    listTrades({ symbol: filters.symbol, tag: filters.tag, sinceTs: rangeStart(filters.range) }),
-    listSymbols(),
-    journaledTradeIds(),
+    listTrades(userId, { symbol: filters.symbol, tag: filters.tag, sinceTs: rangeStart(filters.range) }),
+    listSymbols(userId),
+    journaledTradeIds(userId),
   ]);
   const stats = computeStats(trades);
 

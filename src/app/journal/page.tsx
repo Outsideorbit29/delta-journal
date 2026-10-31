@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { connection } from "next/server";
+import { requireUserId } from "@/lib/session";
 import { JournalSection } from "@/components/journal-section";
 import { TagChip } from "@/components/tag-chip";
 import { TradePriceChart } from "@/components/trade-price-chart";
@@ -9,10 +10,11 @@ import { getTrade, journaledTradeIds, listUnjournaled } from "@/lib/queries";
 /** Work through closed trades that have no journal entry yet, newest first. */
 export default async function JournalQueue({ searchParams }: PageProps<"/journal">) {
   await connection();
+  const userId = await requireUserId();
   const params = await searchParams;
-  const [queue, journaled] = await Promise.all([listUnjournaled(), journaledTradeIds()]);
+  const [queue, journaled] = await Promise.all([listUnjournaled(userId), journaledTradeIds(userId)]);
   const skip = Math.min(Math.max(0, Number(params.skip) || 0), Math.max(0, queue.length - 1));
-  const current = queue[skip] ? await getTrade(queue[skip].id) : null;
+  const current = queue[skip] ? await getTrade(userId, queue[skip].id) : null;
   const total = queue.length + journaled.size;
 
   return (

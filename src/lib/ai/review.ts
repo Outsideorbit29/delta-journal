@@ -83,16 +83,26 @@ interface Window {
 }
 
 /** Everything the coach sees, as compact JSON: period stats, tag performance and the trades themselves. */
-export async function buildReviewInput(db: Db, window: Window) {
+export async function buildReviewInput(db: Db, userId: string, window: Window) {
   const [trades, tags, journal, allTrades] = await Promise.all([
     db
       .select()
       .from(schema.trades)
-      .where(and(eq(schema.trades.status, "closed"), gte(schema.trades.closedTs, window.start), lt(schema.trades.closedTs, window.end)))
+      .where(
+        and(
+          eq(schema.trades.userId, userId),
+          eq(schema.trades.status, "closed"),
+          gte(schema.trades.closedTs, window.start),
+          lt(schema.trades.closedTs, window.end),
+        ),
+      )
       .orderBy(desc(schema.trades.closedTs)),
-    db.select().from(schema.tradeTags),
-    db.select().from(schema.journalEntries),
-    db.select().from(schema.trades).where(eq(schema.trades.status, "closed")),
+    db.select().from(schema.tradeTags).where(eq(schema.tradeTags.userId, userId)),
+    db.select().from(schema.journalEntries).where(eq(schema.journalEntries.userId, userId)),
+    db
+      .select()
+      .from(schema.trades)
+      .where(and(eq(schema.trades.userId, userId), eq(schema.trades.status, "closed"))),
   ]);
   const tagsByTrade = new Map<string, string[]>();
   for (const t of tags) tagsByTrade.set(t.tradeId, [...(tagsByTrade.get(t.tradeId) ?? []), t.tag]);
@@ -153,9 +163,15 @@ export async function buildReviewInput(db: Db, window: Window) {
 }
 
 /** Writes a coaching review of the last `days` days and stores it. Returns null when there were no closed trades. */
-export async function generateReview(db: Db, days: number, model: LanguageModel = AI_MODELS.review, now = Date.now()): Promise<ReviewRow | null> {
+export async function generateReview(
+  db: Db,
+  userId: string,
+  days: number,
+  model: LanguageModel = AI_MODELS.review,
+  now = Date.now(),
+): Promise<ReviewRow | null> {
   const window = { start: now - days * DAY_MS, end: now };
-  const input = await buildReviewInput(db, window);
+  const input = await buildReviewInput(db, userId, window);
   if (!input.stats.trades) return null;
 
   const { output, usage } = await generateText({
@@ -169,6 +185,7 @@ export async function generateReview(db: Db, days: number, model: LanguageModel 
   const [row] = await db
     .insert(schema.aiReviews)
     .values({
+      userId,
       periodStart: window.start,
       periodEnd: window.end,
       tradeCount: input.stats.trades,
@@ -182,6 +199,11 @@ export async function generateReview(db: Db, days: number, model: LanguageModel 
   return row;
 }
 
-export async function listReviews(db: Db, limit = 20): Promise<ReviewRow[]> {
-  return db.select().from(schema.aiReviews).orderBy(desc(schema.aiReviews.createdAt)).limit(limit);
+export async function listReviews(db: Db, userId: string, limit = 20): Promise<ReviewRow[]> {
+  return db
+    .select()
+    .from(schema.aiReviews)
+    .where(eq(schema.aiReviews.userId, userId))
+    .orderBy(desc(schema.aiReviews.createdAt))
+    .limit(limit);
 }

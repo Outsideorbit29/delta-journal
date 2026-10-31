@@ -1,8 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { DeltaApiError } from "@/lib/delta/client";
-import { canSyncHere, SYNC_ELSEWHERE } from "@/lib/runtime";
+import { DeltaApiError, DeltaClient } from "@/lib/delta/client";
+import { canSyncHere, ownerUserId, SYNC_ELSEWHERE } from "@/lib/runtime";
+import { currentUserId } from "@/lib/session";
 import { syncAll } from "@/lib/sync";
 
 export interface SyncResult {
@@ -12,8 +13,12 @@ export interface SyncResult {
 
 export async function syncNow(): Promise<SyncResult> {
   if (!canSyncHere()) return { ok: false, message: SYNC_ELSEWHERE };
+  const userId = await currentUserId();
+  if (!userId) return { ok: false, message: "Sign in first." };
+  // The PC's Delta key belongs to the owner; never sync it into anyone else's account.
+  if (userId !== ownerUserId()) return { ok: false, message: SYNC_ELSEWHERE };
   try {
-    const s = await syncAll();
+    const s = await syncAll(userId, DeltaClient.fromEnv());
     revalidatePath("/", "layout");
     return {
       ok: true,

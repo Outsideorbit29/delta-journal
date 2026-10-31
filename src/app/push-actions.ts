@@ -1,6 +1,7 @@
 "use server";
 
 import { getDb } from "@/db";
+import { currentUserId } from "@/lib/session";
 import { isBrowserSubscription, pushConfigured, removeSubscription, saveSubscription, sendPush } from "@/lib/push";
 
 export interface PushActionResult {
@@ -12,19 +13,25 @@ const NOT_SET_UP = "Push is not set up on the server (VAPID keys missing).";
 
 export async function subscribePush(subscription: unknown, label: string): Promise<PushActionResult> {
   if (!pushConfigured()) return { ok: false, message: NOT_SET_UP };
+  const userId = await currentUserId();
+  if (!userId) return { ok: false, message: "Sign in first." };
   if (!isBrowserSubscription(subscription)) return { ok: false, message: "The browser sent an invalid subscription." };
-  await saveSubscription(await getDb(), subscription, label.slice(0, 80) || null);
+  await saveSubscription(await getDb(), userId, subscription, label.slice(0, 80) || null);
   return { ok: true, message: "Notifications are on for this device." };
 }
 
 export async function unsubscribePush(endpoint: string): Promise<PushActionResult> {
-  await removeSubscription(await getDb(), endpoint);
+  const userId = await currentUserId();
+  if (!userId) return { ok: false, message: "Sign in first." };
+  await removeSubscription(await getDb(), userId, endpoint);
   return { ok: true, message: "Notifications are off for this device." };
 }
 
 export async function sendTestPush(): Promise<PushActionResult> {
   if (!pushConfigured()) return { ok: false, message: NOT_SET_UP };
-  const r = await sendPush(await getDb(), {
+  const userId = await currentUserId();
+  if (!userId) return { ok: false, message: "Sign in first." };
+  const r = await sendPush(await getDb(), userId, {
     title: "Delta Journal",
     body: "Test notification: closed trades, weekly reviews and sync problems will show up like this.",
     url: "/settings",

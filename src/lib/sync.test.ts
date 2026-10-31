@@ -44,7 +44,7 @@ const order = (id: number, state = "open"): DeltaOrder => ({
 
 describe("writeChanged", () => {
   it("writes new and changed records only, so re-syncing costs no writes", async () => {
-    const write = (orders: DeltaOrder[]) => writeChanged(db, schema.orders, orders.map(toOrderRow), (r) => r.id!);
+    const write = (orders: DeltaOrder[]) => writeChanged(db, "u1", schema.orders, orders.map(toOrderRow), (r) => r.id!);
 
     expect(await write([order(1), order(2)])).toBe(2);
     expect(await write([order(1), order(2)])).toBe(0);
@@ -57,12 +57,12 @@ describe("writeChanged", () => {
   it("treats a record whose fields arrive in a different order as unchanged", async () => {
     const shuffled = Object.fromEntries(Object.entries(order(2)).reverse()) as unknown as DeltaOrder;
     expect(JSON.stringify(shuffled)).not.toBe(JSON.stringify(order(2)));
-    expect(await writeChanged(db, schema.orders, [toOrderRow(shuffled)], (r) => r.id!)).toBe(0);
+    expect(await writeChanged(db, "u1", schema.orders, [toOrderRow(shuffled)], (r) => r.id!)).toBe(0);
     expect(canonicalJson({ b: 1, a: { d: [{ y: 1, x: 2 }], c: null } })).toBe('{"a":{"c":null,"d":[{"x":2,"y":1}]},"b":1}');
   });
 
   it("handles the same record twice in one batch", async () => {
-    expect(await writeChanged(db, schema.orders, [order(3), order(3, "closed")].map(toOrderRow), (r) => r.id!)).toBe(1);
+    expect(await writeChanged(db, "u1", schema.orders, [order(3), order(3, "closed")].map(toOrderRow), (r) => r.id!)).toBe(1);
     const rows = await db.select().from(schema.orders);
     expect(rows.find((r) => r.id === 3)?.state).toBe("closed");
   });
