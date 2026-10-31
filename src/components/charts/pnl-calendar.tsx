@@ -6,6 +6,8 @@ import type { DayPnl } from "@/lib/stats";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MAX_MONTHS = 12;
+/** Months shown before "Show older months": enough for recent context without a very long page. */
+const FIRST_MONTHS = 3;
 
 const monthName = new Intl.DateTimeFormat("en-IN", { month: "long", year: "numeric", timeZone: "UTC" });
 const dayName = new Intl.DateTimeFormat("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
@@ -33,10 +35,11 @@ function cellStyle(day: DayPnl | undefined, edges: number[]) {
 /** Daily net P&L laid out as month calendars, newest month first. */
 export function PnlCalendar({ days }: { days: DayPnl[] }) {
   const [hover, setHover] = useState<{ day: DayPnl; month: string; x: number; y: number } | null>(null);
+  const [older, setOlder] = useState(false);
   const byDate = new Map(days.map((d) => [d.date, d]));
   const edges = binEdges(days);
   const months = [...new Set(days.map((d) => d.date.slice(0, 7)))].sort().reverse();
-  const shown = months.slice(0, MAX_MONTHS);
+  const shown = months.slice(0, older ? MAX_MONTHS : FIRST_MONTHS);
 
   return (
     <div className="space-y-5">
@@ -113,7 +116,16 @@ export function PnlCalendar({ days }: { days: DayPnl[] }) {
           );
         })}
       </div>
-      {months.length > shown.length && (
+      {!older && months.length > shown.length && (
+        <button
+          type="button"
+          onClick={() => setOlder(true)}
+          className="w-full rounded-md border border-zinc-800 py-2 text-sm text-zinc-400 hover:border-zinc-700 hover:text-zinc-100"
+        >
+          Show older months ({Math.min(months.length, MAX_MONTHS) - shown.length} more)
+        </button>
+      )}
+      {older && months.length > shown.length && (
         <p className="text-xs text-[var(--viz-muted)]">
           Showing the latest {shown.length} of {months.length} months with trades. Narrow the date range to see older months.
         </p>

@@ -67,3 +67,10 @@ export const isWarningTag = (tag: string) =>
 
 /** Whether a tag came from your journal rather than from the data. */
 export const isJournalTag = (tag: string) => /^(setup|emotion|mistake|plan):/.test(tag);
+
+/** The tags worth showing first: warnings from the data, then from the journal, then the rest. */
+export function topTags<T extends { tag: string }>(tags: T[], n: number): { shown: T[]; more: number } {
+  const rank = (t: T) => (isWarningTag(t.tag) ? (isJournalTag(t.tag) ? 1 : 0) : t.tag.startsWith("session:") ? 3 : 2);
+  const sorted = [...tags].sort((a, b) => rank(a) - rank(b));
+  return { shown: sorted.slice(0, n), more: Math.max(0, tags.length - n) };
+}
