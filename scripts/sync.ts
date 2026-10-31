@@ -3,11 +3,15 @@ import { syncAll } from "@/lib/sync";
 async function main() {
   const started = Date.now();
   const summary = await syncAll();
-  console.log(`Synced ${summary.fills} fills, ${summary.orders} orders, ${summary.walletTransactions} wallet transactions`);
   console.log(
-    `Rebuilt ${summary.rebuild.trades} trades (${summary.rebuild.open} open), ` +
-      `${summary.rebuild.pnlMismatches} P&L mismatches with Delta, ${summary.rebuild.warnings} warnings ` +
-      `in ${((Date.now() - started) / 1000).toFixed(1)}s`,
+    `Wrote ${summary.fills} new fills, ${summary.orders} new or changed orders, ${summary.walletTransactions} new wallet transactions`,
+  );
+  const r = summary.rebuild;
+  console.log(
+    r
+      ? `Rebuilt ${r.trades} trades (${r.open} open), ${r.pnlMismatches} P&L mismatches with Delta, ${r.warnings} warnings ` +
+          `in ${((Date.now() - started) / 1000).toFixed(1)}s`
+      : "Nothing changed on Delta, so trades were left as they were.",
   );
 }
 

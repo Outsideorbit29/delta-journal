@@ -23,7 +23,7 @@ export interface BotContext {
   /** The only chat the bot answers. Null until configured, when it only helps you find your chat id. */
   chatId: string | null;
   /** Pulls new data from Delta; injected so tests do not call the exchange. */
-  sync: () => Promise<{ fills: number; rebuild: { trades: number } }>;
+  sync: () => Promise<{ fills: number; rebuild: { trades: number } | null }>;
   ai: BotAi | null;
   now?: () => number;
 }
@@ -309,7 +309,8 @@ async function syncCommand(ctx: BotContext) {
   try {
     const s = await ctx.sync();
     const sent = await notifyClosedTrades(ctx);
-    await ctx.tg.sendMessage(ctx.chatId!, `Synced: ${s.fills} fills, ${s.rebuild.trades} trades.${sent ? ` ${sent} new to journal.` : ""}`);
+    const what = s.rebuild ? `${s.fills} new fills, ${s.rebuild.trades} trades.` : "nothing new on Delta.";
+    await ctx.tg.sendMessage(ctx.chatId!, `Synced: ${what}${sent ? ` ${sent} new to journal.` : ""}`);
   } catch (err) {
     await ctx.tg.sendMessage(ctx.chatId!, `Sync failed: ${escapeHtml(err instanceof Error ? err.message : String(err))}`);
   }
