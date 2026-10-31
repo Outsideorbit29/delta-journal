@@ -75,20 +75,21 @@ export default async function TradePage({ params }: PageProps<"/trades/[id]">) {
           {trade.symbol} <span className={trade.direction === "long" ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}>{trade.direction}</span>
           <span className={`ml-3 ${pnlClass(trade.netPnl)}`}>{trade.status === "open" ? "open" : formatMoney(trade.netPnl, { sign: true })}</span>
         </h1>
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {trade.tags.map((g) => (
-            <TagChip key={g.tag} tag={g.tag} detail={g.detail} href={`/?tag=${encodeURIComponent(g.tag)}`} />
-          ))}
-        </div>
+        {/* Each tag once: the ones with an explanation as a list, the rest as chips. */}
         {trade.tags.some((g) => g.detail) && (
-          <ul className="mt-2 space-y-0.5 text-sm text-zinc-500">
+          <ul className="mt-3 space-y-1 text-sm text-zinc-400">
             {trade.tags.filter((g) => g.detail).map((g) => (
               <li key={g.tag}>
-                <TagChip tag={g.tag} /> {g.detail}
+                <TagChip tag={g.tag} href={`/trades?tag=${encodeURIComponent(g.tag)}`} /> {g.detail}
               </li>
             ))}
           </ul>
         )}
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {trade.tags.filter((g) => !g.detail).map((g) => (
+            <TagChip key={g.tag} tag={g.tag} href={`/trades?tag=${encodeURIComponent(g.tag)}`} />
+          ))}
+        </div>
       </div>
 
       {trade.warnings.length > 0 && (
@@ -112,7 +113,7 @@ export default async function TradePage({ params }: PageProps<"/trades/[id]">) {
             </div>
           ))}
         </dl>
-        <dl className="space-y-1.5 rounded-lg border border-zinc-200 p-4 text-sm dark:border-zinc-800">
+        <dl className="space-y-1.5 p-4 text-sm rounded-xl border border-zinc-800 bg-zinc-900/60">
           {pnl.map(([k, v]) => (
             <div key={k} className={`flex justify-between ${k === "Net P&L" ? "border-t border-zinc-200 pt-1.5 font-semibold dark:border-zinc-800" : ""}`}>
               <dt>{k}</dt>
@@ -130,7 +131,7 @@ export default async function TradePage({ params }: PageProps<"/trades/[id]">) {
 
       <section className="space-y-2">
         <h2 className="text-lg font-semibold">Fills</h2>
-        <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
+        <div className="overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-900/60">
           <table className="w-full text-sm">
             <thead className="bg-zinc-50 text-left text-xs uppercase text-zinc-500 dark:bg-zinc-900">
               <tr>
