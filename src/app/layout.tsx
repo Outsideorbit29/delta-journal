@@ -1,7 +1,8 @@
-import { ClerkProvider, UserButton } from "@clerk/nextjs";
+import { ClerkProvider, Show, UserButton } from "@clerk/nextjs";
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import { Suspense } from "react";
 import { HideOnLogin } from "@/components/hide-on-login";
 import { NavLinks } from "@/components/nav-links";
 import { SyncButton } from "@/components/sync-button";
@@ -42,7 +43,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
         {/* Inside <body>, as Clerk requires with Cache Components. */}
-        <ClerkProvider>
+        <ClerkProvider waitlistUrl="/waitlist">
           <header className="border-b border-zinc-200 pt-[env(safe-area-inset-top)] dark:border-zinc-800">
             <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-3">
               <div className="flex min-w-0 items-center gap-6">
@@ -50,15 +51,23 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                   Edgebook
                 </Link>
                 <HideOnLogin>
-                  <NavLinks />
+                  <Suspense fallback={null}>
+                    <Show when="signed-in">
+                      <NavLinks />
+                    </Show>
+                  </Suspense>
                 </HideOnLogin>
               </div>
               <HideOnLogin>
-                <div className="flex shrink-0 items-center gap-3">
-                  {/* Syncing needs a whitelisted IP, so it never runs on the hosted app. */}
-                  {canSyncHere() && <SyncButton />}
-                  <UserButton />
-                </div>
+                <Suspense fallback={null}>
+                  <Show when="signed-in" fallback={<SignedOutLinks />}>
+                    <div className="flex shrink-0 items-center gap-3">
+                      {/* Syncing needs a whitelisted IP, so it never runs on the hosted app. */}
+                      {canSyncHere() && <SyncButton />}
+                      <UserButton />
+                    </div>
+                  </Show>
+                </Suspense>
               </HideOnLogin>
             </div>
           </header>
@@ -66,5 +75,24 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         </ClerkProvider>
       </body>
     </html>
+  );
+}
+
+function SignedOutLinks() {
+  return (
+    <nav className="flex shrink-0 items-center gap-4 text-sm">
+      <Link href="/demo" className="text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100">
+        Demo
+      </Link>
+      <Link href="/sign-in" className="text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100">
+        Sign in
+      </Link>
+      <Link
+        href="/waitlist"
+        className="rounded-md bg-zinc-900 px-3 py-1.5 font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+      >
+        Join the waitlist
+      </Link>
+    </nav>
   );
 }
