@@ -245,7 +245,9 @@ and refuses without a user ("Sign in first." / 401). With Partial Prerendering a
 answers 200 with the static shell and then a streamed redirect to `/sign-in`: no user data is
 ever sent (verified with curl). If Clerk's keys are missing, `clerkMiddleware` throws, so auth fails closed.
 The local Sync button only syncs when the signed-in user is `OWNER_USER_ID`, because the PC's
-Delta key is the owner's. Manifest, icons and `sw.js` need no session, so phones can install. Install: Android Chrome → Install app; iOS Safari →
+Delta key is the owner's. Manifest, icons and `sw.js` need no session, so phones can install.
+**Sign-ups are Invite-only** (Clerk dashboard → Configure → Access mode; set 2026-10-31). Invite someone
+from the Clerk dashboard → Users → Invite. Reach the dashboard from Vercel → Integrations → Clerk → Open in Clerk. Install: Android Chrome → Install app; iOS Safari →
 Add to Home Screen.
 
 ## Delta API quirks (learned the hard way)
@@ -367,7 +369,7 @@ Week plan and progress:
 ## Changelog
 
 - **2026-10-31**: The owner confirmed the live site shows their journal after signing in (Days 1-2 done).
-  Removed `APP_PASSWORD` from Vercel. Clerk sign-ups should be set to Restricted until invites exist.
+  Removed `APP_PASSWORD` from Vercel. Clerk access mode set to **Invite-only** (sign-ups closed).
 - **2026-10-31**: Multi-user rollout: Turso migrated to 0008 (backup first), all original data claimed by the owner's
   Clerk account, `OWNER_USER_ID` set on the PC and the server, Clerk sign-in/up paths added on Vercel.
 - **2026-10-31**: Edgebook Day 1: Clerk sign-in/sign-up replaced the password login; `users` table and
