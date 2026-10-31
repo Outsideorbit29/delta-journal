@@ -58,3 +58,76 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
+
+/* Landing page effects. All CSS, so they cost phones nothing, and all off for reduced motion. */
+
+/* A faint grid with soft teal and cyan glows behind it. */
+.bg-grid {
+  background-image:
+    radial-gradient(60rem 30rem at 15% -10%, rgb(45 212 191 / 0.14), transparent 60%),
+    radial-gradient(50rem 30rem at 95% 10%, rgb(34 211 238 / 0.10), transparent 60%),
+    linear-gradient(to right, rgb(255 255 255 / 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.035) 1px, transparent 1px);
+  background-size: auto, auto, 48px 48px, 48px 48px;
+}
+
+/* Headline words in the brand gradient. */
+.text-gradient {
+  background: linear-gradient(90deg, #5eead4, #2dd4bf 40%, #22d3ee);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+@keyframes grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+@keyframes wave {
+  to {
+    stroke-dashoffset: -200;
+  }
+}
+
+/* Thin reading-progress line along the top of the landing page (browsers without
+   scroll-driven animations simply don't show it). */
+.scroll-progress {
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .reveal {
+      animation: reveal linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 40%;
+    }
+    .scroll-progress {
+      animation: grow linear both;
+      animation-timeline: scroll(root);
+    }
+  }
+  .marquee {
+    animation: marquee 40s linear infinite;
+  }
+  .wave {
+    stroke-dasharray: 6 4;
+    animation: wave 6s linear infinite;
+  }
+}

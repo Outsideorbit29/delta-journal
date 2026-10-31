@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { Suspense } from "react";
 import { HideOnLogin } from "@/components/hide-on-login";
+import { SiteMenu } from "@/components/site-menu";
 import { Logo } from "@/components/logo";
 import { BottomNav, NavLinks } from "@/components/nav-links";
 import { SyncButton } from "@/components/sync-button";
@@ -75,7 +76,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               </div>
               <HideOnLogin>
                 <Suspense fallback={null}>
-                  <Show when="signed-in" fallback={<SignedOutLinks />}>
+                  <Show when="signed-in" fallback={<SiteMenu />}>
                     <div className="flex shrink-0 items-center gap-3">
                       <SyncStatus />
                       {/* Syncing needs a whitelisted IP, so it never runs on the hosted app. */}
@@ -102,21 +103,5 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         </ClerkProvider>
       </body>
     </html>
-  );
-}
-
-function SignedOutLinks() {
-  return (
-    <nav className="flex shrink-0 items-center gap-4 text-sm">
-      <Link href="/demo" className="text-zinc-400 hover:text-zinc-100 max-sm:hidden">
-        Demo
-      </Link>
-      <Link href="/sign-in" className="text-zinc-400 hover:text-zinc-100">
-        Sign in
-      </Link>
-      <Link href="/waitlist" className="rounded-md bg-brand px-3 py-1.5 font-medium text-brand-ink hover:bg-brand-strong">
-        Join the waitlist
-      </Link>
-    </nav>
   );
 }
