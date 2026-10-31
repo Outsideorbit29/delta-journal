@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { schema } from "@/db";
 import { candleWindow } from "./candles";
+import { greeting } from "./format";
 import { computeStats, dailyPnl, equityCurve, groupStats, istDate } from "./stats";
 import { niceTicks } from "@/components/charts/scale";
 
@@ -131,5 +132,13 @@ describe("niceTicks", () => {
   it("covers the range with round steps", () => {
     expect(niceTicks(-158.8, 0)).toEqual([-200, -150, -100, -50, 0]);
     expect(niceTicks(0, 135, 6)).toEqual([0, 25, 50, 75, 100, 125, 150]);
+  });
+});
+
+describe("greeting", () => {
+  it("greets by the time of day in India", () => {
+    expect(greeting("Anish", Date.UTC(2026, 10, 1, 3, 0))).toBe("Good morning, Anish"); // 08:30 IST
+    expect(greeting("Anish", Date.UTC(2026, 10, 1, 8, 0))).toBe("Good afternoon, Anish"); // 13:30 IST
+    expect(greeting(null, Date.UTC(2026, 10, 1, 14, 0))).toBe("Good evening"); // 19:30 IST
   });
 });

@@ -1,8 +1,10 @@
+import { currentUser } from "@clerk/nextjs/server";
 import { connection } from "next/server";
 import { DashboardView } from "@/components/dashboard-view";
 import { Landing } from "@/components/landing";
 import { Onboarding } from "@/components/onboarding";
 import { getDb } from "@/db";
+import { greeting } from "@/lib/format";
 import { getDeltaKeyStatus } from "@/lib/keys/credentials";
 import { getSyncStatus } from "@/lib/queries";
 import { readFilters } from "@/lib/range";
@@ -18,5 +20,6 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const syncedOnce = sync.some((s) => s.lastRunAt && !s.lastError);
   if (!syncedOnce && key?.status !== "ok") return <Onboarding status={key} />;
 
-  return <DashboardView userId={userId} filters={readFilters(await searchParams)} />;
+  const user = await currentUser();
+  return <DashboardView userId={userId} filters={readFilters(await searchParams)} greeting={greeting(user?.firstName ?? user?.fullName?.split(" ")[0])} />;
 }

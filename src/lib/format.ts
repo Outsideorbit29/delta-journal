@@ -40,3 +40,10 @@ export const formatR = (n: number | null | undefined) => (n === null || n === un
 
 export const pnlClass = (n: number | null | undefined) =>
   !n ? "text-zinc-500" : n > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400";
+
+/** "Good morning/afternoon/evening, Name" by the hour in India. */
+export function greeting(name: string | null | undefined, now = Date.now()): string {
+  const hour = Number(new Intl.DateTimeFormat("en-IN", { hour: "numeric", hourCycle: "h23", timeZone: "Asia/Kolkata" }).format(now));
+  const part = hour < 5 ? "evening" : hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
+  return name ? `Good ${part}, ${name}` : `Good ${part}`;
+}

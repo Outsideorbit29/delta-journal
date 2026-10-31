@@ -3,12 +3,14 @@ import { CostBreakdown } from "@/components/charts/cost-breakdown";
 import { EquityChart } from "@/components/charts/equity-chart";
 import { PnlCalendar } from "@/components/charts/pnl-calendar";
 import { FilterBar } from "@/components/filter-bar";
+import { ScoreCard } from "@/components/score-card";
 import { TagChip } from "@/components/tag-chip";
 import { card, link } from "@/components/ui";
 import { getDb } from "@/db";
 import { listReviews } from "@/lib/ai/review";
 import { formatDateTime, formatMoney, formatPercent, pnlClass } from "@/lib/format";
 import { biggestLeaks, TAG_HINTS, whatWorks } from "@/lib/insights";
+import { behaviourScore } from "@/lib/score";
 import { journaledTradeIds, listSymbols, listTrades } from "@/lib/queries";
 import { filterHref, RANGES, rangeStart, type readFilters } from "@/lib/range";
 import { computeStats, dailyPnl, equityCurve, groupStats, tagPerformance, type GroupStats, type TagPerformance } from "@/lib/stats";
@@ -20,7 +22,18 @@ type Filters = ReturnType<typeof readFilters>;
  * The dashboard for one account. The demo (/demo) shows it read-only: no
  * journal or AI review links, and tag links stay on the demo page.
  */
-export async function DashboardView({ userId, filters, demo = false }: { userId: string; filters: Filters; demo?: boolean }) {
+export async function DashboardView({
+  userId,
+  filters,
+  demo = false,
+  greeting,
+}: {
+  userId: string;
+  filters: Filters;
+  demo?: boolean;
+  /** "Good evening, Anish": shown above the filters. */
+  greeting?: string;
+}) {
   const path = demo ? "/demo" : "/";
   const [trades, symbols, journaled, [latestReview]] = await Promise.all([
     listTrades(userId, { symbol: filters.symbol, tag: filters.tag, sinceTs: rangeStart(filters.range) }),
@@ -34,6 +47,7 @@ export async function DashboardView({ userId, filters, demo = false }: { userId:
   const curve = equityCurve(trades);
   const days = dailyPnl(trades);
   const leaks = biggestLeaks(trades);
+  const score = behaviourScore(trades, journaled);
   const works = whatWorks(trades);
   const tagPath = demo ? "/demo" : "/trades";
   const mismatches = trades.filter((t) => t.pnlMatchesDelta === false).length;
@@ -41,6 +55,12 @@ export async function DashboardView({ userId, filters, demo = false }: { userId:
 
   return (
     <main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6">
+      {greeting && (
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">{greeting}</h1>
+          <p className="text-sm text-zinc-500">Here&apos;s how your trading is going.</p>
+        </div>
+      )}
       <div className="space-y-2">
         <FilterBar path={path} filters={filters} symbols={symbols} />
         {!demo && mismatches > 0 && <p className="text-xs text-amber-300">{mismatches} trades don&apos;t match Delta&apos;s P&L</p>}
@@ -76,14 +96,17 @@ export async function DashboardView({ userId, filters, demo = false }: { userId:
             <Insights leaks={leaks} works={works} href={(tag) => filterHref(tagPath, filters, { tag })} />
           </section>
 
-          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            <Tile label="Win rate" value={formatPercent(stats.winRate)} hint={`${stats.wins} won, ${stats.losses} lost`} />
-            <Tile label="Profit factor" value={stats.profitFactor === null ? "–" : stats.profitFactor.toFixed(2)} hint="gross wins ÷ gross losses" />
-            <Tile label="Expectancy" value={formatMoney(stats.expectancy, { sign: true })} hint="average per trade" />
-            <Tile label="Average win" value={formatMoney(stats.avgWin)} hint={`average loss ${formatMoney(stats.avgLoss)}`} />
-            <Tile label="Max drawdown" value={formatMoney(stats.maxDrawdown)} hint="from the highest point" />
-            <Tile label="Trading costs" value={formatMoney(stats.fees + stats.liquidationFees)} hint="fees and liquidation fees" />
-          </dl>
+          <section className={`grid gap-4 ${score ? "lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]" : ""}`}>
+            {score && <ScoreCard score={score} />}
+            <dl className={`grid grid-cols-2 gap-3 sm:grid-cols-3 ${score ? "lg:grid-cols-2" : "lg:grid-cols-6"}`}>
+              <Tile icon={ICONS.target} label="Win rate" value={formatPercent(stats.winRate)} hint={`${stats.wins} won, ${stats.losses} lost`} />
+              <Tile icon={ICONS.scale} label="Profit factor" value={stats.profitFactor === null ? "–" : stats.profitFactor.toFixed(2)} hint="gross wins ÷ gross losses" />
+              <Tile icon={ICONS.coin} label="Expectancy" value={formatMoney(stats.expectancy, { sign: true })} hint="average per trade" />
+              <Tile icon={ICONS.up} label="Average win" value={formatMoney(stats.avgWin)} hint={`average loss ${formatMoney(stats.avgLoss)}`} />
+              <Tile icon={ICONS.down} label="Max drawdown" value={formatMoney(stats.maxDrawdown)} hint="from the highest point" />
+              <Tile icon={ICONS.receipt} label="Trading costs" value={formatMoney(stats.fees + stats.liquidationFees)} hint="fees and liquidation fees" />
+            </dl>
+          </section>
 
           {!demo && latestReview && (
             <Link href="/review" className={`${card} block px-4 py-3 hover:border-zinc-700`}>
@@ -185,11 +208,26 @@ function Card({ title, subtitle, children }: { title: string; subtitle?: string;
   );
 }
 
-function Tile({ label, value, hint }: { label: string; value: string; hint?: string }) {
+/** Outline icons (24px grid) for the stat tiles. */
+const ICONS = {
+  target: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zm0-5a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0-3.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z",
+  scale: "M12 4v16M5 20h14M6 8h12M6 8l-3 6a3 3 0 0 0 6 0zm12 0l-3 6a3 3 0 0 0 6 0z",
+  coin: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zm2.5-12.5h-3.5a2 2 0 0 0 0 4h2a2 2 0 0 1 0 4H9.5M12 6.5v11",
+  up: "M3 17l6-6 4 4 8-8M15 7h6v6",
+  down: "M3 7l6 6 4-4 8 8M15 17h6v-6",
+  receipt: "M6 3h12v18l-3-2-3 2-3-2-3 2zm3 5h6m-6 4h6",
+};
+
+function Tile({ icon, label, value, hint }: { icon: string; label: string; value: string; hint?: string }) {
   return (
     <div className={`${card} p-3`}>
-      <dt className="text-xs text-zinc-500">{label}</dt>
-      <dd className="mt-1 text-lg font-semibold">{value}</dd>
+      <dt className="flex items-center justify-between gap-2 text-xs text-zinc-500">
+        {label}
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-brand/80" aria-hidden="true">
+          <path d={icon} />
+        </svg>
+      </dt>
+      <dd className="mt-1 text-lg font-semibold tabular-nums">{value}</dd>
       {hint && <dd className="text-xs text-zinc-500">{hint}</dd>}
     </div>
   );
