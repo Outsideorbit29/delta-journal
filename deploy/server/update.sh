@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Pulls the latest code onto the VM, applies database migrations and restarts the bot.
-#   bash deploy/oracle/update.sh
+#   bash deploy/server/update.sh
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 git pull --ff-only

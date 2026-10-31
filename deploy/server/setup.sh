@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # One-time setup of the always-on server that runs the Telegram bot and the
-# Delta sync from a fixed IP (Oracle Cloud Always Free VM, Ubuntu 24.04).
+# Delta sync from a fixed IP (an Ubuntu 24.04 cloud VM: AWS EC2 in Mumbai).
 #
-# Run on the VM, from the cloned repo:  bash deploy/oracle/setup.sh
+# Run on the VM, from the cloned repo:  bash deploy/server/setup.sh
 # Then put .env.local next to package.json and run it again (it is safe to repeat).
 set -euo pipefail
 
@@ -10,7 +10,7 @@ REPO_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 SERVICE=delta-journal-bot
 cd "$REPO_DIR"
 
-echo "== Swap: the 1 GB VM needs it to install packages"
+echo "== Swap: small VMs need it to install packages"
 if ! swapon --show | grep -q /swapfile; then
   sudo fallocate -l 2G /swapfile
   sudo chmod 600 /swapfile
@@ -40,7 +40,7 @@ npm run db:migrate
 
 echo "== Service"
 sed -e "s|__USER__|$(id -un)|g" -e "s|__DIR__|$REPO_DIR|g" -e "s|__NPM__|$(command -v npm)|g" \
-  deploy/oracle/delta-journal-bot.service | sudo tee /etc/systemd/system/$SERVICE.service >/dev/null
+  deploy/server/delta-journal-bot.service | sudo tee /etc/systemd/system/$SERVICE.service >/dev/null
 sudo systemctl daemon-reload
 sudo systemctl enable --now $SERVICE
 sudo systemctl restart $SERVICE
@@ -48,4 +48,4 @@ sleep 5
 systemctl --no-pager --lines=8 status $SERVICE || true
 echo
 echo "Done. The bot runs as the '$SERVICE' service and starts on boot."
-echo "Logs: journalctl -u $SERVICE -f    Update: bash deploy/oracle/update.sh"
+echo "Logs: journalctl -u $SERVICE -f    Update: bash deploy/server/update.sh"

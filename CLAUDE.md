@@ -253,24 +253,26 @@ Add to Home Screen.
 - Push to `main` (auto-deploys to Vercel); confirm local and remote heads match.
 - Test real behaviour, not just types: live API/DB checks, the browser for UI. Clean up test data you create.
 
-## Always-on server (Oracle Cloud), in progress
+## Always-on server (AWS EC2, Mumbai), in progress
 
 Delta requires a whitelisted IP even for Read Data keys (confirmed by the user, 2026-10-31),
-and the PC's mobile IP keeps changing. So the bot and sync move to an **Oracle Cloud Always
-Free VM** (Ubuntu 24.04, home region Mumbai or Hyderabad) with a fixed public IP, running 24/7.
+and the PC's mobile IP keeps changing. So the bot and sync move to an **AWS EC2 VM in Mumbai
+(`ap-south-1`)**, Ubuntu 24.04, with an **Elastic IP** (fixed), running 24/7. Oracle Cloud was
+tried first: its signup rejected the user's card ("billing address differs"), a common problem with Indian cards.
 
-- `deploy/oracle/setup.sh`: one-time setup on the VM (2 GB swap for the 1 GB micro VM,
-  Node 24 from NodeSource, `npm ci`, `db:migrate`, installs and starts the systemd service).
-  Safe to re-run.
-- `deploy/oracle/delta-journal-bot.service`: systemd unit template (`npm run bot`, restarts on
+- Cost: new AWS accounts (since July 2025) get about $100–200 in credits for about 6 months
+  (Free plan). Every public IPv4 address, Elastic IPs included, is billed hourly against those
+  credits. After the free plan ends it is roughly $4–8/month, or the account must be upgraded.
+- `deploy/server/setup.sh`: one-time setup on the VM (2 GB swap, Node 24 from NodeSource,
+  `npm ci`, `db:migrate`, installs and starts the systemd service). Works on any Ubuntu VM. Safe to re-run.
+- `deploy/server/delta-journal-bot.service`: systemd unit template (`npm run bot`, restarts on
   failure, starts on boot). Logs: `journalctl -u delta-journal-bot -f`.
-- `deploy/oracle/update.sh`: `git pull`, `npm ci`, `db:migrate`, restart. Run after pushing changes.
-- Access: SSH key `~/.ssh/delta_journal_oracle` on the PC (made for this VM only). The VM
-  clones the private repo with a read-only GitHub deploy key.
-- `.env.local` on the VM holds the Delta key (whitelisted to the VM's IP), Telegram, Turso, AI and VAPID values.
+- `deploy/server/update.sh`: `git pull`, `npm ci`, `db:migrate`, restart. Run after pushing changes.
+- Access: SSH key `~/.ssh/delta_journal_oracle` on the PC (named before the switch to AWS; made
+  for this server only), imported into EC2 as a key pair. User `ubuntu`. The VM clones the
+  private repo with a read-only GitHub deploy key.
+- `.env.local` on the VM holds the Delta key (whitelisted to the Elastic IP), Telegram, Turso, AI and VAPID values.
 - **Only one bot may run at a time** (Telegram returns 409 to a second poller): stop the PC bot once the VM bot runs.
-- Oracle may reclaim *idle* Always Free VMs (CPU/network under 20% for 7 days). Upgrading the
-  account to pay-as-you-go (still free within limits) avoids that. Don't add fake load.
 
 ## Gotchas (Windows / tooling)
 
@@ -290,11 +292,13 @@ Done (all pushed): 1 sync · 2 trades + auto tags · 3 dashboard and charts · 4
 
 Next (requested 2026-10-31):
 - **A Delta key that does not depend on the changing mobile IP.** Delta refuses keys without an
-  IP whitelist, even read-only ones, so the bot moves to an Oracle Cloud VM with a fixed IP
-  (see "Always-on server"). In progress.
+  IP whitelist, even read-only ones, so the bot moves to an AWS EC2 VM in Mumbai with an Elastic
+  IP (see "Always-on server"). In progress.
 
 ## Changelog
 
+- **2026-10-31**: Switched the always-on server plan from Oracle (card rejected at signup) to AWS
+  EC2 Mumbai; renamed `deploy/oracle/` to `deploy/server/` (the scripts work on any Ubuntu VM).
 - **2026-10-31**: Added `deploy/oracle/` (setup script, systemd unit, update script) to run the bot
   24/7 from an Oracle Cloud Always Free VM with a fixed IP, because Delta requires an IP whitelist even for read-only keys.
 - **2026-10-31**: Phone push notifications: `/settings` page, `public/sw.js`, `push_subscriptions`
