@@ -63,6 +63,7 @@ the owner's, so they only ever sync into `OWNER_USER_ID`; other users get per-us
 | `npm run bot` | Telegram bot + Delta sync every 60 s (+ weekly AI review), acting for `OWNER_USER_ID`. Runs on the server, not the PC. |
 | `npm run sync` | One sync of the owner's account (`OWNER_USER_ID`); prints rows written, and rebuilds trades only if something changed |
 | `npm run rebuild` | Recompute trades and auto tags from stored data for every user (after changing `src/lib/config.ts`) |
+| `npm run demo:seed` | Replace the public demo account's made-up trades with a fresh set ending yesterday (dates go stale; re-run now and then) |
 | `npm run keys:generate` | Create the key pair that locks users' Delta keys and write it into `.env.local` (refuses to replace an existing pair) |
 | `npm run claim-legacy -- user_xxx` | Move all `legacy` rows to that Clerk user (who must have signed in once and have no synced data) |
 | `npm run db:generate` | New migration after editing `src/db/schema.ts` |
@@ -113,6 +114,7 @@ src/
   db/index.ts              openDatabase(url) (WAL + busy_timeout for local files; migrations unless VERCEL); getDb()
   db/copy.ts               copyDatabase(from, to) used by db:copy-to-cloud
   db/claim.ts              claimRows(db, from, to): moves one owner's rows to another (claim-legacy)
+  lib/demo.ts              The demo account (user `demo`): seeded, deterministic made-up fills/orders run through the real rebuild
   lib/keys/                sealed.ts (seal/open, X25519 + AES-GCM), credentials.ts (save, status, open, mark checked),
                            sync-users.ts (sync one or every user with their stored key)
   lib/delta/               client.ts (HMAC signing, pagination, 429/5xx retry, public unsigned calls), types.ts, ingest.ts (API record -> row)
@@ -133,15 +135,16 @@ src/
   lib/candles.ts           Candle window choice + per-trade cache
   lib/queries.ts, format.ts, tags.ts, range.ts, app-icon.tsx
   app/                     page.tsx (dashboard), trades/, trades/[id]/, journal/ (queue), review/ (AI), settings/,
-                           sign-in/[[...sign-in]], sign-up/[[...sign-up]] (Clerk),
+                           sign-in/[[...sign-in]], sign-up/[[...sign-up]], waitlist/[[...waitlist]] (Clerk), demo/ (public),
                            manifest.ts, icon.tsx, apple-icon.tsx, pwa-icon/[size]/, api/trades, api/sync,
                            actions.ts (sync), journal-actions.ts, ai-actions.ts, push-actions.ts, delta-actions.ts (connect/disconnect a key),
                            loading.tsx files
   components/              charts/ (equity, calendar, cost breakdown, candlestick, scale), journal-form, journal-section,
                            trade-price-chart, review-view, review-buttons, push-settings, filter-bar, nav-links, sync-button,
-                           tag-chip, hide-on-login, delta-key-form
+                           tag-chip, hide-on-login, delta-key-form, delta-connect (key steps + status, shared by Settings and
+                           onboarding), auto-refresh, dashboard-view (dashboard for a user or the demo), landing, onboarding
 public/sw.js               Service worker: shows pushes, opens the tapped notification's URL (no offline cache)
-scripts/                   sync.ts, rebuild.ts, bot.ts, db-migrate.ts, db-copy-to-cloud.ts, claim-legacy.ts, keys-generate.ts
+scripts/                   sync.ts, rebuild.ts, bot.ts, db-migrate.ts, db-copy-to-cloud.ts, claim-legacy.ts, keys-generate.ts, demo-seed.ts
 drizzle/                   SQL migrations 0000-0009 + meta (0008 = multi-user, its table rebuilds hand-fixed; 0009 = delta_credentials)
 ```
 
@@ -226,6 +229,16 @@ queue of un-journaled closed trades, newest first, with Save & next.
   (`ctx.push` → `sendPush`): each new close (tap → `/trades/<id>`), the weekly review (→ `/review`)
   and sync failures (→ `/settings`). A push failure never blocks the Telegram message (`notifyPhone`).
 
+### Public pages, onboarding and the demo
+- `/` decides: signed out → the landing page (`components/landing.tsx`); signed in but never synced and no working key →
+  onboarding (connect Delta, auto-refreshing every 5 s while the key is `pending`); otherwise the dashboard.
+- The header shows Demo / Sign in / Join the waitlist when signed out (`<Show when="signed-in">` from Clerk, inside
+  `<Suspense>` because it reads the session).
+- `/demo` is public and read-only: `DashboardView` for the user `demo` with `demo` set (no sync line, no journal or AI links,
+  tag links stay on `/demo`). Its data is made up (`lib/demo.ts`): scalps lose to fees, stopped swings win, moved stops cost
+  the most, trailed stops pay; about -$158 over 90 trades. Fill ids are `demo-…` and order ids negative, so they never clash
+  with Delta's; Clerk ids start with `user_`, so no account can be `demo`. Re-seed with `npm run demo:seed`.
+
 ### Per-user Delta keys (`lib/keys/`, `/settings`)
 - On Settings → Delta Exchange a user creates a **Read Data** key on Delta, whitelists our server's IPv4 and IPv6
   (`syncServerIps()`), and pastes the key and secret. `connectDelta` checks the shape and **seals** them with
@@ -269,8 +282,9 @@ answers 200 with the static shell and then a streamed redirect to `/sign-in`: no
 ever sent (verified with curl). If Clerk's keys are missing, `clerkMiddleware` throws, so auth fails closed.
 The local Sync button only syncs when the signed-in user is `OWNER_USER_ID`, because the PC's
 Delta key is the owner's. Manifest, icons and `sw.js` need no session, so phones can install.
-**Sign-ups are Invite-only** (Clerk dashboard → Configure → Access mode; set 2026-10-31). Invite someone
-from the Clerk dashboard → Users → Invite. Reach the dashboard from Vercel → Integrations → Clerk → Open in Clerk. Install: Android Chrome → Install app; iOS Safari →
+**Sign-ups are Waitlist** (Clerk dashboard → Configure → Access mode; set 2026-11-01): visitors join at `/waitlist`
+(Clerk's `<Waitlist />`, `ClerkProvider waitlistUrl`), and the owner approves them in the Clerk dashboard → Waitlist,
+or invites someone directly from Users → Invite. Reach the dashboard from Vercel → Integrations → Clerk → Open in Clerk. Install: Android Chrome → Install app; iOS Safari →
 Add to Home Screen.
 
 ## Delta API quirks (learned the hard way)
@@ -383,7 +397,7 @@ Week plan and progress:
   into Turso with the same values before the claim.
 - **Day 3 (done, 2026-10-31): sealed per-user Delta keys and the multi-user sync** (see "Per-user Delta keys").
   Migration 0009 only adds a table, so old code keeps running while it rolls out.
-- Day 4: landing page, onboarding key wizard (whitelist the server's IPv4 and IPv6), demo mode.
+- **Day 4 (done, 2026-11-01): landing page, waitlist, onboarding, public demo, empty states.**
 - Day 5: shared Edgebook Telegram bot with account linking, per-user push and AI, invite codes capped at 10.
 - Day 6: legal pages (DPDP Act), export and delete, monitoring, rate limits, security review. Also store each
   user's email in `users.email` (from Clerk; it is still empty) for support mail, export and deletion.
@@ -392,6 +406,9 @@ Week plan and progress:
 
 ## Changelog
 
+- **2026-11-01**: Edgebook Day 4: landing page for visitors, Clerk waitlist (`/waitlist`, access mode Waitlist), onboarding
+  that guides a new user to connect Delta, a public read-only `/demo` with made-up trades (`npm run demo:seed`), the
+  dashboard moved into `DashboardView`, and empty states for new accounts.
 - **2026-10-31**: Edgebook Day 3: users connect their own Delta key on Settings; it is sealed so only the sync server
   can open it (`delta_credentials`, migration 0009, `npm run keys:generate`, `DELTA_KEYS_*`), and the bot syncs every
   connected user each minute.
