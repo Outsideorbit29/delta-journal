@@ -27,7 +27,9 @@ behaviour patterns (after a loss, oversized, no stop, moved stop, overtrading, a
   `openai/gpt-4o-mini-transcribe`) work on the free tier; set
   `AI_REVIEW_MODEL` / `AI_FAST_MODEL` to use others with paid credits.
 
-Everything runs on your machine except the optional AI calls. Data lives in `data/journal.db` (SQLite).
+By default everything runs on your machine except the optional AI calls, with data in
+`data/journal.db` (SQLite). It can also live in the cloud (see below) so you can open it
+on your phone as an installed app.
 
 ## Setup
 
@@ -48,12 +50,36 @@ After that, use the **Sync from Delta** button, or `npm run sync`.
    and sends each newly closed trade. Trades closed before its first run are not sent;
    use `/journal` for the last 7 days.
 
+### On your phone (cloud setup, optional)
+
+The app is hosted on Vercel (free Hobby plan) and the data lives in Turso (free plan).
+Syncing with Delta stays on your PC, because the Delta key is whitelisted to its IP: keep
+`npm run bot` running there and it writes to the same cloud database.
+
+1. Create a Turso database (Mumbai, `ap-south-1`) and add `DATABASE_URL=libsql://...` and
+   `DATABASE_AUTH_TOKEN=...` to `.env.local`, plus `APP_PASSWORD=...` for the login.
+2. `npm run db:copy-to-cloud` copies your local journal into it (the cloud database must be
+   empty) and checks every table's row count.
+3. `npx vercel login`, then `npx vercel link`, add `APP_PASSWORD`, `DATABASE_URL`,
+   `DATABASE_AUTH_TOKEN` and `AI_GATEWAY_API_KEY` as production environment variables, and
+   `npx vercel deploy --prod`. Pushes to `main` deploy automatically once the repo is connected.
+4. On your phone, open the site, sign in, and choose **Add to Home Screen**.
+
+The hosted app refuses every request if `APP_PASSWORD` is missing, so it cannot be
+published unprotected. It never gets your Delta or Telegram keys (`.vercelignore` keeps
+`.env.local` out of uploads). Schema migrations run from your PC (`npm run db:migrate`, or
+any sync), not from the hosted app. A sync writes only new or changed records and rebuilds
+trades only when something changed, so syncing every minute stays inside Turso's free
+write quota.
+
 ## Commands
 
 | Command | What it does |
 |---|---|
 | `npm run dev` | Start the app on 127.0.0.1:3000 (not visible to other devices) |
-| `npm run sync` | Pull new fills, orders and wallet records, then rebuild trades |
+| `npm run sync` | Pull new fills, orders and wallet records; rebuild trades if anything changed |
+| `npm run db:migrate` | Apply database migrations to `DATABASE_URL` |
+| `npm run db:copy-to-cloud` | Copy the local journal into an empty Turso database |
 | `npm run bot` | Run the Telegram journaling bot (needs `TELEGRAM_BOT_TOKEN`) |
 | `npm run rebuild` | Rebuild trades and auto tags from stored data (after changing `src/lib/config.ts`) |
 | `npm test` | Unit tests for trade reconstruction and tagging |
