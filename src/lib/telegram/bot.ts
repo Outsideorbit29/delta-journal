@@ -2,6 +2,7 @@ import { and, desc, eq, gte, notInArray } from "drizzle-orm";
 import { schema, type Db } from "@/db";
 import { AI_NOT_CONFIGURED, explainAiError } from "@/lib/ai/models";
 import type { ReviewRow } from "@/lib/ai/review";
+import type { PushMessage } from "@/lib/push";
 import { isEmptySuggestion, newSuggestions, type NoteSuggestion } from "@/lib/ai/suggest";
 import { suggestionsFor } from "@/lib/journal/entry";
 import { EMPTY_ENTRY, loadJournalEntry, saveJournalEntry } from "@/lib/journal/save";
@@ -25,6 +26,8 @@ export interface BotContext {
   /** Pulls new data from Delta; injected so tests do not call the exchange. */
   sync: () => Promise<{ fills: number; rebuild: { trades: number } | null }>;
   ai: BotAi | null;
+  /** Sends a phone notification to every subscribed device; null when push is not set up. */
+  push?: ((message: PushMessage) => Promise<unknown>) | null;
   now?: () => number;
 }
 
@@ -81,7 +84,7 @@ export async function notifyClosedTrades(ctx: BotContext): Promise<number> {
   const carded = ctx.db.select({ id: schema.telegramMessages.tradeId }).from(schema.telegramMessages).where(eq(schema.telegramMessages.kind, "trade"));
   const journaled = ctx.db.select({ id: schema.journalEntries.tradeId }).from(schema.journalEntries);
   const due = await ctx.db
-    .select({ id: schema.trades.id })
+    .select({ id: schema.trades.id, symbol: schema.trades.symbol, direction: schema.trades.direction, netPnl: schema.trades.netPnl })
     .from(schema.trades)
     .where(
       and(
@@ -94,7 +97,15 @@ export async function notifyClosedTrades(ctx: BotContext): Promise<number> {
     .orderBy(schema.trades.closedTs)
     .limit(MAX_CARDS_PER_RUN);
 
-  for (const t of due) await sendTradeCard(ctx, t.id);
+  for (const t of due) {
+    await sendTradeCard(ctx, t.id);
+    await notifyPhone(ctx, {
+      title: `${t.symbol} ${t.direction} closed · ${formatMoney(t.netPnl, { sign: true })}`,
+      body: "Tap to journal it while it's fresh.",
+      url: `/trades/${encodeURIComponent(t.id)}`,
+      tag: `trade-${t.id}`,
+    });
+  }
   return due.length;
 }
 
@@ -267,7 +278,19 @@ export async function maybeSendWeeklyReview(ctx: BotContext): Promise<boolean> {
   if ((await getState(ctx.db, STATE_WEEKLY_REVIEW)) === week) return false;
   // Marked before sending, so a failure is not retried every minute; /review can be used instead.
   await setState(ctx.db, STATE_WEEKLY_REVIEW, week);
-  return sendReview(ctx);
+  const sent = await sendReview(ctx);
+  if (sent) await notifyPhone(ctx, { title: "Your weekly trading review is ready", body: "See the habits that cost you most this week.", url: "/review", tag: "weekly-review" });
+  return sent;
+}
+
+/** Phone notifications are a bonus: a failure must never break the bot's own work. */
+export async function notifyPhone(ctx: BotContext, message: PushMessage): Promise<void> {
+  if (!ctx.push) return;
+  try {
+    await ctx.push(message);
+  } catch {
+    // Ignored: Telegram already has the message.
+  }
 }
 
 async function journalCommand(ctx: BotContext) {

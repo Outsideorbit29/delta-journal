@@ -303,3 +303,30 @@ describe("Telegram bot with AI", () => {
     expect(tg.sent.length).toBe(sentBefore + 1);
   });
 });
+
+describe("phone notifications from the bot", () => {
+  it("pushes each newly closed trade with a link to journal it, alongside the Telegram card", async () => {
+    const tg = new FakeTelegram();
+    const pushed: unknown[] = [];
+    const withPush = { ...ctx(tg), push: async (m: unknown) => void pushed.push(m) };
+    await insertTrade("t9", now + 1_000, 3.5);
+    now += 60_000;
+    expect(await notifyClosedTrades(withPush)).toBe(1);
+    expect(tg.sent).toHaveLength(1);
+    expect(pushed).toEqual([{ title: "XAUTUSD short closed · +$3.50", body: "Tap to journal it while it's fresh.", url: "/trades/t9", tag: "trade-t9" }]);
+  });
+
+  it("never lets a push failure stop the Telegram card", async () => {
+    const tg = new FakeTelegram();
+    const broken = {
+      ...ctx(tg),
+      push: async () => {
+        throw new Error("push service down");
+      },
+    };
+    await insertTrade("t10", now + 1_000, -1);
+    now += 60_000;
+    expect(await notifyClosedTrades(broken)).toBe(1);
+    expect(tg.sent).toHaveLength(1);
+  });
+});

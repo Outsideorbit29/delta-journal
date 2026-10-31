@@ -8,6 +8,7 @@ import { getDb, type Db } from "@/db";
 import { AI_MODELS, aiConfigured } from "@/lib/ai/models";
 import { generateReview } from "@/lib/ai/review";
 import { suggestFromNote } from "@/lib/ai/suggest";
+import { pushConfigured, sendPush } from "@/lib/push";
 import { syncAll } from "@/lib/sync";
 import { TelegramApi, TelegramError } from "@/lib/telegram/api";
 import {
@@ -16,6 +17,7 @@ import {
   handleUpdate,
   maybeSendWeeklyReview,
   notifyClosedTrades,
+  notifyPhone,
   setState,
   type BotAi,
   type BotContext,
@@ -36,7 +38,14 @@ async function main() {
   const chatId = process.env.TELEGRAM_CHAT_ID?.trim() || null;
 
   const db = await getDb();
-  const ctx: BotContext = { db, tg: new TelegramApi(token), chatId, sync: () => syncAll(), ai: aiConfigured() ? botAi(db) : null };
+  const ctx: BotContext = {
+    db,
+    tg: new TelegramApi(token),
+    chatId,
+    sync: () => syncAll(),
+    ai: aiConfigured() ? botAi(db) : null,
+    push: pushConfigured() ? (message) => sendPush(db, message) : null,
+  };
   await ctx.tg.setCommands(COMMANDS);
 
   if (!chatId) {
@@ -44,6 +53,7 @@ async function main() {
   } else {
     log(`Bot running for chat ${chatId}. Syncing Delta every ${SYNC_EVERY_MS / 1000}s. Ctrl+C to stop.`);
     log(ctx.ai ? "AI features on: voice notes, note suggestions and weekly reviews." : "AI features off (no AI_GATEWAY_API_KEY).");
+    log(ctx.push ? "Phone notifications on." : "Phone notifications off (no VAPID keys).");
     void syncLoop(ctx);
   }
   await pollLoop(ctx);
@@ -96,6 +106,7 @@ async function syncLoop(ctx: BotContext) {
       if (text !== lastError) {
         lastError = text;
         await ctx.tg.sendMessage(ctx.chatId!, `Delta sync failed: ${text.replace(/[<>&]/g, "")}`).catch(() => {});
+        await notifyPhone(ctx, { title: "Delta sync stopped working", body: text, url: "/settings", tag: "sync-error" });
       }
     }
     await sleep(SYNC_EVERY_MS);
