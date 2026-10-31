@@ -300,10 +300,22 @@ Done (all pushed): 1 sync · 2 trades + auto tags · 3 dashboard and charts · 4
 
 8 phone push notifications · 9 always-on server with a fixed IP (AWS Lightsail Mumbai) (2026-10-31).
 
-Open ideas: none requested yet.
+### Next: Edgebook, a public multi-user product (decided 2026-10-31)
+
+- **Name:** Edgebook (replaces "Delta Journal" as the public brand; Delta is another company's trademark).
+- **Audience:** Indian traders only. The beta is Delta Exchange India only.
+- **Pricing:** the first 10 users are free, then three paid plans (tiers being decided).
+- **Team and timeline:** the user builds solo with Claude; private beta in about one week (target ~2026-11-07).
+- **Planned building blocks:** Clerk accounts; a `user_id` on every table with isolation tests;
+  per-user Delta keys encrypted so only the sync server can decrypt them; the multi-user sync
+  worker on the fixed-IP server (users whitelist our IPs); one shared Telegram bot with account
+  linking; invite-gated sign-up for the first 10; legal pages (DPDP Act), data export and deletion.
+  Payments come after the beta (an Indian seller: Stripe if it onboards, otherwise Razorpay for UPI).
+- **To verify:** Delta's terms for third-party apps syncing other users' accounts, and whether its rate limits are per IP or per key.
 
 ## Changelog
 
+- **2026-10-31**: Decided to build **Edgebook**, a public multi-user version for Indian traders (beta in about a week); plan in "Status and roadmap".
 - **2026-10-31**: The bot now runs 24/7 on an AWS Lightsail server in Mumbai ($7/month, static IP
   `15.206.227.0`) with its own Delta key whitelisted to the server's IPv4 and IPv6. The PC no
   longer runs the bot. Added the `DELTA_SERVER_API_*` variables on the PC.
