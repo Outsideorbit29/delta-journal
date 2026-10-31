@@ -16,6 +16,10 @@ round-trip trades, tags each trade with behaviour patterns, lets the trader jour
 trade (web or Telegram), and uses AI for weekly coaching reviews, note tagging and voice
 notes. It is installable on a phone as a PWA.
 
+It is becoming **Edgebook**, a multi-user product for Indian traders (see "Status and roadmap").
+Accounts are Clerk users, and every row of data belongs to one user (`user_id`). The owner's
+pre-accounts data belongs to the placeholder user `legacy` until `npm run claim-legacy` moves it.
+
 The trader mostly trades perpetual futures, especially **XAUTUSD** (tokenized gold), plus
 BTC, SOL and ETH. History goes back to July 2024 (about 135 trades at the time of writing).
 The goal is to show *why* they lose, not just what happened. The main finding so far:
@@ -34,13 +38,15 @@ fees dwarf gross P&L, scalps lose, and moving a stop while still losing is the c
 Syncing with Delta **never runs on Vercel**: Delta keys must be IP-whitelisted, and Vercel's IPs
 are not fixed. The hosted app hides the Sync button and `/api/sync` returns 403 there
 (`canSyncHere()` in `src/lib/runtime.ts`). The server syncs every minute with its own key. The PC's
-key still works for `npm run sync` / `npm run dev` while the PC's IP is whitelisted.
+key still works for `npm run sync` / `npm run dev` while the PC's IP is whitelisted. Both keys are
+the owner's, so they only ever sync into `OWNER_USER_ID`; other users get per-user keys on Day 3.
 
 ## Stack
 
 - **Next.js 16.4** (App Router, Turbopack, **Cache Components on**, `src/` dir), React 19.3,
   TypeScript, Tailwind v4. Read `node_modules/next/dist/docs/` before using Next APIs (see AGENTS.md).
 - **Drizzle ORM** + **@libsql/client** (SQLite locally, Turso in the cloud). Migrations in `drizzle/`.
+- **Clerk** (`@clerk/nextjs` 7) for accounts, installed through the Vercel Marketplace.
 - **AI SDK 7** (`ai`) through **Vercel AI Gateway** with plain `provider/model` strings; `zod` for schemas.
 - **lightweight-charts 5** (TradingView, Apache-2.0: keep its attribution logo on) for candles;
   other charts are hand-drawn SVG.
@@ -52,10 +58,11 @@ key still works for `npm run sync` / `npm run dev` while the PC's IP is whitelis
 
 | Command | What it does |
 |---|---|
-| `npm run dev` | Local app on http://127.0.0.1:3000 (bound to localhost on purpose) |
-| `npm run bot` | Telegram bot + Delta sync every 60 s (+ weekly AI review). Keep it running on the PC. |
-| `npm run sync` | One sync; prints rows written, and rebuilds trades only if something changed |
-| `npm run rebuild` | Recompute trades and auto tags from stored data (after changing `src/lib/config.ts`) |
+| `npm run dev` | Local app on http://localhost:3000 (loopback only, on purpose; `localhost` rather than `127.0.0.1` because Clerk's dev handshake rewrites to `localhost`). **It migrates `DATABASE_URL` on start**: to try unreleased migrations, run it with `DATABASE_URL=file:data/dev.db` |
+| `npm run bot` | Telegram bot + Delta sync every 60 s (+ weekly AI review), acting for `OWNER_USER_ID`. Runs on the server, not the PC. |
+| `npm run sync` | One sync of the owner's account (`OWNER_USER_ID`); prints rows written, and rebuilds trades only if something changed |
+| `npm run rebuild` | Recompute trades and auto tags from stored data for every user (after changing `src/lib/config.ts`) |
+| `npm run claim-legacy -- user_xxx` | Move all `legacy` rows to that Clerk user (who must have signed in once and have no synced data) |
 | `npm run db:generate` | New migration after editing `src/db/schema.ts` |
 | `npm run db:migrate` | Apply migrations to `DATABASE_URL` (the hosted app never migrates) |
 | `npm run db:copy-to-cloud` | Copy `data/journal.db` into an **empty** Turso DB, checking every table's row count |
@@ -76,8 +83,10 @@ Scripts load `.env.local` via `node --env-file-if-exists=.env.local --import tsx
 | `DELTA_SERVER_API_KEY`, `DELTA_SERVER_API_SECRET` | PC only | Holds the server's key on the PC so it can be copied to the server as its `DELTA_API_*` (see "Always-on server") |
 | `DELTA_BASE_URL` | optional | Defaults to `https://api.india.delta.exchange` |
 | `DATABASE_URL`, `DATABASE_AUTH_TOKEN` | PC + Vercel | Turso `libsql://…` + token. Unset = `file:data/journal.db` |
-| `APP_PASSWORD` | PC + Vercel | Login password. On Vercel, missing = every request refused |
-| `APP_SESSION_SECRET` | optional | Extra key material for session signing |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` | PC + Vercel | Clerk accounts. On Vercel they come from the Marketplace integration (type "Config"); on the PC they were pulled once into `.env.local`. Currently a Clerk **development** instance (`pk_test`) on both |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_URL`, `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | PC + Vercel | `/sign-in`, `/sign-up` (not secret) |
+| `OWNER_USER_ID` | PC + server | The owner's Clerk user id. `DELTA_API_KEY`, `npm run sync`, the bot and the local Sync button act for this account only. Unset = `legacy` |
+| `APP_PASSWORD` | Vercel (to remove) | Old password login, unused since Clerk. Delete it from Vercel after the Clerk rollout |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | PC only | Bot `@Jornalling_bot`; only that chat is answered |
 | `TELEGRAM_SYNC_SECONDS` | optional | Bot sync interval, default 60, minimum 15 |
 | `AI_GATEWAY_API_KEY` | PC + Vercel | AI Gateway (free tier, see AI section) |
@@ -85,9 +94,9 @@ Scripts load `.env.local` via `node --env-file-if-exists=.env.local --import tsx
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | PC + Vercel | Web push signing (generated with `web-push`). Subject is the app URL, not an email |
 | `VERCEL_OIDC_TOKEN` | added by `vercel link` | Unused by the app's own logic except as an AI-configured signal |
 
-Vercel production has exactly seven (all "sensitive"): `APP_PASSWORD`, `DATABASE_URL`,
+Vercel production has seven "sensitive" variables: `APP_PASSWORD` (to remove), `DATABASE_URL`,
 `DATABASE_AUTH_TOKEN`, `AI_GATEWAY_API_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
-`VAPID_SUBJECT`. **Never** put Delta or Telegram keys on Vercel. Add a variable with
+`VAPID_SUBJECT`, plus the two Clerk keys from the Marketplace integration. **Never** put Delta or Telegram keys on Vercel. Add a variable with
 `node -e "<print value from .env.local>" | npx vercel env add NAME production --sensitive --force`,
 so the value is never shown.
 
@@ -95,10 +104,11 @@ so the value is never shown.
 
 ```
 src/
-  proxy.ts                 Login gate (Next 16 "proxy" = old middleware); excludes /login, manifest, icons
+  proxy.ts                 clerkMiddleware() (Next 16 "proxy" = old middleware): reads the session, protects nothing by path
   db/schema.ts             All tables (see Data model)
   db/index.ts              openDatabase(url) (WAL + busy_timeout for local files; migrations unless VERCEL); getDb()
   db/copy.ts               copyDatabase(from, to) used by db:copy-to-cloud
+  db/claim.ts              claimRows(db, from, to): moves one owner's rows to another (claim-legacy)
   lib/delta/               client.ts (HMAC signing, pagination, 429/5xx retry, public unsigned calls), types.ts, ingest.ts (API record -> row)
   lib/sync.ts              syncAll(): fills/orders/wallet -> writeChanged() -> rebuild if anything changed
   lib/trades/reconstruct.ts  Fills -> round-trip trades (pure)
@@ -109,20 +119,23 @@ src/
   lib/journal/             vocab.ts (fixed choices), entry.ts (parse/validate, journalTags, suggestionsFor, risk), save.ts (shared save)
   lib/telegram/            api.ts (minimal Bot API client), render.ts (cards, callbacks, review text; pure), bot.ts (handlers)
   lib/ai/                  models.ts (ids, aiConfigured, explainAiError), suggest.ts, review.ts
-  lib/auth.ts              Sessions, password check, safe redirect
-  lib/runtime.ts           canSyncHere()
+  lib/session.ts           requireUserId() (pages; redirects to /sign-in) and currentUserId() (actions, routes; null);
+                           both create the user's `users` row on first visit (plan "founder", 90 days free)
+  lib/runtime.ts           canSyncHere(), ownerUserId()
+  lib/isolation.test.ts    Two users in one database: every query, save, rebuild, sync, AI and push path stays inside its user
   lib/push.ts              Web push: save/remove subscriptions, sendPush() (drops 404/410 and 5-failure devices)
   lib/candles.ts           Candle window choice + per-trade cache
   lib/queries.ts, format.ts, tags.ts, range.ts, app-icon.tsx
-  app/                     page.tsx (dashboard), trades/, trades/[id]/, journal/ (queue), review/ (AI), settings/, login/,
+  app/                     page.tsx (dashboard), trades/, trades/[id]/, journal/ (queue), review/ (AI), settings/,
+                           sign-in/[[...sign-in]], sign-up/[[...sign-up]] (Clerk),
                            manifest.ts, icon.tsx, apple-icon.tsx, pwa-icon/[size]/, api/trades, api/sync,
                            actions.ts (sync), journal-actions.ts, ai-actions.ts, push-actions.ts, loading.tsx files
   components/              charts/ (equity, calendar, cost breakdown, candlestick, scale), journal-form, journal-section,
                            trade-price-chart, review-view, review-buttons, push-settings, filter-bar, nav-links, sync-button,
                            tag-chip, hide-on-login
 public/sw.js               Service worker: shows pushes, opens the tapped notification's URL (no offline cache)
-scripts/                   sync.ts, rebuild.ts, bot.ts, db-migrate.ts, db-copy-to-cloud.ts
-drizzle/                   SQL migrations 0000-0007 + meta
+scripts/                   sync.ts, rebuild.ts, bot.ts, db-migrate.ts, db-copy-to-cloud.ts, claim-legacy.ts
+drizzle/                   SQL migrations 0000-0008 + meta (0008 = multi-user; its table rebuilds were hand-fixed)
 ```
 
 ## Data model (`src/db/schema.ts`)
@@ -135,8 +148,16 @@ User data (never touched by sync/rebuild): `journal_entries` (keyed by trade id)
 Caches/state: `trade_candles`, `telegram_messages` (message → trade, kinds `trade` |
 `note_prompt` | `suggestion` with `payload`), `app_state` (key/value), `ai_reviews`,
 `push_subscriptions` (endpoint, keys, device label, failure count).
+Accounts: `users` (Clerk user id, email, `plan` default `founder`, `access_until`).
 
-There are no foreign keys. Rebuild deletes `auto` tags only.
+**Every table except `users` and `trade_candles` has `user_id`** (default `legacy`). Delta ids
+are globally unique, so primary keys stay as they were. Ownership is enforced by filtering on
+`user_id` in every query, and an upsert only updates a row the same user owns (`setWhere`), so a
+record can never move between users. `sync_state` has the primary key (user, resource).
+`app_state` has (user, key), with `user_id` `''` for process-wide state (`telegram.update_offset`).
+Per-user state (`telegram.notify_since`, `telegram.weekly_review_for`) sits under the user.
+
+There are no foreign keys. Rebuild deletes `auto` tags only, and only the rebuilt user's rows.
 
 ## How it works
 
@@ -215,11 +236,16 @@ habits/process only (no trade/market calls), `tidyReview()` collapses whitespace
 Tests use `MockLanguageModelV4` from `ai/test`.
 
 ### Auth and PWA
-`APP_PASSWORD` → HMAC-signed, expiring (30 d) token in the httpOnly cookie `dj_session`. Password
-checks are constant-time, failures are delayed 800 ms, and redirects only go to in-app paths (`/\host` is blocked).
-`authMode()`: `open` locally without a password, `password`, or `misconfigured` (on Vercel
-without a password → refuse everything). Manifest + icons (generated with `next/og`, SVG
-artwork) are public so phones can install. Install: Android Chrome → Install app; iOS Safari →
+**Clerk** (`@clerk/nextjs` 7, Core 3) replaced the old `APP_PASSWORD` login. `<ClerkProvider>` sits
+inside `<body>` (required with Cache Components), and the header has Clerk's `<UserButton />`.
+`/sign-in` and `/sign-up` render Clerk's components; `HideOnLogin` hides the app chrome there.
+Following Clerk's current advice (path matchers are deprecated), **`proxy.ts` protects nothing by
+path**. Each page calls `requireUserId()`, and each action and API route calls `currentUserId()`
+and refuses without a user ("Sign in first." / 401). With Partial Prerendering a signed-out page
+answers 200 with the static shell and then a streamed redirect to `/sign-in`: no user data is
+ever sent (verified with curl). If Clerk's keys are missing, `clerkMiddleware` throws, so auth fails closed.
+The local Sync button only syncs when the signed-in user is `OWNER_USER_ID`, because the PC's
+Delta key is the owner's. Manifest, icons and `sw.js` need no session, so phones can install. Install: Android Chrome → Install app; iOS Safari →
 Add to Home Screen.
 
 ## Delta API quirks (learned the hard way)
@@ -243,6 +269,9 @@ Add to Home Screen.
 - Next 16 with Cache Components: pages reading data call `await connection()` and need a
   `loading.tsx` or `<Suspense>`; `usePathname` in the layout needs Suspense. Run `npx next typegen` for new routes.
 - Never weaken security defaults: localhost binding, auth fail-closed, no secrets in code or logs.
+- **Multi-user: every function that reads or writes user data takes `userId` (right after `db`, or
+  first in `queries.ts`) and filters on it.** Pages and actions get it only from `lib/session.ts`,
+  never from the request. Add any new query path to `src/lib/isolation.test.ts`.
 
 ## Verification and git workflow (the user's expectations)
 
@@ -291,7 +320,12 @@ plus an Elastic IP would cost more than Lightsail, whose plans include the stati
 - `vercel link` appends `.env*` and `.vercel` to `.gitignore`, which breaks the `!.env.example` exception. Check after linking.
 - If the dev server serves stale CSS after editing `globals.css`, restart it.
 - PowerShell `.Count` on a single object can print empty: wrap in `@(...)`.
-- Claude Code may kill background `npm run dev` / `npm run bot` when memory is low.
+- Claude Code may kill background `npm run dev` / `npm run bot` when memory is low. Stopping a background
+  `npx next dev` task can leave its `node … start-server.js` child running on port 3000; the next
+  `next dev` then exits with "Another next dev server is already running". Kill that PID.
+- `.env.local` points at Turso, and opening the database runs migrations: a local `npm run dev` or
+  script with a new migration **migrates the live database**. Test against `DATABASE_URL=file:data/dev.db`
+  (a copy of `data/journal.db`) until the rollout.
 
 ## Status and roadmap
 
@@ -304,7 +338,7 @@ Done (all pushed): 1 sync · 2 trades + auto tags · 3 dashboard and charts · 4
 
 - **Name:** Edgebook (replaces "Delta Journal" as the public brand; Delta is another company's trademark).
 - **Audience:** Indian traders only. The beta is Delta Exchange India only.
-- **Pricing:** the first 10 users are free, then three paid plans (tiers being decided).
+- **Pricing:** the first 10 users are free for 3 months (the user picks who), then three paid plans (tiers being decided).
 - **Team and timeline:** the user builds solo with Claude; private beta in about one week (target ~2026-11-07).
 - **Planned building blocks:** Clerk accounts; a `user_id` on every table with isolation tests;
   per-user Delta keys encrypted so only the sync server can decrypt them; the multi-user sync
@@ -313,8 +347,25 @@ Done (all pushed): 1 sync · 2 trades + auto tags · 3 dashboard and charts · 4
   Payments come after the beta (an Indian seller: Stripe if it onboards, otherwise Razorpay for UPI).
 - **To verify:** Delta's terms for third-party apps syncing other users' accounts, and whether its rate limits are per IP or per key.
 
+Week plan and progress:
+- **Day 1 (done, branch `edgebook`): Clerk accounts and `user_id` everywhere**, isolation tests, `claim-legacy`.
+  Rollout: back up Turso → merge to `main` (Vercel deploys) → run `deploy/server/update.sh` on the server
+  (it migrates Turso to 0008 and restarts the bot) → the owner signs up on the hosted app →
+  `npm run claim-legacy -- user_…` → set `OWNER_USER_ID` in `.env.local` on the PC and the server, restart the bot →
+  remove `APP_PASSWORD` from Vercel. The old code breaks on the new `app_state` key, so deploy and migrate together.
+- Day 3: encrypted per-user Delta keys and the multi-user sync worker.
+- Day 4: landing page, onboarding key wizard (whitelist the server's IPv4 and IPv6), demo mode.
+- Day 5: shared Edgebook Telegram bot with account linking, per-user push and AI, invite codes capped at 10.
+- Day 6: legal pages (DPDP Act), export and delete, monitoring, rate limits, security review.
+- Day 7: rebrand to Edgebook and launch. A Clerk **production** instance needs a domain we own, and its
+  user ids differ from the development instance's, so the owner's data would need claiming again.
+
 ## Changelog
 
+- **2026-10-31**: Edgebook Day 1: Clerk sign-in/sign-up replaced the password login; `users` table and
+  `user_id` on every table (migration 0008); every query, sync, rebuild, journal save, AI review, push and
+  bot path is scoped to a user, with a two-user isolation test; `npm run claim-legacy`; `OWNER_USER_ID`;
+  `npm run dev` now binds to `localhost`.
 - **2026-10-31**: Decided to build **Edgebook**, a public multi-user version for Indian traders (beta in about a week); plan in "Status and roadmap".
 - **2026-10-31**: The bot now runs 24/7 on an AWS Lightsail server in Mumbai ($7/month, static IP
   `15.206.227.0`) with its own Delta key whitelisted to the server's IPv4 and IPv6. The PC no
