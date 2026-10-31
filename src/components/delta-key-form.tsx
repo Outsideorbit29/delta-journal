@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { connectDelta, disconnectDelta, type DeltaKeyResult } from "@/app/delta-actions";
+import { buttonPrimary, buttonSecondary } from "@/components/ui";
 
 /** Paste a Delta key and secret; they are sealed on the server and never shown again. */
 export function DeltaKeyForm({ connected }: { connected: boolean }) {
@@ -26,9 +27,8 @@ export function DeltaKeyForm({ connected }: { connected: boolean }) {
 
   const input =
     "w-full rounded-md border border-zinc-300 bg-white px-3 py-2 font-mono text-sm dark:border-zinc-700 dark:bg-zinc-900";
-  const button =
-    "rounded-md px-4 py-2 text-sm font-medium disabled:opacity-60 bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300";
-  const secondary = "rounded-md border border-zinc-300 px-4 py-2 text-sm hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:hover:bg-zinc-800";
+  const button = buttonPrimary;
+  const secondary = buttonSecondary;
 
   return (
     <form onSubmit={save} className="space-y-3">

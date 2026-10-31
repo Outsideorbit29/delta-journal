@@ -7,6 +7,7 @@ import type { NoteSuggestion } from "@/lib/ai/suggest";
 import type { JournalInput } from "@/lib/journal/entry";
 import { EMOTIONS, MISTAKES, RISKY_EMOTIONS, SETUPS, type Emotion, type Mistake, type Setup } from "@/lib/journal/vocab";
 import { formatPrice } from "@/lib/format";
+import { buttonPrimary } from "@/components/ui";
 
 interface Props {
   tradeId: string;
@@ -213,7 +214,7 @@ export function JournalForm({ tradeId, initial, suggested, trade, submitLabel = 
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+          className={buttonPrimary}
         >
           {pending ? "Saving…" : submitLabel}
         </button>
@@ -257,7 +258,7 @@ function Chip({
 }) {
   const on = warning
     ? "border-amber-500 bg-amber-100 text-amber-950 dark:border-amber-400 dark:bg-amber-950 dark:text-amber-100"
-    : "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900";
+    : "border-brand bg-brand-soft text-brand";
   const off = suggested
     ? "border-dashed border-zinc-500 hover:bg-zinc-100 dark:border-zinc-400 dark:hover:bg-zinc-800"
     : "border-zinc-300 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800";

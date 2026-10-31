@@ -32,7 +32,7 @@ export async function sendTestPush(): Promise<PushActionResult> {
   const userId = await currentUserId();
   if (!userId) return { ok: false, message: "Sign in first." };
   const r = await sendPush(await getDb(), userId, {
-    title: "Delta Journal",
+    title: "Edgebook",
     body: "Test notification: closed trades, weekly reviews and sync problems will show up like this.",
     url: "/settings",
     tag: "test",

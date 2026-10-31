@@ -35,7 +35,7 @@ export default async function ReviewPage({ searchParams }: PageProps<"/review">)
       </header>
 
       {shown ? (
-        <section className="rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">
+        <section className="p-5 rounded-xl border border-zinc-800 bg-zinc-900/60">
           <ReviewView row={shown} />
         </section>
       ) : (
@@ -47,7 +47,7 @@ export default async function ReviewPage({ searchParams }: PageProps<"/review">)
       {reviews.length > 1 && (
         <section>
           <h2 className="mb-2 text-sm font-medium text-zinc-500">Earlier reviews</h2>
-          <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-200 text-sm dark:divide-zinc-800 dark:border-zinc-800">
+          <ul className="divide-y divide-zinc-100 text-sm dark:divide-zinc-800 rounded-xl border border-zinc-800 bg-zinc-900/60">
             {reviews.map((r) => (
               <li key={r.id}>
                 <Link

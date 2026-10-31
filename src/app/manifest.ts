@@ -2,9 +2,9 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Delta Journal",
-    short_name: "Journal",
-    description: "Trading journal and habit insights for Delta Exchange India",
+    name: "Edgebook",
+    short_name: "Edgebook",
+    description: "Trading journal and habit insights for Delta Exchange India traders",
     start_url: "/",
     scope: "/",
     display: "standalone",

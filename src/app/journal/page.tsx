@@ -80,7 +80,7 @@ export default async function JournalQueue({ searchParams }: PageProps<"/journal
           {queue.length > 1 && (
             <section className="space-y-2">
               <h2 className="text-sm font-medium text-zinc-500">Up next</h2>
-              <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-200 text-sm dark:divide-zinc-800 dark:border-zinc-800">
+              <ul className="divide-y divide-zinc-100 text-sm dark:divide-zinc-800 rounded-xl border border-zinc-800 bg-zinc-900/60">
                 {queue
                   .map((t, i) => ({ t, i }))
                   .filter(({ i }) => i !== skip)

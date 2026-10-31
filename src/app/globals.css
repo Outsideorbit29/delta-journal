@@ -1,70 +1,56 @@
 @import "tailwindcss";
 
+/* Edgebook is dark only: <html class="dark"> turns every dark: style on. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
+  --background: #09090b;
+  --foreground: #ededed;
+
+  /* Brand teal, for interactive UI only (buttons, links, active tabs, the logo).
+     Never for numbers: profit and loss keep their own colours below. */
+  --brand: #2dd4bf;
+  --brand-strong: #14b8a6;
+  --brand-ink: #042f2e;
+  --brand-soft: rgb(45 212 191 / 0.12);
 
   /* Chart tokens. Profit/loss is a diverging pair (blue <-> red, gray midpoint);
      each arm runs from the smallest to the largest magnitude. Validated with the
-     dataviz palette checker for both modes. */
-  --viz-surface: #fcfcfb;
-  --viz-ink: #0b0b0b;
-  --viz-ink-2: #52514e;
+     dataviz palette checker against the dark surface. */
+  --viz-surface: #1a1a19;
+  --viz-ink: #f0efec;
+  --viz-ink-2: #c3c2b7;
   --viz-muted: #898781;
-  --viz-grid: #e1e0d9;
-  --viz-axis: #c3c2b7;
-  --viz-profit: #2a78d6;
-  --viz-loss: #e34948;
-  --viz-neutral: #f0efec;
-  --viz-profit-1: #86b6ef;
-  --viz-profit-2: #5598e7;
-  --viz-profit-3: #2a78d6;
-  --viz-profit-4: #1c5cab;
-  --viz-loss-1: #f09796;
-  --viz-loss-2: #e86a69;
-  --viz-loss-3: #d63f3e;
-  --viz-loss-4: #a82c2c;
-  /* Ink on top of a filled cell, by step: light fills take dark ink. */
-  --viz-on-1: #0b0b0b;
-  --viz-on-2: #0b0b0b;
-  --viz-on-3: #ffffff;
-  --viz-on-4: #ffffff;
+  --viz-grid: #2c2c2a;
+  --viz-axis: #383835;
+  --viz-profit: #3987e5;
+  --viz-loss: #e66767;
+  --viz-neutral: #383835;
+  --viz-profit-1: #184f95;
+  --viz-profit-2: #256abf;
+  --viz-profit-3: #3987e5;
+  --viz-profit-4: #86b6ef;
+  --viz-loss-1: #8a3030;
+  --viz-loss-2: #b83c3c;
+  --viz-loss-3: #e66767;
+  --viz-loss-4: #f2a5a5;
+  /* Ink on top of a filled cell, by step: dark fills take light ink. */
+  --viz-on-1: #ffffff;
+  --viz-on-2: #ffffff;
+  --viz-on-3: #0b0b0b;
+  --viz-on-4: #0b0b0b;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-soft: var(--brand-soft);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:where(:not([data-theme="light"])) {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-
-    --viz-surface: #1a1a19;
-    --viz-ink: #f0efec;
-    --viz-ink-2: #c3c2b7;
-    --viz-muted: #898781;
-    --viz-grid: #2c2c2a;
-    --viz-axis: #383835;
-    --viz-profit: #3987e5;
-    --viz-loss: #e66767;
-    --viz-neutral: #383835;
-    --viz-profit-1: #184f95;
-    --viz-profit-2: #256abf;
-    --viz-profit-3: #3987e5;
-    --viz-profit-4: #86b6ef;
-    --viz-loss-1: #8a3030;
-    --viz-loss-2: #b83c3c;
-    --viz-loss-3: #e66767;
-    --viz-loss-4: #f2a5a5;
-    --viz-on-1: #ffffff;
-    --viz-on-2: #ffffff;
-    --viz-on-3: #0b0b0b;
-    --viz-on-4: #0b0b0b;
-  }
 }
 
 body {

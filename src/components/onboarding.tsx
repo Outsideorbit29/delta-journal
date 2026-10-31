@@ -13,7 +13,7 @@ export function Onboarding({ status }: { status: DeltaKeyStatus | null }) {
           minutes.
         </p>
       </div>
-      <section className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+      <section className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60">
         <DeltaConnect status={status} syncedBefore={false} />
       </section>
       <p className="text-sm text-zinc-500">

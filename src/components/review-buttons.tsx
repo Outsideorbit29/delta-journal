@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { reviewAction, type AiResult } from "@/app/ai-actions";
+import { buttonPrimary } from "@/components/ui";
 
 export function ReviewButtons() {
   const [result, setResult] = useState<AiResult | null>(null);
@@ -22,7 +23,7 @@ export function ReviewButtons() {
           type="button"
           disabled={pending}
           onClick={() => run(d)}
-          className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+          className={buttonPrimary}
         >
           {pending && days === d ? "Writing review…" : `Review last ${d} days`}
         </button>

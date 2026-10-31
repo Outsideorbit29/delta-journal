@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { sendTestPush, subscribePush, unsubscribePush, type PushActionResult } from "@/app/push-actions";
+import { buttonPrimary, buttonSecondary } from "@/components/ui";
 
 type Support = "checking" | "unsupported" | "ios-not-installed" | "ready";
 
@@ -69,9 +70,8 @@ export function PushSettings({ publicKey }: { publicKey: string | null }) {
 
   const test = () => start(async () => setResult(await sendTestPush()));
 
-  const button =
-    "rounded-md px-4 py-2 text-sm font-medium disabled:opacity-60 bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300";
-  const secondary = "rounded-md border border-zinc-300 px-4 py-2 text-sm hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:hover:bg-zinc-800";
+  const button = buttonPrimary;
+  const secondary = buttonSecondary;
 
   return (
     <div className="space-y-3">
@@ -79,7 +79,7 @@ export function PushSettings({ publicKey }: { publicKey: string | null }) {
       {support === "unsupported" && <p className="text-sm text-zinc-500">This browser does not support push notifications.</p>}
       {support === "ios-not-installed" && (
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          On iPhone, notifications only work in the installed app: tap Share → <strong>Add to Home Screen</strong>, open Delta Journal from the home
+          On iPhone, notifications only work in the installed app: tap Share → <strong>Add to Home Screen</strong>, open Edgebook from the home
           screen, and come back here.
         </p>
       )}
