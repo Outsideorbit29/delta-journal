@@ -8,6 +8,7 @@ import { getDeltaKeyStatus } from "@/lib/keys/credentials";
 import { vapidPublicKey } from "@/lib/push";
 import { getSyncStatus } from "@/lib/queries";
 import { requireUserId } from "@/lib/session";
+import { explainSyncError } from "@/lib/sync-errors";
 
 export default async function SettingsPage() {
   await connection();
@@ -20,12 +21,12 @@ export default async function SettingsPage() {
     <main className="mx-auto w-full max-w-2xl space-y-6 px-4 py-6">
       <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
 
-      <section className="space-y-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+      <section className="space-y-4 p-4 rounded-xl border border-zinc-800 bg-zinc-900/60">
         <h2 className="font-semibold">Delta Exchange</h2>
         <DeltaConnect status={key} syncedBefore={lastRun > 0} />
       </section>
 
-      <section className="space-y-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+      <section className="space-y-3 p-4 rounded-xl border border-zinc-800 bg-zinc-900/60">
         <div>
           <h2 className="font-semibold">Notifications on this device</h2>
           <p className="text-sm text-zinc-500">
@@ -35,12 +36,12 @@ export default async function SettingsPage() {
         <PushSettings publicKey={vapidPublicKey()} />
       </section>
 
-      <section className="space-y-1 rounded-lg border border-zinc-200 p-4 text-sm dark:border-zinc-800">
+      <section className="space-y-1 p-4 text-sm rounded-xl border border-zinc-800 bg-zinc-900/60">
         <h2 className="mb-2 font-semibold">Status</h2>
         <p>
           <span className="text-zinc-500">Last sync with Delta: </span>
           {lastRun ? `${formatDateTime(lastRun)} IST` : "never"}
-          {error && <span className="text-rose-600 dark:text-rose-400"> · failed: {error}</span>}
+          {error && <span className="block text-amber-300">{explainSyncError(error)}</span>}
         </p>
         <p>
           <span className="text-zinc-500">Syncing runs: </span>

@@ -3,6 +3,7 @@ import { DeltaKeyForm } from "@/components/delta-key-form";
 import { formatDateTime } from "@/lib/format";
 import type { DeltaKeyStatus } from "@/lib/keys/credentials";
 import { syncServerIps } from "@/lib/runtime";
+import { explainSyncError } from "@/lib/sync-errors";
 
 /** How to create a Delta key, the IPs to whitelist, the key form and its status. Used by Settings and onboarding. */
 export function DeltaConnect({ status, syncedBefore }: { status: DeltaKeyStatus | null; syncedBefore: boolean }) {
@@ -55,8 +56,9 @@ function KeyStatus({ status, syncedBefore }: { status: DeltaKeyStatus | null; sy
       </p>
     );
   return (
-    <p className="text-sm text-rose-600 dark:text-rose-400">
-      Key {key} is not working: {status.lastError}
-    </p>
+    <div className="rounded-md border border-amber-900/60 bg-amber-950/40 p-3 text-sm text-amber-200">
+      <p className="font-medium">Key {key} is not working</p>
+      <p className="mt-1 text-amber-200/80">{explainSyncError(status.lastError ?? "")}</p>
+    </div>
   );
 }
