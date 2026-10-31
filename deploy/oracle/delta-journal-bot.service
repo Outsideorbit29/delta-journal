@@ -1,0 +1,21 @@
+# systemd unit for the Telegram bot + Delta sync. setup.sh fills in the
+# __PLACEHOLDERS__ and installs it as /etc/systemd/system/delta-journal-bot.service.
+[Unit]
+Description=Delta Journal: Telegram bot and Delta sync
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__DIR__
+# npm run bot loads .env.local from the working directory.
+ExecStart=__NPM__ run bot
+Restart=always
+RestartSec=15
+Environment=NODE_ENV=production
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

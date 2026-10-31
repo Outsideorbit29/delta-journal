@@ -253,6 +253,25 @@ Add to Home Screen.
 - Push to `main` (auto-deploys to Vercel); confirm local and remote heads match.
 - Test real behaviour, not just types: live API/DB checks, the browser for UI. Clean up test data you create.
 
+## Always-on server (Oracle Cloud), in progress
+
+Delta requires a whitelisted IP even for Read Data keys (confirmed by the user, 2026-10-31),
+and the PC's mobile IP keeps changing. So the bot and sync move to an **Oracle Cloud Always
+Free VM** (Ubuntu 24.04, home region Mumbai or Hyderabad) with a fixed public IP, running 24/7.
+
+- `deploy/oracle/setup.sh`: one-time setup on the VM (2 GB swap for the 1 GB micro VM,
+  Node 24 from NodeSource, `npm ci`, `db:migrate`, installs and starts the systemd service).
+  Safe to re-run.
+- `deploy/oracle/delta-journal-bot.service`: systemd unit template (`npm run bot`, restarts on
+  failure, starts on boot). Logs: `journalctl -u delta-journal-bot -f`.
+- `deploy/oracle/update.sh`: `git pull`, `npm ci`, `db:migrate`, restart. Run after pushing changes.
+- Access: SSH key `~/.ssh/delta_journal_oracle` on the PC (made for this VM only). The VM
+  clones the private repo with a read-only GitHub deploy key.
+- `.env.local` on the VM holds the Delta key (whitelisted to the VM's IP), Telegram, Turso, AI and VAPID values.
+- **Only one bot may run at a time** (Telegram returns 409 to a second poller): stop the PC bot once the VM bot runs.
+- Oracle may reclaim *idle* Always Free VMs (CPU/network under 20% for 7 days). Upgrading the
+  account to pay-as-you-go (still free within limits) avoids that. Don't add fake load.
+
 ## Gotchas (Windows / tooling)
 
 - Git Bash heredocs or `python -c` scripts containing quotes/backslashes sometimes fail to parse or
@@ -270,13 +289,14 @@ Done (all pushed): 1 sync · 2 trades + auto tags · 3 dashboard and charts · 4
 8 phone push notifications (2026-10-31).
 
 Next (requested 2026-10-31):
-- **A Delta read key that does not depend on the changing mobile IP.** Delta's docs say a
-  whitelist is *required for keys with Trading permission*. They say nothing about Read Data
-  keys, so the plan is a new Read Data-only key created without an IP. If Delta insists on an IP,
-  the fallback is running the sync from a machine with a fixed IP.
+- **A Delta key that does not depend on the changing mobile IP.** Delta refuses keys without an
+  IP whitelist, even read-only ones, so the bot moves to an Oracle Cloud VM with a fixed IP
+  (see "Always-on server"). In progress.
 
 ## Changelog
 
+- **2026-10-31**: Added `deploy/oracle/` (setup script, systemd unit, update script) to run the bot
+  24/7 from an Oracle Cloud Always Free VM with a fixed IP, because Delta requires an IP whitelist even for read-only keys.
 - **2026-10-31**: Phone push notifications: `/settings` page, `public/sw.js`, `push_subscriptions`
   (migration 0007), the bot pushes new closes, weekly reviews and sync failures; VAPID env vars;
   Delta IP errors now name the IP to whitelist.
