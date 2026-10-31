@@ -2,11 +2,11 @@
 
 # Delta Journal: project guide
 
-> **Standing rule: update this file with every change to the project.** Any commit that
+> **Standing rule: update this file with every change to the project.** Any change that
 > adds, removes or changes behaviour, setup, environment variables, commands, data model or
-> conventions must update the matching section here **in the same commit**, and add a line
-> to the [Changelog](#changelog). If something here is wrong, fix it. This file is the
-> source of truth for how the project works.
+> conventions must update the matching section here, and add a line to the
+> [Changelog](#changelog), ideally in the same commit and **never later than the same push**.
+> If something here is wrong, fix it. This file is the source of truth for how the project works.
 
 ## What this is
 
@@ -80,10 +80,14 @@ Scripts load `.env.local` via `node --env-file-if-exists=.env.local --import tsx
 | `TELEGRAM_SYNC_SECONDS` | optional | Bot sync interval, default 60, minimum 15 |
 | `AI_GATEWAY_API_KEY` | PC + Vercel | AI Gateway (free tier, see AI section) |
 | `AI_REVIEW_MODEL`, `AI_FAST_MODEL`, `AI_TRANSCRIBE_MODEL` | optional | Model overrides |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | PC + Vercel | Web push signing (generated with `web-push`). Subject is the app URL, not an email |
 | `VERCEL_OIDC_TOKEN` | added by `vercel link` | Unused by the app's own logic except as an AI-configured signal |
 
-Vercel production has exactly four (all "sensitive"): `APP_PASSWORD`, `DATABASE_URL`,
-`DATABASE_AUTH_TOKEN`, `AI_GATEWAY_API_KEY`. **Never** put Delta or Telegram keys on Vercel.
+Vercel production has exactly seven (all "sensitive"): `APP_PASSWORD`, `DATABASE_URL`,
+`DATABASE_AUTH_TOKEN`, `AI_GATEWAY_API_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
+`VAPID_SUBJECT`. **Never** put Delta or Telegram keys on Vercel. Add a variable with
+`node -e "<print value from .env.local>" | npx vercel env add NAME production --sensitive --force`,
+so the value is never shown.
 
 ## Code map
 
@@ -105,15 +109,18 @@ src/
   lib/ai/                  models.ts (ids, aiConfigured, explainAiError), suggest.ts, review.ts
   lib/auth.ts              Sessions, password check, safe redirect
   lib/runtime.ts           canSyncHere()
+  lib/push.ts              Web push: save/remove subscriptions, sendPush() (drops 404/410 and 5-failure devices)
   lib/candles.ts           Candle window choice + per-trade cache
   lib/queries.ts, format.ts, tags.ts, range.ts, app-icon.tsx
-  app/                     page.tsx (dashboard), trades/, trades/[id]/, journal/ (queue), review/ (AI), login/,
+  app/                     page.tsx (dashboard), trades/, trades/[id]/, journal/ (queue), review/ (AI), settings/, login/,
                            manifest.ts, icon.tsx, apple-icon.tsx, pwa-icon/[size]/, api/trades, api/sync,
-                           actions.ts (sync), journal-actions.ts, ai-actions.ts, loading.tsx files
+                           actions.ts (sync), journal-actions.ts, ai-actions.ts, push-actions.ts, loading.tsx files
   components/              charts/ (equity, calendar, cost breakdown, candlestick, scale), journal-form, journal-section,
-                           trade-price-chart, review-view, review-buttons, filter-bar, nav-links, sync-button, tag-chip, hide-on-login
+                           trade-price-chart, review-view, review-buttons, push-settings, filter-bar, nav-links, sync-button,
+                           tag-chip, hide-on-login
+public/sw.js               Service worker: shows pushes, opens the tapped notification's URL (no offline cache)
 scripts/                   sync.ts, rebuild.ts, bot.ts, db-migrate.ts, db-copy-to-cloud.ts
-drizzle/                   SQL migrations 0000-0006 + meta
+drizzle/                   SQL migrations 0000-0007 + meta
 ```
 
 ## Data model (`src/db/schema.ts`)
@@ -124,7 +131,8 @@ Derived (rebuilt from raw; trade id = id of the opening fill, or `<fillId>-flip`
 stable): `trades`, `trade_fills` (legs), `trade_tags` (`source` = `auto` | `user`).
 User data (never touched by sync/rebuild): `journal_entries` (keyed by trade id).
 Caches/state: `trade_candles`, `telegram_messages` (message → trade, kinds `trade` |
-`note_prompt` | `suggestion` with `payload`), `app_state` (key/value), `ai_reviews`.
+`note_prompt` | `suggestion` with `payload`), `app_state` (key/value), `ai_reviews`,
+`push_subscriptions` (endpoint, keys, device label, failure count).
 
 There are no foreign keys. Rebuild deletes `auto` tags only.
 
@@ -181,7 +189,18 @@ queue of un-journaled closed trades, newest first, with Save & next.
   After a note, AI suggests new answers (`a:y` / `a:n`).
 - Commands: `/journal` (last 7 days), `/today`, `/sync`, `/review`, `/help`. The weekly review is sent
   automatically on **Sunday from 20:00 IST**, once per week (`telegram.weekly_review_for`).
-- Sync failures are messaged once per distinct error (e.g. a new IP to whitelist).
+- Sync failures are messaged once per distinct error. A Delta IP error names the exact IP to whitelist.
+- With VAPID keys set, the same events also go out as **phone push notifications**
+  (`ctx.push` → `sendPush`): each new close (tap → `/trades/<id>`), the weekly review (→ `/review`)
+  and sync failures (→ `/settings`). A push failure never blocks the Telegram message (`notifyPhone`).
+
+### Push notifications (`lib/push.ts`, `public/sw.js`, `/settings`)
+Standard Web Push with VAPID (`web-push`). On `/settings` a device taps "Turn on notifications"
+→ permission → `pushManager.subscribe` with `VAPID_PUBLIC_KEY` → stored in `push_subscriptions`.
+"Send a test" pushes from the hosted app. Push services' 404/410 remove a subscription, and
+5 failures in a row also remove it. `sw.js` is public (excluded from the login proxy) and served
+`no-cache` (`next.config.ts` headers). **iPhone: push only works in the installed Home Screen app
+(iOS 16.4+)**; the settings page explains this when opened in Safari.
 
 ### AI (`lib/ai/`)
 Through AI Gateway. **The account is on the free tier, which blocks all Claude models** and
@@ -248,12 +267,19 @@ Add to Home Screen.
 Done (all pushed): 1 sync · 2 trades + auto tags · 3 dashboard and charts · 4 journal + R ·
 5 Telegram bot · 6 AI (review, suggestions, voice) · 7 PWA + login + Turso + Vercel.
 
+8 phone push notifications (2026-10-31).
+
 Next (requested 2026-10-31):
-- **Push notifications** on the installed phone app (web push).
-- **A Delta read key that does not depend on the changing mobile IP.**
+- **A Delta read key that does not depend on the changing mobile IP.** Delta's docs say a
+  whitelist is *required for keys with Trading permission*. They say nothing about Read Data
+  keys, so the plan is a new Read Data-only key created without an IP. If Delta insists on an IP,
+  the fallback is running the sync from a machine with a fixed IP.
 
 ## Changelog
 
+- **2026-10-31**: Phone push notifications: `/settings` page, `public/sw.js`, `push_subscriptions`
+  (migration 0007), the bot pushes new closes, weekly reviews and sync failures; VAPID env vars;
+  Delta IP errors now name the IP to whitelist.
 - **2026-10-31**: Created CLAUDE.md documenting the whole project; standing rule to update it with every change.
 - **2026-10-31**: Phase 7: PWA (manifest, icons), password login (`proxy.ts`), Turso + Vercel
   (`bom1`), sync writes only changed rows (canonical JSON), `db:copy-to-cloud`, `db:migrate`.

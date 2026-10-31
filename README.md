@@ -64,6 +64,9 @@ Syncing with Delta stays on your PC, because the Delta key is whitelisted to its
    `DATABASE_AUTH_TOKEN` and `AI_GATEWAY_API_KEY` as production environment variables, and
    `npx vercel deploy --prod`. Pushes to `main` deploy automatically once the repo is connected.
 4. On your phone, open the site, sign in, and choose **Add to Home Screen**.
+5. For notifications (a closed trade, the weekly review, a broken sync): add the VAPID keys
+   (see `.env.example`) on the PC and on Vercel, then open **Settings** in the installed app
+   and tap **Turn on notifications**. On iPhone this only works from the Home Screen app.
 
 The hosted app refuses every request if `APP_PASSWORD` is missing, so it cannot be
 published unprotected. It never gets your Delta or Telegram keys (`.vercelignore` keeps
