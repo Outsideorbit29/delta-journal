@@ -27,13 +27,14 @@ fees dwarf gross P&L, scalps lose, and moving a stop while still losing is the c
 |---|---|---|
 | Web app (PWA) | https://delta-journal-three.vercel.app | Vercel project `delta-journal` (team `anish-kumars-projects`), Hobby plan, region `bom1` (Mumbai). Git-connected: **every push to `main` deploys to production.** |
 | Database | Turso (libSQL), free plan | `DATABASE_URL` / `DATABASE_AUTH_TOKEN`. Both the hosted app and the PC use it. |
-| Sync + Telegram bot | The trader's Windows PC: `npm run bot` | The only place with the Delta and Telegram keys. Must run in the user's own terminal: Claude Code kills background jobs when memory is low. |
+| Sync + Telegram bot | **AWS Lightsail server** `delta-journal`, Mumbai, static IP `15.206.227.0` | systemd service `delta-journal-bot`, running 24/7 since 2026-10-31. See "Always-on server". The PC no longer runs the bot. |
 | Code | https://github.com/Outsideorbit29/delta-journal (private) | Branch `main`. |
 | Local backup | `data/journal-backup-before-cloud.db` | Snapshot taken just before moving to Turso (2026-10-31). |
 
-Syncing with Delta **only runs on the PC**, because the Delta API key is IP-whitelisted and
-Vercel's IPs are not fixed. The hosted app hides the Sync button and `/api/sync` returns 403
-there (`canSyncHere()` in `src/lib/runtime.ts`).
+Syncing with Delta **never runs on Vercel**: Delta keys must be IP-whitelisted, and Vercel's IPs
+are not fixed. The hosted app hides the Sync button and `/api/sync` returns 403 there
+(`canSyncHere()` in `src/lib/runtime.ts`). The server syncs every minute with its own key. The PC's
+key still works for `npm run sync` / `npm run dev` while the PC's IP is whitelisted.
 
 ## Stack
 
@@ -71,7 +72,8 @@ Scripts load `.env.local` via `node --env-file-if-exists=.env.local --import tsx
 
 | Variable | Where | Purpose |
 |---|---|---|
-| `DELTA_API_KEY`, `DELTA_API_SECRET` | PC only | Delta **Read Data** key for sync (IP-whitelisted) |
+| `DELTA_API_KEY`, `DELTA_API_SECRET` | PC + server (different keys) | Delta **Read Data** key for sync. On the server it is the server's own key, whitelisted to its IPs |
+| `DELTA_SERVER_API_KEY`, `DELTA_SERVER_API_SECRET` | PC only | Holds the server's key on the PC so it can be copied to the server as its `DELTA_API_*` (see "Always-on server") |
 | `DELTA_BASE_URL` | optional | Defaults to `https://api.india.delta.exchange` |
 | `DATABASE_URL`, `DATABASE_AUTH_TOKEN` | PC + Vercel | Turso `libsql://…` + token. Unset = `file:data/journal.db` |
 | `APP_PASSWORD` | PC + Vercel | Login password. On Vercel, missing = every request refused |
@@ -253,26 +255,33 @@ Add to Home Screen.
 - Push to `main` (auto-deploys to Vercel); confirm local and remote heads match.
 - Test real behaviour, not just types: live API/DB checks, the browser for UI. Clean up test data you create.
 
-## Always-on server (AWS EC2, Mumbai), in progress
+## Always-on server (AWS Lightsail, Mumbai)
 
 Delta requires a whitelisted IP even for Read Data keys (confirmed by the user, 2026-10-31),
-and the PC's mobile IP keeps changing. So the bot and sync move to an **AWS EC2 VM in Mumbai
-(`ap-south-1`)**, Ubuntu 24.04, with an **Elastic IP** (fixed), running 24/7. Oracle Cloud was
-tried first: its signup rejected the user's card ("billing address differs"), a common problem with Indian cards.
+and the PC's mobile IP keeps changing. So the bot and sync run on an **AWS Lightsail** server
+with a fixed IP, 24/7. Oracle Cloud was tried first: its signup rejected the user's card
+("billing address differs"). The user's AWS account is older, with no free credits, so plain EC2
+plus an Elastic IP would cost more than Lightsail, whose plans include the static IP.
 
-- Cost: new AWS accounts (since July 2025) get about $100–200 in credits for about 6 months
-  (Free plan). Every public IPv4 address, Elastic IPs included, is billed hourly against those
-  credits. After the free plan ends it is roughly $4–8/month, or the account must be upgraded.
-- `deploy/server/setup.sh`: one-time setup on the VM (2 GB swap, Node 24 from NodeSource,
-  `npm ci`, `db:migrate`, installs and starts the systemd service). Works on any Ubuntu VM. Safe to re-run.
-- `deploy/server/delta-journal-bot.service`: systemd unit template (`npm run bot`, restarts on
-  failure, starts on boot). Logs: `journalctl -u delta-journal-bot -f`.
-- `deploy/server/update.sh`: `git pull`, `npm ci`, `db:migrate`, restart. Run after pushing changes.
-- Access: SSH key `~/.ssh/delta_journal_oracle` on the PC (named before the switch to AWS; made
-  for this server only), imported into EC2 as a key pair. User `ubuntu`. The VM clones the
-  private repo with a read-only GitHub deploy key.
-- `.env.local` on the VM holds the Delta key (whitelisted to the Elastic IP), Telegram, Turso, AI and VAPID values.
-- **Only one bot may run at a time** (Telegram returns 409 to a second poller): stop the PC bot once the VM bot runs.
+| | |
+|---|---|
+| Instance | Lightsail `delta-journal`, `ap-south-1` Zone A, Ubuntu 24.04 (x86_64), **$7/month** plan (1 GB RAM, 2 vCPU, 40 GB SSD), dual-stack |
+| Static IPv4 | `15.206.227.0` (static IP `delta-journal-ip`, free while attached) |
+| IPv6 | `2406:da1a:11d8:a300:8a23:358c:c477:aff` (stable unless IPv6 is disabled/re-enabled). **The server reaches Delta over IPv6**, so this address must be on the key's whitelist; the IPv4 is listed too |
+| SSH | `ssh -i ~/.ssh/delta_journal_oracle ubuntu@15.206.227.0` (key named before the switch to AWS; it was installed by a Lightsail launch script) |
+| Repo | `~/delta-journal`, cloned with a read-only GitHub deploy key (`~/.ssh/github_deploy`, "delta-journal Lightsail server (read-only)") |
+| Service | `delta-journal-bot` (systemd), restarts on failure, starts on boot (reboot tested 2026-10-31). About 175 MB RAM |
+
+- `deploy/server/setup.sh`: one-time setup (2 GB swap, Node 24 from NodeSource, `npm ci`,
+  `db:migrate`, installs and starts the service). Works on any Ubuntu VM. Safe to re-run.
+- `deploy/server/update.sh`: run on the server after pushing code (`git pull`, `npm ci`, `db:migrate`, restart).
+  From the PC: `ssh -i ~/.ssh/delta_journal_oracle ubuntu@15.206.227.0 'bash ~/delta-journal/deploy/server/update.sh'`.
+- Logs: `journalctl -u delta-journal-bot -f` (a successful sync logs nothing; check `sync_state` in the database).
+- `.env.local` on the server (mode 600) is built from the PC's file: `DELTA_SERVER_API_*` becomes
+  `DELTA_API_*`, plus `DATABASE_*`, `TELEGRAM_*`, `AI_GATEWAY_API_KEY` and `VAPID_*`. It is copied with
+  `scp`, and the temporary local copy is deleted. It never holds `APP_PASSWORD` or the PC's Delta key.
+- **Only one bot may run at a time** (Telegram returns 409 to a second poller). Don't run
+  `npm run bot` on the PC while the server's service is running.
 
 ## Gotchas (Windows / tooling)
 
@@ -288,15 +297,15 @@ tried first: its signup rejected the user's card ("billing address differs"), a 
 Done (all pushed): 1 sync · 2 trades + auto tags · 3 dashboard and charts · 4 journal + R ·
 5 Telegram bot · 6 AI (review, suggestions, voice) · 7 PWA + login + Turso + Vercel.
 
-8 phone push notifications (2026-10-31).
+8 phone push notifications · 9 always-on server with a fixed IP (AWS Lightsail Mumbai) (2026-10-31).
 
-Next (requested 2026-10-31):
-- **A Delta key that does not depend on the changing mobile IP.** Delta refuses keys without an
-  IP whitelist, even read-only ones, so the bot moves to an AWS EC2 VM in Mumbai with an Elastic
-  IP (see "Always-on server"). In progress.
+Open ideas: none requested yet.
 
 ## Changelog
 
+- **2026-10-31**: The bot now runs 24/7 on an AWS Lightsail server in Mumbai ($7/month, static IP
+  `15.206.227.0`) with its own Delta key whitelisted to the server's IPv4 and IPv6. The PC no
+  longer runs the bot. Added the `DELTA_SERVER_API_*` variables on the PC.
 - **2026-10-31**: Switched the always-on server plan from Oracle (card rejected at signup) to AWS
   EC2 Mumbai; renamed `deploy/oracle/` to `deploy/server/` (the scripts work on any Ubuntu VM).
 - **2026-10-31**: Added `deploy/oracle/` (setup script, systemd unit, update script) to run the bot
