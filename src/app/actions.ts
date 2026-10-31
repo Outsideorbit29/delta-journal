@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { DeltaApiError } from "@/lib/delta/client";
+import { canSyncHere, SYNC_ELSEWHERE } from "@/lib/runtime";
 import { syncAll } from "@/lib/sync";
 
 export interface SyncResult {
@@ -10,12 +11,15 @@ export interface SyncResult {
 }
 
 export async function syncNow(): Promise<SyncResult> {
+  if (!canSyncHere()) return { ok: false, message: SYNC_ELSEWHERE };
   try {
     const s = await syncAll();
     revalidatePath("/", "layout");
     return {
       ok: true,
-      message: `Synced ${s.fills} fills, ${s.orders} orders and ${s.walletTransactions} wallet records. ${s.rebuild.trades} trades rebuilt.`,
+      message: s.rebuild
+        ? `${s.fills} new fills, ${s.orders} new or changed orders, ${s.walletTransactions} new wallet records. ${s.rebuild.trades} trades rebuilt.`
+        : "Up to date: nothing new on Delta.",
     };
   } catch (err) {
     return { ok: false, message: explain(err) };
