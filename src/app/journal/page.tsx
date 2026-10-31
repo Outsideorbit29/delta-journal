@@ -33,7 +33,9 @@ export default async function JournalQueue({ searchParams }: PageProps<"/journal
 
       {!current ? (
         <p className="rounded-lg border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500 dark:border-zinc-700">
-          Every closed trade is journaled. New trades show up here after a sync.
+          {total === 0
+            ? "No closed trades yet. Each trade you close on Delta shows up here, ready to journal, within a minute."
+            : "Every closed trade is journaled. New trades show up here within a minute of closing."}
         </p>
       ) : (
         <>
