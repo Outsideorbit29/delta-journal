@@ -17,6 +17,7 @@
     "db:copy-to-cloud": "node --env-file-if-exists=.env.local --import tsx scripts/db-copy-to-cloud.ts"
   },
   "dependencies": {
+    "@clerk/nextjs": "^7.9.23",
     "@libsql/client": "^0.18.0",
     "ai": "^7.0.159",
     "drizzle-orm": "^0.45.4",
