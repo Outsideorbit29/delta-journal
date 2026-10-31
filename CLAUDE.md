@@ -63,6 +63,7 @@ the owner's, so they only ever sync into `OWNER_USER_ID`; other users get per-us
 | `npm run bot` | Telegram bot + Delta sync every 60 s (+ weekly AI review), acting for `OWNER_USER_ID`. Runs on the server, not the PC. |
 | `npm run sync` | One sync of the owner's account (`OWNER_USER_ID`); prints rows written, and rebuilds trades only if something changed |
 | `npm run rebuild` | Recompute trades and auto tags from stored data for every user (after changing `src/lib/config.ts`) |
+| `npm run keys:generate` | Create the key pair that locks users' Delta keys and write it into `.env.local` (refuses to replace an existing pair) |
 | `npm run claim-legacy -- user_xxx` | Move all `legacy` rows to that Clerk user (who must have signed in once and have no synced data) |
 | `npm run db:generate` | New migration after editing `src/db/schema.ts` |
 | `npm run db:migrate` | Apply migrations to `DATABASE_URL` (the hosted app never migrates) |
@@ -86,6 +87,9 @@ Scripts load `.env.local` via `node --env-file-if-exists=.env.local --import tsx
 | `DATABASE_URL`, `DATABASE_AUTH_TOKEN` | PC + Vercel | Turso `libsql://…` + token. Unset = `file:data/journal.db` |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` | PC + Vercel | Clerk accounts. On Vercel they come from the Marketplace integration (type "Config"); on the PC they were pulled once into `.env.local`. Currently a Clerk **development** instance (`pk_test`) on both |
 | `NEXT_PUBLIC_CLERK_SIGN_IN_URL`, `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | PC + Vercel | `/sign-in`, `/sign-up` (not secret) |
+| `DELTA_KEYS_PUBLIC_KEY` | PC + Vercel + server | Locks (seals) users' Delta keys. Not secret |
+| `DELTA_KEYS_PRIVATE_KEY` | PC + server, **never Vercel** | Unlocks them; only the sync server uses it. The PC copy is the backup: losing it means every user reconnects |
+| `SYNC_SERVER_IPS` | optional | Comma-separated IPs users whitelist; defaults to the Lightsail IPv4 and IPv6 |
 | `OWNER_USER_ID` | PC + server | The owner's Clerk user id. `DELTA_API_KEY`, `npm run sync`, the bot and the local Sync button act for this account only. Unset = `legacy` |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | PC only | Bot `@Jornalling_bot`; only that chat is answered |
 | `TELEGRAM_SYNC_SECONDS` | optional | Bot sync interval, default 60, minimum 15 |
@@ -96,7 +100,7 @@ Scripts load `.env.local` via `node --env-file-if-exists=.env.local --import tsx
 
 Vercel production has six "sensitive" variables: `DATABASE_URL`,
 `DATABASE_AUTH_TOKEN`, `AI_GATEWAY_API_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
-`VAPID_SUBJECT`, plus the two Clerk keys from the Marketplace integration and the two plain Clerk paths. **Never** put Delta or Telegram keys on Vercel. Add a variable with
+`VAPID_SUBJECT`, plus the two Clerk keys from the Marketplace integration, the two plain Clerk paths and `DELTA_KEYS_PUBLIC_KEY`. **Never** put Delta or Telegram keys on Vercel. Add a variable with
 `node -e "<print value from .env.local>" | npx vercel env add NAME production --sensitive --force`,
 so the value is never shown.
 
@@ -109,6 +113,8 @@ src/
   db/index.ts              openDatabase(url) (WAL + busy_timeout for local files; migrations unless VERCEL); getDb()
   db/copy.ts               copyDatabase(from, to) used by db:copy-to-cloud
   db/claim.ts              claimRows(db, from, to): moves one owner's rows to another (claim-legacy)
+  lib/keys/                sealed.ts (seal/open, X25519 + AES-GCM), credentials.ts (save, status, open, mark checked),
+                           sync-users.ts (sync one or every user with their stored key)
   lib/delta/               client.ts (HMAC signing, pagination, 429/5xx retry, public unsigned calls), types.ts, ingest.ts (API record -> row)
   lib/sync.ts              syncAll(): fills/orders/wallet -> writeChanged() -> rebuild if anything changed
   lib/trades/reconstruct.ts  Fills -> round-trip trades (pure)
@@ -129,13 +135,14 @@ src/
   app/                     page.tsx (dashboard), trades/, trades/[id]/, journal/ (queue), review/ (AI), settings/,
                            sign-in/[[...sign-in]], sign-up/[[...sign-up]] (Clerk),
                            manifest.ts, icon.tsx, apple-icon.tsx, pwa-icon/[size]/, api/trades, api/sync,
-                           actions.ts (sync), journal-actions.ts, ai-actions.ts, push-actions.ts, loading.tsx files
+                           actions.ts (sync), journal-actions.ts, ai-actions.ts, push-actions.ts, delta-actions.ts (connect/disconnect a key),
+                           loading.tsx files
   components/              charts/ (equity, calendar, cost breakdown, candlestick, scale), journal-form, journal-section,
                            trade-price-chart, review-view, review-buttons, push-settings, filter-bar, nav-links, sync-button,
-                           tag-chip, hide-on-login
+                           tag-chip, hide-on-login, delta-key-form
 public/sw.js               Service worker: shows pushes, opens the tapped notification's URL (no offline cache)
-scripts/                   sync.ts, rebuild.ts, bot.ts, db-migrate.ts, db-copy-to-cloud.ts, claim-legacy.ts
-drizzle/                   SQL migrations 0000-0008 + meta (0008 = multi-user; its table rebuilds were hand-fixed)
+scripts/                   sync.ts, rebuild.ts, bot.ts, db-migrate.ts, db-copy-to-cloud.ts, claim-legacy.ts, keys-generate.ts
+drizzle/                   SQL migrations 0000-0009 + meta (0008 = multi-user, its table rebuilds hand-fixed; 0009 = delta_credentials)
 ```
 
 ## Data model (`src/db/schema.ts`)
@@ -149,6 +156,8 @@ Caches/state: `trade_candles`, `telegram_messages` (message → trade, kinds `tr
 `note_prompt` | `suggestion` with `payload`), `app_state` (key/value), `ai_reviews`,
 `push_subscriptions` (endpoint, keys, device label, failure count).
 Accounts: `users` (Clerk user id, email, `plan` default `founder`, `access_until`).
+Keys: `delta_credentials` (one per user: `key_hint` = last 4 characters, `sealed` key and secret, `status`
+`pending` | `ok` | `error`, `last_error`, `checked_at`).
 
 **Every table except `users` and `trade_candles` has `user_id`** (default `legacy`). Delta ids
 are globally unique, so primary keys stay as they were. Ownership is enforced by filtering on
@@ -216,6 +225,20 @@ queue of un-journaled closed trades, newest first, with Save & next.
 - With VAPID keys set, the same events also go out as **phone push notifications**
   (`ctx.push` → `sendPush`): each new close (tap → `/trades/<id>`), the weekly review (→ `/review`)
   and sync failures (→ `/settings`). A push failure never blocks the Telegram message (`notifyPhone`).
+
+### Per-user Delta keys (`lib/keys/`, `/settings`)
+- On Settings → Delta Exchange a user creates a **Read Data** key on Delta, whitelists our server's IPv4 and IPv6
+  (`syncServerIps()`), and pastes the key and secret. `connectDelta` checks the shape and **seals** them with
+  `DELTA_KEYS_PUBLIC_KEY`: an ephemeral X25519 key agreement, HKDF-SHA256, AES-256-GCM, with the context
+  `edgebook:delta:<userId>` as authenticated data, so a box copied to another user's row will not open. The website
+  has no private key and can never read a key back; the page only shows the last 4 characters and the status.
+- The bot on the server holds `DELTA_KEYS_PRIVATE_KEY`. Every minute, after the owner's sync, it syncs every other
+  user with a stored key, one at a time; one user's failure never stops the others. Each outcome goes on the key
+  (`ok`, or `error` with Delta's message, which names the IP to whitelist). A key replaced mid-sync stays `pending`.
+  Failures are logged once per distinct error, not every minute; telling the user by Telegram or push is Day 5.
+- The owner syncs with their own stored key once they connect one, otherwise with the server's `DELTA_API_KEY`.
+- Not yet possible: refusing keys that have Trading permission (no known Delta endpoint reports a key's permissions),
+  so the page tells users to choose Read Data only.
 
 ### Push notifications (`lib/push.ts`, `public/sw.js`, `/settings`)
 Standard Web Push with VAPID (`web-push`). On `/settings` a device taps "Turn on notifications"
@@ -310,7 +333,7 @@ plus an Elastic IP would cost more than Lightsail, whose plans include the stati
   From the PC: `ssh -i ~/.ssh/delta_journal_oracle ubuntu@15.206.227.0 'bash ~/delta-journal/deploy/server/update.sh'`.
 - Logs: `journalctl -u delta-journal-bot -f` (a successful sync logs nothing; check `sync_state` in the database).
 - `.env.local` on the server (mode 600) is built from the PC's file: `DELTA_SERVER_API_*` becomes
-  `DELTA_API_*`, plus `DATABASE_*`, `TELEGRAM_*`, `AI_GATEWAY_API_KEY`, `VAPID_*` and `OWNER_USER_ID`. It is copied with
+  `DELTA_API_*`, plus `DATABASE_*`, `TELEGRAM_*`, `AI_GATEWAY_API_KEY`, `VAPID_*`, `OWNER_USER_ID` and both `DELTA_KEYS_*`. It is copied with
   `scp`, and the temporary local copy is deleted. It never holds `APP_PASSWORD` or the PC's Delta key.
 - **Only one bot may run at a time** (Telegram returns 409 to a second poller). Don't run
   `npm run bot` on the PC while the server's service is running.
@@ -358,7 +381,8 @@ Week plan and progress:
   In practice: stop the bot first, pull + `npm ci` + `db:migrate` by hand, claim, set `OWNER_USER_ID`, then start the bot,
   so the new bot never syncs into an empty account. The owner signed in locally, so their `users` row was inserted
   into Turso with the same values before the claim.
-- Day 3: encrypted per-user Delta keys and the multi-user sync worker.
+- **Day 3 (done, 2026-10-31): sealed per-user Delta keys and the multi-user sync** (see "Per-user Delta keys").
+  Migration 0009 only adds a table, so old code keeps running while it rolls out.
 - Day 4: landing page, onboarding key wizard (whitelist the server's IPv4 and IPv6), demo mode.
 - Day 5: shared Edgebook Telegram bot with account linking, per-user push and AI, invite codes capped at 10.
 - Day 6: legal pages (DPDP Act), export and delete, monitoring, rate limits, security review. Also store each
@@ -368,6 +392,9 @@ Week plan and progress:
 
 ## Changelog
 
+- **2026-10-31**: Edgebook Day 3: users connect their own Delta key on Settings; it is sealed so only the sync server
+  can open it (`delta_credentials`, migration 0009, `npm run keys:generate`, `DELTA_KEYS_*`), and the bot syncs every
+  connected user each minute.
 - **2026-10-31**: The owner confirmed the live site shows their journal after signing in (Days 1-2 done).
   Removed `APP_PASSWORD` from Vercel. Clerk access mode set to **Invite-only** (sign-ups closed).
 - **2026-10-31**: Multi-user rollout: Turso migrated to 0008 (backup first), all original data claimed by the owner's
