@@ -242,3 +242,15 @@ export const aiReviews = sqliteTable(
   },
   (t) => [index("ai_reviews_created").on(t.createdAt)],
 );
+
+// Browsers (phones) that asked for push notifications. The endpoint is the
+// push service URL for that browser; p256dh/auth encrypt the payload.
+export const pushSubscriptions = sqliteTable("push_subscriptions", {
+  endpoint: text("endpoint").primaryKey(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  label: text("label"),
+  createdAt: integer("created_at").notNull(),
+  lastSentAt: integer("last_sent_at"),
+  failures: integer("failures").notNull().default(0),
+});
