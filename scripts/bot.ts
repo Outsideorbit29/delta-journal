@@ -9,6 +9,8 @@ import { AI_MODELS, aiConfigured } from "@/lib/ai/models";
 import { generateReview } from "@/lib/ai/review";
 import { suggestFromNote } from "@/lib/ai/suggest";
 import { DeltaClient } from "@/lib/delta/client";
+import { sealPrivateKey } from "@/lib/keys/credentials";
+import { hasStoredKey, syncStoredKeys, syncWithStoredKey } from "@/lib/keys/sync-users";
 import { pushConfigured, sendPush } from "@/lib/push";
 import { ownerUserId } from "@/lib/runtime";
 import { syncAll } from "@/lib/sync";
@@ -47,7 +49,7 @@ async function main() {
     db,
     tg: new TelegramApi(token),
     chatId,
-    sync: () => syncAll(userId, DeltaClient.fromEnv()),
+    sync: () => syncOwner(db, userId),
     ai: aiConfigured() ? botAi(db, userId) : null,
     push: pushConfigured() ? (message) => sendPush(db, userId, message) : null,
   };
@@ -59,6 +61,7 @@ async function main() {
     log(`Bot running for chat ${chatId} as user ${userId}. Syncing Delta every ${SYNC_EVERY_MS / 1000}s. Ctrl+C to stop.`);
     log(ctx.ai ? "AI features on: voice notes, note suggestions and weekly reviews." : "AI features off (no AI_GATEWAY_API_KEY).");
     log(ctx.push ? "Phone notifications on." : "Phone notifications off (no VAPID keys).");
+    log(sealPrivateKey() ? "Syncing every user who connected a Delta key." : "Not syncing other users (no DELTA_KEYS_PRIVATE_KEY).");
     void syncLoop(ctx);
   }
   await pollLoop(ctx);
@@ -91,6 +94,30 @@ async function pollLoop(ctx: BotContext) {
   }
 }
 
+/**
+ * The owner syncs with their own stored key once they connect one in Settings,
+ * and until then with the server's key from .env.local (DELTA_API_KEY).
+ */
+async function syncOwner(db: Db, userId: string) {
+  const privateKey = sealPrivateKey();
+  if (privateKey && (await hasStoredKey(db, userId))) return syncWithStoredKey(db, userId, privateKey);
+  return syncAll(userId, DeltaClient.fromEnv());
+}
+
+/** Syncs everyone else who connected a key. Their problems show on their own Settings page. */
+const userErrors = new Map<string, string>();
+async function syncOtherUsers(ctx: BotContext) {
+  const privateKey = sealPrivateKey();
+  if (!privateKey) return;
+  for (const r of await syncStoredKeys(ctx.db, privateKey, { skip: [ctx.userId] })) {
+    // Log each user's problem once, not every minute.
+    if (r.error && userErrors.get(r.userId) !== r.error) log(`Sync failed for ${r.userId}:`, r.error);
+    if (!r.error && userErrors.has(r.userId)) log(`Sync works again for ${r.userId}.`);
+    if (r.error) userErrors.set(r.userId, r.error);
+    else userErrors.delete(r.userId);
+  }
+}
+
 /** Pulls new data from Delta and announces newly closed trades. */
 async function syncLoop(ctx: BotContext) {
   let lastError: string | null = null;
@@ -113,6 +140,11 @@ async function syncLoop(ctx: BotContext) {
         await ctx.tg.sendMessage(ctx.chatId!, `Delta sync failed: ${text.replace(/[<>&]/g, "")}`).catch(() => {});
         await notifyPhone(ctx, { title: "Delta sync stopped working", body: text, url: "/settings", tag: "sync-error" });
       }
+    }
+    try {
+      await syncOtherUsers(ctx);
+    } catch (err) {
+      log("Syncing other users failed:", message(err));
     }
     await sleep(SYNC_EVERY_MS);
   }
