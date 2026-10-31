@@ -133,7 +133,9 @@ src/
   lib/isolation.test.ts    Two users in one database: every query, save, rebuild, sync, AI and push path stays inside its user
   lib/push.ts              Web push: save/remove subscriptions, sendPush() (drops 404/410 and 5-failure devices)
   lib/candles.ts           Candle window choice + per-trade cache
-  lib/queries.ts, format.ts, tags.ts, range.ts, app-icon.tsx
+  lib/insights.ts          biggestLeaks (costliest habit tags), whatWorks, TAG_HINTS (one line per habit); tested
+  lib/sync-errors.ts       explainSyncError (Delta errors → plain fix), formatAgo; tested
+  lib/queries.ts, format.ts, tags.ts (labels, warnings, topTags), range.ts, app-icon.tsx (teal Edgebook mark)
   app/                     page.tsx (dashboard), trades/, trades/[id]/, journal/ (queue), review/ (AI), settings/,
                            sign-in/[[...sign-in]], sign-up/[[...sign-up]], waitlist/[[...waitlist]] (Clerk), demo/ (public),
                            manifest.ts, icon.tsx, apple-icon.tsx, pwa-icon/[size]/, api/trades, api/sync,
@@ -142,7 +144,10 @@ src/
   components/              charts/ (equity, calendar, cost breakdown, candlestick, scale), journal-form, journal-section,
                            trade-price-chart, review-view, review-buttons, push-settings, filter-bar, nav-links, sync-button,
                            tag-chip, hide-on-login, delta-key-form, delta-connect (key steps + status, shared by Settings and
-                           onboarding), auto-refresh, dashboard-view (dashboard for a user or the demo), landing, onboarding
+                           onboarding), auto-refresh, dashboard-view (dashboard for a user or the demo: P&L hero, "Your biggest
+                           leaks", tiles, charts), landing (hero with a live preview of the demo), onboarding, logo, ui.ts
+                           (shared classes), sync-status (header pill: synced / problem / not connected → Settings),
+                           nav-links (desktop links + phone BottomNav)
 public/sw.js               Service worker: shows pushes, opens the tapped notification's URL (no offline cache)
 scripts/                   sync.ts, rebuild.ts, bot.ts, db-migrate.ts, db-copy-to-cloud.ts, claim-legacy.ts, keys-generate.ts, demo-seed.ts
 drizzle/                   SQL migrations 0000-0009 + meta (0008 = multi-user, its table rebuilds hand-fixed; 0009 = delta_credentials)
@@ -304,7 +309,13 @@ Add to Home Screen.
 - Match the surrounding code: comment density, naming, idioms. Pure logic in `lib/`, tested.
 - Times: store UTC ms; display IST (`Asia/Kolkata`); daily buckets by IST date.
 - Money in USD; `formatMoney`, P&L text green/red; charts use the validated blue/red diverging
-  tokens in `globals.css` (light and dark both validated).
+  tokens in `globals.css` (validated against the dark surface).
+- **Design: dark only, teal brand** (decided 2026-11-01). `<html class="dark">` plus `@custom-variant dark` turn every
+  `dark:` style on; there is no light theme. Brand tokens `--brand` (#2dd4bf), `--brand-strong`, `--brand-ink`, `--brand-soft`
+  (Tailwind `bg-brand`, `text-brand`…) are for interactive UI only (buttons, links, active tabs, the logo), **never for
+  numbers**: P&L keeps green/red text and blue/red charts. Use the shared classes in `components/ui.ts` (`buttonPrimary`,
+  `buttonSecondary`, `card`, `link`). Phones get a bottom tab bar (`BottomNav`) and card lists; check every page at 390px.
+  Clerk's forms take the same colours through `appearance.variables` in `layout.tsx`.
 - Next 16 with Cache Components: pages reading data call `await connection()` and need a
   `loading.tsx` or `<Suspense>`; `usePathname` in the layout needs Suspense. Run `npx next typegen` for new routes.
 - Never weaken security defaults: localhost binding, auth fail-closed, no secrets in code or logs.
@@ -406,6 +417,10 @@ Week plan and progress:
 
 ## Changelog
 
+- **2026-11-01**: UI/UX pass: dark-only theme with a teal brand and Edgebook logo (the delta-triangle icon is gone),
+  phone bottom tab bar and trade cards, dashboard led by net P&L and "Your biggest leaks", calendar shows 3 months first,
+  top-3 tags plus "+N", a sync status pill with plain-language errors, swipeable filters on phones, a live demo
+  preview on the landing page, Clerk forms themed to match.
 - **2026-11-01**: Edgebook Day 4: landing page for visitors, Clerk waitlist (`/waitlist`, access mode Waitlist), onboarding
   that guides a new user to connect Delta, a public read-only `/demo` with made-up trades (`npm run demo:seed`), the
   dashboard moved into `DashboardView`, and empty states for new accounts.
