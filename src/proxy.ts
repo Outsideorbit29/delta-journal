@@ -1,23 +1,16 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { authMode, SESSION_COOKIE, verifySession } from "@/lib/auth";
+import { clerkMiddleware } from "@clerk/nextjs/server";
 
-/** Keeps the whole journal behind the password, except the login page and the files an installed app needs. */
-export function proxy(request: NextRequest) {
-  const mode = authMode();
-  if (mode === "open") return NextResponse.next();
-  if (mode === "password" && verifySession(request.cookies.get(SESSION_COOKIE)?.value)) return NextResponse.next();
-
-  const { pathname, search } = request.nextUrl;
-  if (pathname.startsWith("/api/")) {
-    return NextResponse.json({ error: mode === "misconfigured" ? "APP_PASSWORD is not set" : "Sign in first" }, { status: 401 });
-  }
-  const login = new URL("/login", request.url);
-  if (pathname !== "/") login.searchParams.set("next", `${pathname}${search}`);
-  return NextResponse.redirect(login);
-}
+// Reads the Clerk session for every request. It does not decide who may see
+// what: every page, server action and API route that touches user data calls
+// requireUserId() or currentUserId() from src/lib/session.ts itself, as Clerk
+// recommends, so a route can never slip past a path pattern.
+export default clerkMiddleware();
 
 export const config = {
-  // Everything except static assets, the login page, and the manifest, icons
-  // and service worker (browsers fetch those without cookies).
-  matcher: ["/((?!_next/static|_next/image|login|manifest\\.webmanifest|favicon\\.ico|icon|apple-icon|pwa-icon|sw\\.js).*)"],
+  matcher: [
+    // Skip Next.js internals and static files.
+    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    // Always run for API routes.
+    "/(api|trpc)(.*)",
+  ],
 };
