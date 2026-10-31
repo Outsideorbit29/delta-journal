@@ -26,7 +26,7 @@ function CurrentLinks() {
 
 function Links({ pathname }: { pathname: string | null }) {
   return (
-    <nav className="flex gap-4 text-sm">
+    <nav className="-mx-1 flex gap-4 overflow-x-auto px-1 text-sm whitespace-nowrap [scrollbar-width:none]">
       {LINKS.map((l) => {
         const active = pathname !== null && (l.href === "/" ? pathname === "/" : pathname.startsWith(l.href));
         return (
