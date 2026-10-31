@@ -298,3 +298,19 @@ export const pushSubscriptions = sqliteTable("push_subscriptions", {
   lastSentAt: integer("last_sent_at"),
   failures: integer("failures").notNull().default(0),
 });
+
+// Each user's Delta API key, sealed to the sync server's public key
+// (src/lib/keys/sealed.ts). The website can store a key but never read it
+// back; only the sync server, which holds the private key, can open it.
+export const deltaCredentials = sqliteTable("delta_credentials", {
+  userId: text("user_id").primaryKey(),
+  /** The last 4 characters of the API key, so the user can tell which key is connected. */
+  keyHint: text("key_hint").notNull(),
+  sealed: text("sealed").notNull(),
+  /** pending until the server first syncs with it, then ok or error. */
+  status: text("status", { enum: ["pending", "ok", "error"] }).notNull(),
+  lastError: text("last_error"),
+  checkedAt: integer("checked_at"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});

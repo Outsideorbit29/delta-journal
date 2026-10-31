@@ -22,6 +22,8 @@ const { toFillRow } = await import("@/lib/delta/ingest");
 const { saveJournalEntry, loadJournalEntry } = await import("@/lib/journal/save");
 const { buildReviewInput, listReviews } = await import("@/lib/ai/review");
 const { saveSubscription, removeSubscription, sendPush } = await import("@/lib/push");
+const { getDeltaKeyStatus, removeDeltaKey, saveDeltaKey } = await import("@/lib/keys/credentials");
+const { generateSealKeys } = await import("@/lib/keys/sealed");
 
 const A = "user_A";
 const B = "user_B";
@@ -146,5 +148,13 @@ describe("each user only sees their own data", () => {
     await removeSubscription(db, A, "https://push.example/b");
     expect((await sendPush(db, B, { title: "t", body: "b", url: "/" }, send)).sent).toBe(1);
     expect(sentTo).toEqual(["https://push.example/b"]);
+  });
+
+  it("shows and deletes only the user's own Delta key", async () => {
+    const { publicKey } = generateSealKeys();
+    await saveDeltaKey(db, B, { apiKey: "BBBBBBBBBBBBBBBBkeyB", apiSecret: "BBBBBBBBBBBBBBBBsecret" }, publicKey, T0);
+    expect(await getDeltaKeyStatus(db, A)).toBeNull();
+    await removeDeltaKey(db, A);
+    expect((await getDeltaKeyStatus(db, B))?.keyHint).toBe("keyB");
   });
 });

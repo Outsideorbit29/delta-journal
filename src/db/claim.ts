@@ -16,6 +16,7 @@ const OWNED = [
   schema.appState,
   schema.aiReviews,
   schema.pushSubscriptions,
+  schema.deltaCredentials,
 ] as const;
 
 export type ClaimResult = Record<string, number>;
