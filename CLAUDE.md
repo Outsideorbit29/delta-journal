@@ -200,7 +200,8 @@ queue of un-journaled closed trades, newest first, with Save & next.
 Standard Web Push with VAPID (`web-push`). On `/settings` a device taps "Turn on notifications"
 → permission → `pushManager.subscribe` with `VAPID_PUBLIC_KEY` → stored in `push_subscriptions`.
 "Send a test" pushes from the hosted app. Push services' 404/410 remove a subscription, and
-5 failures in a row also remove it. `sw.js` is public (excluded from the login proxy) and served
+5 failures in a row also remove it. Verified end to end on the user's Android phone (Chrome,
+installed app) on 2026-10-31. `sw.js` is public (excluded from the login proxy) and served
 `no-cache` (`next.config.ts` headers). **iPhone: push only works in the installed Home Screen app
 (iOS 16.4+)**; the settings page explains this when opened in Safari.
 
