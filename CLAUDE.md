@@ -33,7 +33,8 @@ fees dwarf gross P&L, scalps lose, and moving a stop while still losing is the c
 | Database | Turso (libSQL), free plan | `DATABASE_URL` / `DATABASE_AUTH_TOKEN`. Both the hosted app and the PC use it. |
 | Sync + Telegram bot | **AWS Lightsail server** `delta-journal`, Mumbai, static IP `15.206.227.0` | systemd service `delta-journal-bot`, running 24/7 since 2026-10-31. See "Always-on server". The PC no longer runs the bot. |
 | Code | https://github.com/Outsideorbit29/delta-journal (private) | Branch `main`. |
-| Local backup | `data/journal-backup-before-cloud.db` | Snapshot taken just before moving to Turso (2026-10-31). |
+| Local backups | `data/journal-backup-before-cloud.db`, `data/turso-backup-before-edgebook.db` | Snapshots taken just before moving to Turso, and of Turso just before the multi-user migration (both 2026-10-31). |
+| Owner account | Clerk user `user_3LT1ntUygNbHxmyfsYO9QBzM95P` (Google sign-in) | Owns all the original data since the claim on 2026-10-31; this is `OWNER_USER_ID` on the PC and the server |
 
 Syncing with Delta **never runs on Vercel**: Delta keys must be IP-whitelisted, and Vercel's IPs
 are not fixed. The hosted app hides the Sync button and `/api/sync` returns 403 there
@@ -308,7 +309,7 @@ plus an Elastic IP would cost more than Lightsail, whose plans include the stati
   From the PC: `ssh -i ~/.ssh/delta_journal_oracle ubuntu@15.206.227.0 'bash ~/delta-journal/deploy/server/update.sh'`.
 - Logs: `journalctl -u delta-journal-bot -f` (a successful sync logs nothing; check `sync_state` in the database).
 - `.env.local` on the server (mode 600) is built from the PC's file: `DELTA_SERVER_API_*` becomes
-  `DELTA_API_*`, plus `DATABASE_*`, `TELEGRAM_*`, `AI_GATEWAY_API_KEY` and `VAPID_*`. It is copied with
+  `DELTA_API_*`, plus `DATABASE_*`, `TELEGRAM_*`, `AI_GATEWAY_API_KEY`, `VAPID_*` and `OWNER_USER_ID`. It is copied with
   `scp`, and the temporary local copy is deleted. It never holds `APP_PASSWORD` or the PC's Delta key.
 - **Only one bot may run at a time** (Telegram returns 409 to a second poller). Don't run
   `npm run bot` on the PC while the server's service is running.
@@ -348,11 +349,14 @@ Done (all pushed): 1 sync · 2 trades + auto tags · 3 dashboard and charts · 4
 - **To verify:** Delta's terms for third-party apps syncing other users' accounts, and whether its rate limits are per IP or per key.
 
 Week plan and progress:
-- **Day 1 (done, branch `edgebook`): Clerk accounts and `user_id` everywhere**, isolation tests, `claim-legacy`.
-  Rollout: back up Turso → merge to `main` (Vercel deploys) → run `deploy/server/update.sh` on the server
+- **Day 1 (done and live, 2026-10-31): Clerk accounts and `user_id` everywhere**, isolation tests, `claim-legacy`.
+  Rollout as done: back up Turso → merge to `main` (Vercel deploys) → run `deploy/server/update.sh` on the server
   (it migrates Turso to 0008 and restarts the bot) → the owner signs up on the hosted app →
   `npm run claim-legacy -- user_…` → set `OWNER_USER_ID` in `.env.local` on the PC and the server, restart the bot →
-  remove `APP_PASSWORD` from Vercel. The old code breaks on the new `app_state` key, so deploy and migrate together.
+  remove `APP_PASSWORD` from Vercel (still to do). The old code breaks on the new `app_state` key, so deploy and migrate together.
+  In practice: stop the bot first, pull + `npm ci` + `db:migrate` by hand, claim, set `OWNER_USER_ID`, then start the bot,
+  so the new bot never syncs into an empty account. The owner signed in locally, so their `users` row was inserted
+  into Turso with the same values before the claim.
 - Day 3: encrypted per-user Delta keys and the multi-user sync worker.
 - Day 4: landing page, onboarding key wizard (whitelist the server's IPv4 and IPv6), demo mode.
 - Day 5: shared Edgebook Telegram bot with account linking, per-user push and AI, invite codes capped at 10.
@@ -362,6 +366,8 @@ Week plan and progress:
 
 ## Changelog
 
+- **2026-10-31**: Multi-user rollout: Turso migrated to 0008 (backup first), all original data claimed by the owner's
+  Clerk account, `OWNER_USER_ID` set on the PC and the server, Clerk sign-in/up paths added on Vercel.
 - **2026-10-31**: Edgebook Day 1: Clerk sign-in/sign-up replaced the password login; `users` table and
   `user_id` on every table (migration 0008); every query, sync, rebuild, journal save, AI review, push and
   bot path is scoped to a user, with a two-user isolation test; `npm run claim-legacy`; `OWNER_USER_ID`;
