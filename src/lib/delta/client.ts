@@ -11,7 +11,9 @@ export class DeltaApiError extends Error {
     readonly status: number,
     readonly context?: unknown,
   ) {
-    super(`Delta API error: ${code} (HTTP ${status})`);
+    // Delta reports the caller's IP on whitelist errors; saying it saves a lookup.
+    const ip = (context as { client_ip?: string } | undefined)?.client_ip;
+    super(`Delta API error: ${code} (HTTP ${status})${code === "ip_not_whitelisted_for_api_key" && ip ? `. Whitelist this IP for your API key: ${ip}` : ""}`);
   }
 }
 
