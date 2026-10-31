@@ -12,7 +12,9 @@
     "sync": "node --env-file-if-exists=.env.local --import tsx scripts/sync.ts",
     "rebuild": "node --env-file-if-exists=.env.local --import tsx scripts/rebuild.ts",
     "db:generate": "drizzle-kit generate",
-    "bot": "node --env-file-if-exists=.env.local --import tsx scripts/bot.ts"
+    "bot": "node --env-file-if-exists=.env.local --import tsx scripts/bot.ts",
+    "db:migrate": "node --env-file-if-exists=.env.local --import tsx scripts/db-migrate.ts",
+    "db:copy-to-cloud": "node --env-file-if-exists=.env.local --import tsx scripts/db-copy-to-cloud.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",
@@ -29,12 +31,14 @@
     "@types/node": "^24.19.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vercel/config": "^0.14.1",
     "drizzle-kit": "^0.31.11",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "^5",
+    "vercel": "^65.8.0",
     "vitest": "^5.0.5"
   }
 }

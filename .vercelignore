@@ -1,0 +1,9 @@
+# Never upload secrets or the local trading database.
+.env*
+!.env.example
+data/
+*.db
+*.db-wal
+*.db-shm
+.next/
+node_modules/

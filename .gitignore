@@ -43,3 +43,6 @@ next-env.d.ts
 
 # local journal database (your trading data)
 /data
+
+# Vercel CLI link
+/.vercel

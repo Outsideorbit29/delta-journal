@@ -26,7 +26,9 @@ export async function openDatabase(url: string): Promise<Db> {
     await client.execute("PRAGMA journal_mode = WAL");
     await client.execute("PRAGMA busy_timeout = 5000");
   }
-  await migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
+  // The hosted app does not ship the migration files; your PC (npm run db:migrate,
+  // sync or bot) keeps the cloud database's schema up to date.
+  if (!process.env.VERCEL) await migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
   return db;
 }
 
