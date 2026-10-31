@@ -14,3 +14,11 @@ export const SYNC_ELSEWHERE = "Syncing with Delta runs on the Edgebook server, n
  * the legacy data. Until then it is the legacy owner.
  */
 export const ownerUserId = () => process.env.OWNER_USER_ID?.trim() || LEGACY_USER;
+
+/**
+ * The fixed addresses the sync server reaches Delta from (the AWS Lightsail
+ * server). Every user whitelists these on their Delta key. The server talks to
+ * Delta over IPv6, so the IPv6 address is the one that matters most.
+ */
+export const syncServerIps = (): string[] =>
+  process.env.SYNC_SERVER_IPS?.split(",").map((ip) => ip.trim()).filter(Boolean) ?? ["15.206.227.0", "2406:da1a:11d8:a300:8a23:358c:c477:aff"];
