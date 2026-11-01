@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { cache } from "react";
 import { getDb, schema } from "@/db";
 
@@ -28,7 +29,10 @@ export async function currentUserId(): Promise<string | null> {
   return userId;
 }
 
-async function ensureUser(userId: string, now = Date.now()) {
+async function ensureUser(userId: string) {
+  // Reading the clock needs a request first; prerendering must never fix the sign-up time.
+  await connection();
+  const now = Date.now();
   const db = await getDb();
   const [existing] = await db.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.id, userId));
   if (existing) return;
