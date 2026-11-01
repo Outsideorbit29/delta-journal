@@ -2,7 +2,7 @@ import Link from "next/link";
 import { LegalPage } from "@/components/legal-page";
 import { LEGAL } from "@/lib/legal";
 
-export const metadata = { title: "Terms of Service · Edgebook" };
+export const metadata = { title: "Terms of Service, Edgebook", description: "The terms for using Edgebook, a read-only trading journal for Delta Exchange India." };
 
 export default function TermsPage() {
   return (

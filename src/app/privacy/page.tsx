@@ -2,7 +2,7 @@ import Link from "next/link";
 import { LegalPage } from "@/components/legal-page";
 import { LEGAL } from "@/lib/legal";
 
-export const metadata = { title: "Privacy Policy · Edgebook" };
+export const metadata = { title: "Privacy Policy, Edgebook", description: "What Edgebook collects, why, who processes it, and your rights under India’s DPDP Act." };
 
 const mail = <a href={`mailto:${LEGAL.contactEmail}`}>{LEGAL.contactEmail}</a>;
 
