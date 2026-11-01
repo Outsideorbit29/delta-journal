@@ -133,6 +133,10 @@ src/
   lib/session.ts           requireUserId() (pages; redirects to /sign-in) and currentUserId() (actions, routes; null);
                            both create the user's `users` row on first visit (plan "founder", 90 days free)
   lib/runtime.ts           canSyncHere(), ownerUserId()
+  lib/account.ts           exportAccount (JSON, secrets and raw records left out), tradesCsv, deleteAccountData; tested
+  lib/rate-limit.ts        LIMITS per action, rateLimit() (fixed window in the database), tooMany(); tested
+  lib/health.ts            recordHeartbeat (sync server, each round), readHealth (for /api/health); tested
+  lib/legal.ts             LEGAL: operator, contact email, effective date (Privacy Policy, Terms, footer)
   lib/isolation.test.ts    Two users in one database: every query, save, rebuild, sync, AI and push path stays inside its user
   lib/push.ts              Web push: save/remove subscriptions, sendPush() (drops 404/410 and 5-failure devices)
   lib/candles.ts           Candle window choice + per-trade cache
@@ -142,21 +146,22 @@ src/
   lib/queries.ts, format.ts, tags.ts (labels, warnings, topTags), range.ts, app-icon.tsx (teal Edgebook mark)
   app/                     page.tsx (dashboard), trades/, trades/[id]/, journal/ (queue), review/ (AI), settings/,
                            sign-in/[[...sign-in]], sign-up/[[...sign-up]], waitlist/[[...waitlist]] (Clerk), demo/ (public),
-                           manifest.ts, icon.tsx, apple-icon.tsx, pwa-icon/[size]/, api/trades, api/sync,
-                           actions.ts (sync), journal-actions.ts, ai-actions.ts, push-actions.ts, delta-actions.ts (connect/disconnect a key), telegram-actions.ts (link/unlink a chat),
+                           privacy/, terms/ (public legal pages),
+                           manifest.ts, icon.tsx, apple-icon.tsx, pwa-icon/[size]/, api/trades, api/sync, api/export, api/health,
+                           actions.ts (sync), journal-actions.ts, ai-actions.ts, push-actions.ts, delta-actions.ts (connect/disconnect a key), telegram-actions.ts (link/unlink a chat), account-actions.ts (delete account),
                            loading.tsx files
   components/              charts/ (equity, calendar, cost breakdown, candlestick, scale), journal-form, journal-section,
                            trade-price-chart, review-view, review-buttons, push-settings, filter-bar, nav-links, sync-button,
                            tag-chip, hide-on-login, delta-key-form, delta-connect (key steps + status, shared by Settings and
                            onboarding), auto-refresh, dashboard-view (dashboard for a user or the demo: P&L hero, "Your biggest
                            leaks", score card + icon tiles, charts), landing (+ landing/steps, landing/trade-feed), score-card (radar),
-                           site-menu (visitor header: section links, ☰ on phones), onboarding, telegram-connect (Settings), logo, ui.ts
+                           site-menu (visitor header: section links, ☰ on phones), onboarding, telegram-connect and account-data (Settings), legal-page, logo, ui.ts
                            (shared classes), sync-status (header pill: synced / problem / not connected → Settings),
                            nav-links (desktop links + phone BottomNav)
 public/sw.js               Service worker: shows pushes, opens the tapped notification's URL (no offline cache)
 scripts/                   sync.ts, rebuild.ts, bot.ts, db-migrate.ts, db-copy-to-cloud.ts, claim-legacy.ts, keys-generate.ts, demo-seed.ts
-drizzle/                   SQL migrations 0000-0010 + meta (0008 = multi-user, its table rebuilds hand-fixed; 0009 = delta_credentials;
-                           0010 = telegram_links)
+drizzle/                   SQL migrations 0000-0011 + meta (0008 = multi-user, its table rebuilds hand-fixed; 0009 = delta_credentials;
+                           0010 = telegram_links; 0011 = rate_limits)
 ```
 
 ## Data model (`src/db/schema.ts`)
@@ -169,13 +174,14 @@ User data (never touched by sync/rebuild): `journal_entries` (keyed by trade id)
 Caches/state: `trade_candles`, `telegram_messages` (message → trade, kinds `trade` |
 `note_prompt` | `suggestion` with `payload`), `app_state` (key/value), `ai_reviews`,
 `push_subscriptions` (endpoint, keys, device label, failure count).
-Accounts: `users` (Clerk user id, email, `plan` default `founder`, `access_until`).
+Accounts: `users` (Clerk user id, email from Clerk on first visit or backfilled once, `""` if none; `plan` default
+`founder`, `access_until`). Limits: `rate_limits` (subject = user id or `chat:<id>`, action, window start, count).
 Keys: `delta_credentials` (one per user: `key_hint` = last 4 characters, `sealed` key and secret, `status`
 `pending` | `ok` | `error`, `last_error`, `checked_at`).
 Telegram: `telegram_links` (one per user: unique `chat_id`, `chat_name`, `linked_at`, and a pending one-time
 `code_hash` (SHA-256) with `code_expires_at`).
 
-**Every table except `users` and `trade_candles` has `user_id`** (default `legacy`; `telegram_links` and
+**Every table except `users`, `trade_candles` and `rate_limits` has `user_id`** (default `legacy`; `telegram_links` and
 `delta_credentials` are keyed by it). Delta ids
 are globally unique, so primary keys stay as they were. Ownership is enforced by filtering on
 `user_id` in every query, and an upsert only updates a row the same user owns (`setWhere`), so a
@@ -184,6 +190,8 @@ record can never move between users. `sync_state` has the primary key (user, res
 Per-user state (`telegram.notify_since`, `telegram.weekly_review_for`) sits under the user.
 
 There are no foreign keys. Rebuild deletes `auto` tags only, and only the rebuilt user's rows.
+`OWNED` in `src/db/claim.ts` lists every per-user table; claim, export and account deletion all use it, so **a new
+per-user table must be added there** (and to the isolation test).
 
 ## How it works
 
@@ -293,6 +301,32 @@ tip) and on the landing page (the demo trader). Owner: 53 Needs work on 2026-11-
 - The owner syncs with their own stored key once they connect one, otherwise with the server's `DELTA_API_KEY`.
 - Not yet possible: refusing keys that have Trading permission (no known Delta endpoint reports a key's permissions),
   so the page tells users to choose Read Data only.
+
+### Your data, legal pages and limits (Day 6)
+- **Legal:** `/privacy` and `/terms` (public), written for India's DPDP Act 2023: data fiduciary, what is collected and
+  why, consent and withdrawal, processors (Clerk, Vercel, Turso, AWS, Google/OpenAI via AI Gateway, Telegram, push
+  services), retention (erased at once on deletion; provider backups within 30 days), rights (access, correction,
+  erasure, nomination, grievance within 30 days, Data Protection Board), 18+. Operator and contact live in
+  `src/lib/legal.ts`. Linked from the landing footer, Settings, and a consent line under sign-up and the waitlist.
+  **Not reviewed by a lawyer**; any change to what data we hold or who processes it must update `/privacy`.
+- **Export** (Settings → Your data, `GET /api/export`): JSON of every `OWNED` table plus the `users` row, without
+  secrets (sealed key, push keys, link code) or `raw` Delta records (about 800 KB for 135 trades), gzipped when the
+  browser accepts it (116 KB) to stay far under Vercel's 4.5 MB response limit. `?format=csv` = trades with their
+  journal, times in IST, formula-like cells defused (`csvCell`).
+- **Delete** (Settings → Your data, type DELETE): `deleteAccountData` erases the Delta key first, then every owned row,
+  the candle cache for the user's trades, their rate limits and the `users` row, in one transaction; then Clerk's
+  `users.deleteUser`. A sync already running when the account is deleted erases what it wrote (`ACCOUNT_DELETED`).
+  The owner's account would be re-filled by the server's own key: remove `OWNER_USER_ID` first if that is ever wanted.
+- **Rate limits** (`LIMITS` in `lib/rate-limit.ts`): AI review 10/day, AI suggestions 60/h, voice transcription 30/h,
+  Delta key saves, Telegram links, test pushes and exports 10/h, bot `/sync` 20/h, 60 bot updates/min per user (more
+  are dropped; taps get "Slow down"), 10 replies/h to an unlinked chat. Counted in the database so they hold across
+  Vercel instances and the bot.
+- **Monitoring:** the bot writes `bot.heartbeat` (process-wide `app_state`: time, users synced, users failing) after
+  every round. `GET /api/health` (public, counts only) returns 200 while it is under 5 minutes old, else 503. Point a
+  free uptime monitor (UptimeRobot, Better Stack…) at `https://delta-journal-three.vercel.app/api/health`.
+- **Security headers** (`next.config.ts`, every path): `X-Frame-Options: DENY` + `frame-ancestors 'none'`, `nosniff`,
+  `strict-origin-when-cross-origin`, a `Permissions-Policy` denying camera/mic/location/payment/USB. Vercel already
+  sends HSTS. No full CSP yet (Clerk's scripts and Next's inline scripts need a nonce setup).
 
 ### Push notifications (`lib/push.ts`, `public/sw.js`, `/settings`)
 Standard Web Push with VAPID (`web-push`). On `/settings` a device taps "Turn on notifications"
@@ -449,13 +483,20 @@ Week plan and progress:
   notifications of closes, weekly reviews and sync problems by Telegram and push, push-only users, per-user AI.
   Migration 0010 only adds a table. Invite codes were dropped: Clerk's waitlist already gates sign-ups (the owner
   approves each person), which covers "the first 10, chosen by the owner".
-- Day 6: legal pages (DPDP Act), export and delete, monitoring, rate limits, security review. Also store each
-  user's email in `users.email` (from Clerk; it is still empty) for support mail, export and deletion.
+- **Day 6 (done, 2026-11-01): privacy policy and terms, data export and account deletion, rate limits, a health
+  check, security headers, users' emails stored.** Security review: every server action and API route checks the
+  session (public routes are on purpose), `npm audit` clean, no env vars in client code, Telegram text escaped; on the
+  server SSH is key-only, only port 22 listens, unattended upgrades are on, `.env.local` is 600. Open items: a lawyer's
+  read of the legal pages, the operator's name in `src/lib/legal.ts`, an uptime monitor on `/api/health`, a full CSP,
+  and the server's pending security updates (67 on 2026-11-01).
 - Day 7: rebrand to Edgebook and launch. A Clerk **production** instance needs a domain we own, and its
   user ids differ from the development instance's, so the owner's data would need claiming again.
 
 ## Changelog
 
+- **2026-11-01**: Edgebook Day 6: `/privacy` and `/terms` (DPDP Act), Settings → Your data (JSON and CSV export,
+  account deletion), database-backed rate limits (`rate_limits`, migration 0011), `bot.heartbeat` + `GET /api/health`,
+  security headers, users' emails stored from Clerk, `telegram_links` added to the claim/export/delete table list.
 - **2026-11-01**: Edgebook Day 5: one Telegram bot for every user. Users link their chat from Settings → Telegram
   with a one-time link (`telegram_links`, migration 0010, `TELEGRAM_BOT_USERNAME`); each user gets their own closes,
   weekly review and sync-problem messages by Telegram and push (push alone if they have no chat); `/disconnect`.
