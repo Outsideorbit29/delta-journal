@@ -10,6 +10,7 @@ import { journaledTradeIds, listTrades } from "@/lib/queries";
 import { behaviourScore } from "@/lib/score";
 import { computeStats, equityCurve, tagPerformance } from "@/lib/stats";
 import { isWarningTag, tagLabel, topTags } from "@/lib/tags";
+import { LEGAL } from "@/lib/legal";
 
 // The home page for visitors. Every number on it comes from the demo account
 // (lib/demo.ts), so it always shows what the product really computes.
@@ -374,6 +375,11 @@ export async function Landing() {
               <li>Read-only: Edgebook never places orders.</li>
             </ul>
           </div>
+        </div>
+        <div className="mx-auto flex w-full max-w-6xl flex-wrap gap-x-4 gap-y-1 border-t border-zinc-800/60 px-4 py-5 text-xs text-zinc-500">
+          <Link href="/privacy" className="hover:text-zinc-300">Privacy Policy</Link>
+          <Link href="/terms" className="hover:text-zinc-300">Terms of Service</Link>
+          <a href={`mailto:${LEGAL.contactEmail}`} className="hover:text-zinc-300">{LEGAL.contactEmail}</a>
         </div>
       </footer>
     </div>
