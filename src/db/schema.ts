@@ -314,3 +314,18 @@ export const deltaCredentials = sqliteTable("delta_credentials", {
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
+
+// Which Telegram chat belongs to which user. All users share one bot; a user
+// links their private chat by opening a one-time link from Settings
+// (src/lib/telegram/links.ts). Only the code's hash is stored.
+export const telegramLinks = sqliteTable("telegram_links", {
+  userId: text("user_id").primaryKey(),
+  /** The linked private chat, or null while a link code is waiting to be used. */
+  chatId: text("chat_id").unique(),
+  /** The Telegram name shown in Settings ("@name" or a first name). */
+  chatName: text("chat_name"),
+  linkedAt: integer("linked_at"),
+  /** SHA-256 of the pending one-time code, and when it stops working. */
+  codeHash: text("code_hash").unique(),
+  codeExpiresAt: integer("code_expires_at"),
+});
