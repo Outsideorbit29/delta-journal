@@ -3,7 +3,7 @@
 
 export const LEGAL = {
   /** The data fiduciary under India's DPDP Act: the person or company responsible for the data. */
-  operator: "Edgebook",
+  operator: "Anish",
   /** Privacy requests, grievances and support. */
   contactEmail: "anish.grd2004@gmail.com",
   /** When the current versions of the pages took effect. */

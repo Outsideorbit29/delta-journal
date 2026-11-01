@@ -498,13 +498,14 @@ Week plan and progress:
   check, security headers, users' emails stored.** Security review: every server action and API route checks the
   session (public routes are on purpose), `npm audit` clean, no env vars in client code, Telegram text escaped; on the
   server SSH is key-only, only port 22 listens, unattended upgrades are on, `.env.local` is 600. Open items: a lawyer's
-  read of the legal pages, the operator's name in `src/lib/legal.ts`, an uptime monitor on `/api/health`, a full CSP,
+  read of the legal pages, an uptime monitor on `/api/health`, a full CSP,
   and the server's pending security updates (67 on 2026-11-01).
 - Day 7: rebrand to Edgebook and launch. A Clerk **production** instance needs a domain we own, and its
   user ids differ from the development instance's, so the owner's data would need claiming again.
 
 ## Changelog
 
+- **2026-11-01**: The legal pages name Anish as the operator (data fiduciary) in `src/lib/legal.ts`.
 - **2026-11-01**: Full redesign with Hallmark (Editorial theme): light first with a dark mode, Bricolage Grotesque and
   Source Serif 4, square ink-and-paper system (`tokens.css`, `base.css`, `design.md`), every page and component rebuilt;
   landing page shows real dashboard screenshots; Settings → Appearance; skeleton loading screens; the trade page's
