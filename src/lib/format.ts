@@ -39,7 +39,7 @@ export const formatPercent = (n: number | null | undefined) => (n === null || n 
 export const formatR = (n: number | null | undefined) => (n === null || n === undefined ? "–" : `${n >= 0 ? "+" : ""}${n.toFixed(2)}R`);
 
 export const pnlClass = (n: number | null | undefined) =>
-  !n ? "text-zinc-500" : n > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400";
+  !n ? "text-muted" : n > 0 ? "text-gain" : "text-loss";
 
 /** "Good morning/afternoon/evening, Name" by the hour in India. */
 export function greeting(name: string | null | undefined, now = Date.now()): string {

@@ -1,11 +1,34 @@
-// Shared class names, so every button and card looks the same.
+// Shared class names, so every control and surface looks the same everywhere.
+// Square corners, ink blocks, hairlines and paper steps: nothing is rounded, nothing casts a shadow.
 
-export const buttonPrimary =
-  "inline-flex items-center justify-center rounded-md bg-brand px-4 py-2 text-sm font-medium text-brand-ink hover:bg-brand-strong disabled:opacity-60";
+const control =
+  "face-label inline-flex items-center justify-center gap-2 border px-5 text-sm whitespace-nowrap no-underline transition-[background-color,color,transform] duration-(--dur-short) ease-out active:translate-y-px disabled:cursor-not-allowed disabled:opacity-55 aria-disabled:cursor-not-allowed aria-disabled:opacity-55";
 
-export const buttonSecondary =
-  "inline-flex items-center justify-center rounded-md border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-800 disabled:opacity-60";
+/** The one filled action on a screen: an ink block. App size (40px). */
+export const buttonPrimary = `${control} min-h-10 border-ink bg-ink text-paper hover:bg-ink-2`;
 
-export const card = "rounded-xl border border-zinc-800 bg-zinc-900/60";
+/** A quieter action: an ink outline. App size (40px). */
+export const buttonSecondary = `${control} min-h-10 border-ink bg-transparent text-ink hover:bg-paper-2`;
 
-export const link = "text-brand hover:underline";
+/** Marketing pages stand their controls taller (48px). */
+export const buttonPrimaryLarge = `${buttonPrimary} min-h-12 px-6`;
+export const buttonSecondaryLarge = `${buttonSecondary} min-h-12 px-6`;
+
+/** A destructive action stays secondary in weight, red in ink. */
+export const buttonDanger = `${control} min-h-10 border-loss bg-transparent text-loss hover:bg-paper-2`;
+
+/** A tinted well: a paper step under a hairline. Never a raised card. */
+export const well = "bg-paper-2 border-t border-rule-2";
+
+/** Kept for older call sites: a group of content on its own paper step. */
+export const card = well;
+
+/** A text link with a hairline underline that turns green on hover. */
+export const link = "link";
+
+/** Square inputs with a hairline that turns ink on focus. */
+export const input =
+  "w-full min-h-11 border border-rule-2 bg-paper px-3 text-base text-ink outline-2 outline-offset-[-3px] outline-transparent transition-[border-color] duration-(--dur-short) placeholder:text-muted hover:border-ink focus-visible:border-ink focus-visible:outline-focus disabled:cursor-not-allowed disabled:opacity-55";
+
+/** A small label above a field or a figure: the label face, a step smaller, muted. */
+export const label = "face-label text-sm text-muted";

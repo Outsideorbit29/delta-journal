@@ -1,133 +1,175 @@
+/* Hallmark · shape: Bento Grid (/), Long Document (/privacy, /terms), Form (/waitlist, /sign-in, /sign-up), app screen (/demo, the dashboard, /trades, /journal, /review, /settings) · genre: editorial · theme: Editorial (deal 1/3, seed trading-journal-indian-traders-27a0·ff7717ac·2026-11-01·r0) · redesign: full · draw: 41b1e8
+ * hero: Counter (/) · nav: slab · footer: index columns · imagery: screenshots of the demo dashboard, light and dark (captured with puppeteer) · signature: the biggest-leaks ledger, set as a market table
+ * axes: light/display-condensed/chromatic-green · posture: restrained · modes: light+dark · job: sign up (/), join (/waitlist) · data: blue/red diverging, validated · contrast: pass · fold: pass · v2.0.0 */
+/* Hallmark · pre-emit critique: P4 H4 E4 S5 R4 V4 · weakest: P, a journal page could argue louder; the hero head says the cost of habits outright and the ledger proves it with the demo's own figures */
+/* Hallmark · dropped onClick={() => { setActive(i); setPaused(true); }} · the auto-advancing step tabs became three static numbered rows, so nothing is left to select (18) */
+/* Hallmark · dropped the feature marquee · its eleven chips repeated the sections above and looped without a pause (18, F8) */
+/* Hallmark · reworded "See the habits that are costing you money." to "See the habits that cost you money." · 58, a hero head of seven words or fewer */
+/* Hallmark · reworded "Everything about your trading, in one place" to "Every number, worked out for you" · 58 and 38iii, the accented gradient half */
+/* Hallmark · reworded "Free while we are in beta" to "Free while we're in beta" · the same words, set without the gradient (2b) */
+/* Hallmark · reworded "Trade less like your worst habits. Start with the data." to "Trade less like your worst habits." · 58, the second sentence moved into the line under it */
+/* Hallmark · reworded "Long vs short" to "Long and short" · the dashboard table's head, in words */
+/* Hallmark · reworded "90days" to "all time" · the landing's old preview card said "last 90 days"; the hero now shows the captured dashboard, which reads all time */
+/* Hallmark · waive 85 · the user asked for a sign-up: /waitlist is Clerk's waitlist form · the waitlist page exists only to take a founding member's email */
+/* Hallmark · waive 79 · /waitlist is one Clerk form centred on the paper · the waitlist and sign-in pages hold only Clerk's own form, no content to grow */
+/* Hallmark · waive 77 · /privacy and /waitlist are a long legal document and a single form · the privacy policy keeps prose at a 65ch measure for reading */
+/* Hallmark · waive 78 · Long Document shape on /privacy and /terms, heads set inline in the prose · legal pages read as one document, not a landing page */
+/* Hallmark · reworded "$21.28", "$53.72", "$41.19", "$63.51" to the same figures · the calendar's month totals read "-$53.72, 39 trades" with a comma in place of the middle dot (63) */
+/* Hallmark · answered F20 · a month calendar ends where the month ends; its last week is short by nature */
+/* Hallmark · dismissed 49 · the calendar's "Show older months" button carries whitespace-nowrap */
 @import "tailwindcss";
+@import "./tokens.css";
+@import "./base.css" layer(base);
 
-/* Edgebook is dark only: <html class="dark"> turns every dark: style on. */
-@custom-variant dark (&:where(.dark, .dark *));
+/* Faces from next/font (layout.tsx), under the theme's token names. */
+@theme {
+  --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-source-serif), ui-serif, Georgia, serif;
+  --font-sans: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-source-serif), ui-serif, Georgia, serif;
+}
 
+/* Money and state. Profit and loss text keeps the trader's green and red, always
+   with its sign, so the colour is never the only signal. */
+@theme static {
+  --color-gain: oklch(45% 0.11 150);
+  --color-loss: oklch(50% 0.17 27);
+  --color-warn: oklch(50% 0.11 65);
+  --color-warn-soft: oklch(93% 0.035 80);
+}
+
+/* Charts: a diverging pair, blue for profit and red for loss (green against red fails
+   colour-blind readers), validated with the dataviz checker on both papers. */
 :root {
+  --viz-surface: var(--color-paper);
+  --viz-ink: var(--color-ink);
+  --viz-ink-2: var(--color-ink-2);
+  --viz-muted: var(--color-muted);
+  --viz-grid: var(--color-rule);
+  --viz-axis: var(--color-rule-2);
+  --viz-neutral: var(--color-paper-3);
+  --viz-profit: oklch(54% 0.14 255);
+  --viz-loss: oklch(57% 0.16 27);
+  --viz-profit-1: oklch(74% 0.085 255);
+  --viz-profit-2: oklch(64% 0.115 255);
+  --viz-profit-3: oklch(54% 0.14 255);
+  --viz-profit-4: oklch(43% 0.14 258);
+  --viz-loss-1: oklch(75% 0.09 27);
+  --viz-loss-2: oklch(66% 0.13 27);
+  --viz-loss-3: oklch(55% 0.16 27);
+  --viz-loss-4: oklch(47% 0.16 27);
+  /* Ink on a filled cell, by step: light fills take ink, dark fills take paper. */
+  --viz-on-1: var(--color-ink);
+  --viz-on-2: var(--color-ink);
+  --viz-on-3: var(--color-paper);
+  --viz-on-4: var(--color-paper);
+}
+
+/* Dark mode: re-derived, never inverted. The hue of every token stays put; paper
+   steps lighter with elevation; the accent loses chroma and gains lightness. */
+@layer base {
+  :root { color-scheme: light dark; }
+}
+[data-mode="dark"] {
   color-scheme: dark;
-  --background: #09090b;
-  --foreground: #ededed;
-
-  /* Brand teal, for interactive UI only (buttons, links, active tabs, the logo).
-     Never for numbers: profit and loss keep their own colours below. */
-  --brand: #2dd4bf;
-  --brand-strong: #14b8a6;
-  --brand-ink: #042f2e;
-  --brand-soft: rgb(45 212 191 / 0.12);
-
-  /* Chart tokens. Profit/loss is a diverging pair (blue <-> red, gray midpoint);
-     each arm runs from the smallest to the largest magnitude. Validated with the
-     dataviz palette checker against the dark surface. */
-  --viz-surface: #1a1a19;
-  --viz-ink: #f0efec;
-  --viz-ink-2: #c3c2b7;
-  --viz-muted: #898781;
-  --viz-grid: #2c2c2a;
-  --viz-axis: #383835;
-  --viz-profit: #3987e5;
-  --viz-loss: #e66767;
-  --viz-neutral: #383835;
-  --viz-profit-1: #184f95;
-  --viz-profit-2: #256abf;
-  --viz-profit-3: #3987e5;
-  --viz-profit-4: #86b6ef;
-  --viz-loss-1: #8a3030;
-  --viz-loss-2: #b83c3c;
-  --viz-loss-3: #e66767;
-  --viz-loss-4: #f2a5a5;
-  /* Ink on top of a filled cell, by step: dark fills take light ink. */
-  --viz-on-1: #ffffff;
-  --viz-on-2: #ffffff;
-  --viz-on-3: #0b0b0b;
-  --viz-on-4: #0b0b0b;
+  --color-paper: oklch(17% 0.010 86);
+  --color-paper-2: oklch(20.5% 0.011 86);
+  --color-paper-3: oklch(24% 0.012 84);
+  --color-ink: oklch(94% 0.008 280);
+  --color-ink-2: oklch(84% 0.009 280);
+  --color-muted: oklch(68% 0.010 75);
+  --color-rule: oklch(31% 0.010 85);
+  --color-rule-2: oklch(46% 0.010 80);
+  --color-accent: oklch(64% 0.11 152);
+  --color-accent-ink: oklch(15% 0.010 88);
+  --color-focus: oklch(68% 0.12 152);
+  --color-error: oklch(70% 0.15 27);
+  --color-success: oklch(74% 0.12 150);
+  --color-gain: oklch(76% 0.12 150);
+  --color-loss: oklch(73% 0.13 27);
+  --color-warn: oklch(80% 0.11 75);
+  --color-warn-soft: oklch(27% 0.04 70);
+  --viz-profit: oklch(62% 0.13 255);
+  --viz-loss: oklch(64% 0.15 27);
+  --viz-profit-1: oklch(41% 0.10 255);
+  --viz-profit-2: oklch(53% 0.12 255);
+  --viz-profit-3: oklch(66% 0.12 255);
+  --viz-profit-4: oklch(80% 0.08 255);
+  --viz-loss-1: oklch(42% 0.12 27);
+  --viz-loss-2: oklch(54% 0.14 27);
+  --viz-loss-3: oklch(67% 0.13 27);
+  --viz-loss-4: oklch(81% 0.08 27);
+  --viz-on-1: var(--color-ink);
+  --viz-on-2: var(--color-ink);
+  --viz-on-3: var(--color-paper);
+  --viz-on-4: var(--color-paper);
 }
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-brand: var(--brand);
-  --color-brand-strong: var(--brand-strong);
-  --color-brand-ink: var(--brand-ink);
-  --color-brand-soft: var(--brand-soft);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
-}
-
-/* Landing page effects. All CSS, so they cost phones nothing, and all off for reduced motion. */
-
-/* A faint grid with soft teal and cyan glows behind it. */
-.bg-grid {
-  background-image:
-    radial-gradient(60rem 30rem at 15% -10%, rgb(45 212 191 / 0.14), transparent 60%),
-    radial-gradient(50rem 30rem at 95% 10%, rgb(34 211 238 / 0.10), transparent 60%),
-    linear-gradient(to right, rgb(255 255 255 / 0.035) 1px, transparent 1px),
-    linear-gradient(to bottom, rgb(255 255 255 / 0.035) 1px, transparent 1px);
-  background-size: auto, auto, 48px 48px, 48px 48px;
-}
-
-/* Headline words in the brand gradient. */
-.text-gradient {
-  background: linear-gradient(90deg, #5eead4, #2dd4bf 40%, #22d3ee);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-@keyframes reveal {
-  from {
-    opacity: 0;
-    transform: translateY(24px);
-  }
-}
-@keyframes grow {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(1);
-  }
-}
-@keyframes marquee {
-  to {
-    transform: translateX(-50%);
-  }
-}
-@keyframes wave {
-  to {
-    stroke-dashoffset: -200;
+@media (prefers-color-scheme: dark) {
+  :root:not([data-mode]) {
+    color-scheme: dark;
+    --color-paper: oklch(17% 0.010 86);
+    --color-paper-2: oklch(20.5% 0.011 86);
+    --color-paper-3: oklch(24% 0.012 84);
+    --color-ink: oklch(94% 0.008 280);
+    --color-ink-2: oklch(84% 0.009 280);
+    --color-muted: oklch(68% 0.010 75);
+    --color-rule: oklch(31% 0.010 85);
+    --color-rule-2: oklch(46% 0.010 80);
+    --color-accent: oklch(64% 0.11 152);
+    --color-accent-ink: oklch(15% 0.010 88);
+    --color-focus: oklch(68% 0.12 152);
+    --color-error: oklch(70% 0.15 27);
+    --color-success: oklch(74% 0.12 150);
+    --color-gain: oklch(76% 0.12 150);
+    --color-loss: oklch(73% 0.13 27);
+    --color-warn: oklch(80% 0.11 75);
+    --color-warn-soft: oklch(27% 0.04 70);
+    --viz-profit: oklch(62% 0.13 255);
+    --viz-loss: oklch(64% 0.15 27);
+    --viz-profit-1: oklch(41% 0.10 255);
+    --viz-profit-2: oklch(53% 0.12 255);
+    --viz-profit-3: oklch(66% 0.12 255);
+    --viz-profit-4: oklch(80% 0.08 255);
+    --viz-loss-1: oklch(42% 0.12 27);
+    --viz-loss-2: oklch(54% 0.14 27);
+    --viz-loss-3: oklch(67% 0.13 27);
+    --viz-loss-4: oklch(81% 0.08 27);
   }
 }
 
-/* Thin reading-progress line along the top of the landing page (browsers without
-   scroll-driven animations simply don't show it). */
-.scroll-progress {
-  transform: scaleX(0);
-  transform-origin: left;
+/* The theme's type voice. Heads: Bricolage condensed to width 75 at 800. Labels,
+   controls, nav and table heads: Bricolage at full width, 500. Reading: Source Serif. */
+@layer base {
+  body { color: var(--color-ink-2); font-optical-sizing: auto; }
+  h1, h2, h3 { color: var(--color-ink); font-variation-settings: "wdth" 75, "opsz" 96; font-variant-numeric: lining-nums tabular-nums; }
+  h1 { line-height: 0.95; }
+  small, figcaption, th, nav, label, button, input, select, textarea, .label { font-family: var(--font-display); font-variation-settings: "opsz" 12; }
+  a { text-decoration-color: var(--color-rule-2); }
+  a:hover { text-decoration-color: var(--color-accent); }
+  ::selection { background: color-mix(in oklab, var(--color-accent) 22%, transparent); }
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  @supports (animation-timeline: view()) {
-    .reveal {
-      animation: reveal linear both;
-      animation-timeline: view();
-      animation-range: entry 0% entry 40%;
-    }
-    .scroll-progress {
-      animation: grow linear both;
-      animation-timeline: scroll(root);
-    }
-  }
-  .marquee {
-    animation: marquee 40s linear infinite;
-  }
-  .wave {
-    stroke-dasharray: 6 4;
-    animation: wave 6s linear infinite;
-  }
+@layer components {
+  /* A figure set in the condensed head face: P&L, counts, prices. */
+  .figure-display { font-family: var(--font-display); font-weight: var(--display-weight); font-variation-settings: "wdth" 75, "opsz" 96; font-variant-numeric: lining-nums tabular-nums; letter-spacing: var(--tracking-display); line-height: 0.95; }
+  /* Labels and figures in the label face, lining numerals for columns that compare. */
+  .face-label { font-family: var(--font-display); font-weight: 500; font-variation-settings: "opsz" 12; font-variant-numeric: lining-nums tabular-nums; }
+  /* A heavy ink rule opens a section or a table; the head sits flush under it. */
+  .opens { border-top: var(--rule-heavy) solid var(--color-ink); padding-top: var(--space-lg); }
+  /* Links carry a hairline underline that turns green on hover. */
+  .link { color: var(--color-ink); text-decoration: underline; text-decoration-thickness: 1px; text-decoration-color: var(--color-rule-2); text-underline-offset: 0.2em; transition: text-decoration-color var(--dur-short) var(--ease-out); }
+  .link:hover { text-decoration-color: var(--color-accent); }
 }
+
+/* A picture with a light and a dark capture shows the one for the reader's mode:
+   their explicit choice (data-mode) first, the device's setting otherwise. */
+.for-dark { display: none !important; }
+[data-mode="dark"] .for-dark { display: block !important; }
+[data-mode="dark"] .for-light { display: none !important; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-mode]) .for-dark { display: block !important; }
+  :root:not([data-mode]) .for-light { display: none !important; }
+}
+
+/* A sticky pinned visual releases on small screens. */
+@media (max-width: 60rem) { .pin { position: static !important; } }

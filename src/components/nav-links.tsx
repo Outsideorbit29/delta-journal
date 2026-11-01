@@ -4,18 +4,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense } from "react";
 
+// Icons from one set (Lucide's 24px grid, 1.75 stroke), for the phone tab bar only.
 const LINKS = [
-  { href: "/", label: "Dashboard", icon: "M3 13h8V3H3zm0 8h8v-6H3zm10 0h8V11h-8zm0-18v6h8V3z" },
-  { href: "/trades", label: "Trades", icon: "M4 6h16M4 12h16M4 18h10" },
-  { href: "/journal", label: "Journal", icon: "M6 3h11a2 2 0 0 1 2 2v16l-4-2-4 2-4-2-3 2V5a2 2 0 0 1 2-2zm3 5h7m-7 4h7" },
-  { href: "/review", label: "AI review", icon: "M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.4zM18 15l.9 2.1L21 18l-2.1.9L18 21l-.9-2.1L15 18l2.1-.9z" },
-  { href: "/settings", label: "Settings", icon: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm7.4-3a7.4 7.4 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-2-1.2L14.5 3h-5l-.4 2.6a7.4 7.4 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6a7.4 7.4 0 0 0 0 2.4l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 2 1.2l.4 2.6h5l.4-2.6a7.4 7.4 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z" },
+  { href: "/", label: "Dashboard", short: "Home", icon: "M3 3h7v9H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 16h7v5H3z" },
+  { href: "/trades", label: "Trades", short: "Trades", icon: "M4 6h16M4 12h16M4 18h10" },
+  { href: "/journal", label: "Journal", short: "Journal", icon: "M4 4h12a2 2 0 0 1 2 2v14H6a2 2 0 0 1-2-2zM8 8h6M8 12h6M18 8h2v12" },
+  { href: "/review", label: "AI review", short: "Review", icon: "M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4" },
+  { href: "/settings", label: "Settings", short: "Settings", icon: "M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4" },
 ];
 
 const isActive = (pathname: string | null, href: string) =>
   pathname !== null && (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
-/** Desktop navigation in the header. The current page is only known at request time, so it streams in. */
+/** Desktop navigation in the slab. The current page is only known at request time, so it streams in. */
 export function NavLinks() {
   return (
     <Suspense fallback={<TopLinks pathname={null} />}>
@@ -39,7 +40,7 @@ function Current({ render }: { render: (pathname: string | null) => React.ReactN
 
 function TopLinks({ pathname }: { pathname: string | null }) {
   return (
-    <nav className="hidden gap-1 text-sm md:flex">
+    <nav aria-label="Sections" className="hidden items-center gap-6 text-sm md:flex">
       {LINKS.map((l) => {
         const active = isActive(pathname, l.href);
         return (
@@ -47,7 +48,9 @@ function TopLinks({ pathname }: { pathname: string | null }) {
             key={l.href}
             href={l.href}
             aria-current={active ? "page" : undefined}
-            className={`rounded-md px-3 py-1.5 ${active ? "bg-zinc-800/80 font-medium text-zinc-100" : "text-zinc-400 hover:text-zinc-100"}`}
+            className={`py-2 underline-offset-8 transition-colors duration-(--dur-short) ${
+              active ? "text-ink underline decoration-accent decoration-2" : "text-muted no-underline hover:text-ink"
+            }`}
           >
             {l.label}
           </Link>
@@ -61,7 +64,7 @@ function TabBar({ pathname }: { pathname: string | null }) {
   return (
     <>
       <div className="h-[calc(4rem+env(safe-area-inset-bottom))] md:hidden" aria-hidden="true" />
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-zinc-800 bg-zinc-950/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+      <nav aria-label="Sections" className="fixed inset-x-0 bottom-0 z-(--z-sticky-nav) border-t border-ink bg-paper pb-[env(safe-area-inset-bottom)] md:hidden">
         <ul className="grid grid-cols-5">
           {LINKS.map((l) => {
             const active = isActive(pathname, l.href);
@@ -70,12 +73,14 @@ function TabBar({ pathname }: { pathname: string | null }) {
                 <Link
                   href={l.href}
                   aria-current={active ? "page" : undefined}
-                  className={`flex h-16 flex-col items-center justify-center gap-1 text-[11px] ${active ? "text-brand" : "text-zinc-500"}`}
+                  className={`flex h-16 flex-col items-center justify-center gap-1 border-t-2 text-xs no-underline ${
+                    active ? "border-accent text-ink" : "border-transparent text-muted"
+                  }`}
                 >
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="square" aria-hidden="true">
                     <path d={l.icon} />
                   </svg>
-                  {l.label === "AI review" ? "Review" : l.label}
+                  {l.short}
                 </Link>
               </li>
             );

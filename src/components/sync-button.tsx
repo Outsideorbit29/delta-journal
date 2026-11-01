@@ -17,7 +17,7 @@ export function SyncButton() {
         {pending ? "Syncing…" : "Sync from Delta"}
       </button>
       {result && (
-        <p role="status" className={`max-w-sm text-right text-xs ${result.ok ? "text-zinc-500" : "text-rose-600 dark:text-rose-400"}`}>
+        <p role="status" className={`face-label max-w-sm text-right text-sm ${result.ok ? "text-muted" : "text-error"}`}>
           {result.message}
         </p>
       )}

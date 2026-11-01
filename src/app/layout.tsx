@@ -1,6 +1,6 @@
 import { ClerkProvider, Show, UserButton } from "@clerk/nextjs";
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Bricolage_Grotesque, Source_Serif_4 } from "next/font/google";
 import Link from "next/link";
 import { Suspense } from "react";
 import { HideOnLogin } from "@/components/hide-on-login";
@@ -12,57 +12,87 @@ import { SyncStatus } from "@/components/sync-status";
 import { canSyncHere } from "@/lib/runtime";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Heads and labels: Bricolage Grotesque (condensed for heads through font-variation-settings).
+const bricolage = Bricolage_Grotesque({
+  variable: "--font-bricolage",
   subsets: ["latin"],
+  axes: ["wdth", "opsz"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+// Reading text, standfirsts and quotations.
+const sourceSerif = Source_Serif_4({
+  variable: "--font-source-serif",
   subsets: ["latin"],
+  style: ["normal", "italic"],
+  axes: ["opsz"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
   title: "Edgebook",
-  description: "Trading journal and habit insights for Indian traders",
-  appleWebApp: { capable: true, title: "Edgebook", statusBarStyle: "black-translucent" },
+  description: "A trading journal for Delta Exchange India that shows which habits cost you money.",
+  appleWebApp: { capable: true, title: "Edgebook", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#09090b",
+  // The browser bar takes the paper colour of each mode (the tokens' sRGB equivalents).
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f7f5f0" },
+    { media: "(prefers-color-scheme: dark)", color: "#110f0a" },
+  ],
 };
 
-/** Clerk's sign-in, sign-up and waitlist forms in Edgebook's dark theme and teal brand. */
+/** Clerk's sign-in, sign-up and waitlist forms in the site's paper, ink and square corners. */
 const clerkAppearance = {
   variables: {
-    colorPrimary: "#2dd4bf",
-    colorPrimaryForeground: "#042f2e",
-    colorBackground: "#18181b",
-    colorForeground: "#f4f4f5",
-    colorMuted: "#27272a",
-    colorMutedForeground: "#a1a1aa",
-    colorNeutral: "#f4f4f5",
-    colorInput: "#09090b",
-    colorInputForeground: "#f4f4f5",
-    colorBorder: "#3f3f46",
-    colorDanger: "#fb7185",
-    colorRing: "#2dd4bf",
-    colorShadow: "#000000",
+    colorPrimary: "var(--color-ink)",
+    colorPrimaryForeground: "var(--color-paper)",
+    colorBackground: "var(--color-paper)",
+    colorForeground: "var(--color-ink)",
+    colorMuted: "var(--color-paper-2)",
+    colorMutedForeground: "var(--color-muted)",
+    colorNeutral: "var(--color-ink)",
+    colorInput: "var(--color-paper)",
+    colorInputForeground: "var(--color-ink)",
+    colorBorder: "var(--color-rule-2)",
+    colorDanger: "var(--color-error)",
+    colorRing: "var(--color-focus)",
+    colorShadow: "transparent",
+    borderRadius: "0",
+    fontFamily: "var(--font-display)",
+  },
+  // Clerk draws its own fields; give them the site's control height and a visible hairline.
+  elements: {
+    // Clerk draws its field edge as a faint shadow over its own rule, so ours has to win outright.
+    formFieldInput: { minHeight: "2.75rem", border: "1px solid var(--color-muted) !important", boxShadow: "none !important", background: "var(--color-paper)" },
+    formButtonPrimary: { minHeight: "2.75rem", boxShadow: "none" },
+    card: { boxShadow: "none", border: "1px solid var(--color-rule-2)" },
   },
 };
 
+/** Sets the saved light or dark mode before the first paint, so the page never flashes the wrong one. */
+const MODE_SCRIPT = `try{var m=localStorage.getItem("mode");if(m==="light"||m==="dark")document.documentElement.dataset.mode=m}catch(e){}`;
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`dark ${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="flex min-h-full flex-col bg-zinc-950 text-zinc-100">
+    <html lang="en" className={`${bricolage.variable} ${sourceSerif.variable} h-full`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: MODE_SCRIPT }} />
+      </head>
+      <body className="flex min-h-full flex-col bg-paper text-ink-2 antialiased">
         {/* Inside <body>, as Clerk requires with Cache Components. */}
         <ClerkProvider waitlistUrl="/waitlist" appearance={clerkAppearance}>
-          <header className="sticky top-0 z-30 border-b border-zinc-800/80 bg-zinc-950/90 pt-[env(safe-area-inset-top)] backdrop-blur">
-            <div className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between gap-4 px-4">
-              <div className="flex min-w-0 items-center gap-6">
+          <a href="#main" className="face-label absolute -top-24 left-4 z-[500] bg-ink px-4 py-2 text-sm text-paper focus-visible:top-4">
+            Skip to content
+          </a>
+          {/* The slab: one heavy bar across the top, wordmark, sections and account on one line. */}
+          <header className="sticky top-0 z-[300] border-b-4 border-ink bg-paper pt-[env(safe-area-inset-top)]">
+            <div className="container flex h-16 items-center justify-between gap-6">
+              <div className="flex min-w-0 items-center gap-8">
                 <Link href="/" aria-label="Edgebook home" className="shrink-0">
                   <Logo />
                 </Link>
@@ -77,7 +107,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               <HideOnLogin>
                 <Suspense fallback={null}>
                   <Show when="signed-in" fallback={<SiteMenu />}>
-                    <div className="flex shrink-0 items-center gap-3">
+                    <div className="flex shrink-0 items-center gap-4">
                       <SyncStatus />
                       {/* Syncing needs a whitelisted IP, so it never runs on the hosted app. */}
                       {canSyncHere() && (
