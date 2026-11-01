@@ -12,6 +12,7 @@ import { AI_MODELS, aiConfigured } from "@/lib/ai/models";
 import { generateReview } from "@/lib/ai/review";
 import { suggestFromNote } from "@/lib/ai/suggest";
 import { DeltaClient } from "@/lib/delta/client";
+import { recordHeartbeat } from "@/lib/health";
 import { sealPrivateKey } from "@/lib/keys/credentials";
 import { hasStoredKey, syncStoredKeys, syncWithStoredKey, type UserSyncResult } from "@/lib/keys/sync-users";
 import { pushConfigured, sendPush } from "@/lib/push";
@@ -176,6 +177,10 @@ async function syncLoop(db: Db, owner: string, context: (userId: string, chatId:
         log(`Notifying ${r.userId} failed:`, message(err));
       }
     }
+    // For /api/health: an outside monitor alerts when these stop.
+    await recordHeartbeat(db, { at: Date.now(), users: results.length, failing: results.filter((r) => r.error).length }).catch((err) =>
+      log("Could not record the heartbeat:", message(err)),
+    );
     await sleep(SYNC_EVERY_MS);
   }
 }
