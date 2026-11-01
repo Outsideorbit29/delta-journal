@@ -467,7 +467,8 @@ Done (all pushed): 1 sync · 2 trades + auto tags · 3 dashboard and charts · 4
 
 ### Next: Edgebook, a public multi-user product (decided 2026-10-31)
 
-- **Name:** Edgebook (replaces "Delta Journal" as the public brand; Delta is another company's trademark).
+- **Name:** Edgebook for now (replaces "Delta Journal"; Delta is another company's trademark). **Being replaced**, see Day 7:
+  three other trading journals already use the name (PFT-EdgeBook, EdgeBookPro, EdgeBook by TradersEdge.nl).
 - **Audience:** Indian traders only. The beta is Delta Exchange India only.
 - **Pricing:** the first 10 users are free for 3 months (the user picks who), then three paid plans (tiers being decided).
 - **Team and timeline:** the user builds solo with Claude; private beta in about one week (target ~2026-11-07).
@@ -500,11 +501,29 @@ Week plan and progress:
   server SSH is key-only, only port 22 listens, unattended upgrades are on, `.env.local` is 600. Open items: a lawyer's
   read of the legal pages, an uptime monitor on `/api/health`, a full CSP,
   and the server's pending security updates (67 on 2026-11-01).
-- Day 7: rebrand to Edgebook and launch. A Clerk **production** instance needs a domain we own, and its
-  user ids differ from the development instance's, so the owner's data would need claiming again.
+- **Day 7 (in progress, paused 2026-11-01, continuing next session): new name, domain, Clerk production, new bot, launch.**
+  Done: the redesign is live; `claim-legacy --from` moves an account to a new Clerk id; the Telegram update offset is per bot.
+  Decided by the owner: an **English-word name** (Sanskrit names were rejected), sign-in by **email code only** (no Google),
+  and a **new Telegram bot** carrying the new name. Vercel does not sell `.in`.
+  Waiting on the owner, in order:
+  1. **Pick the name.** Recommended `examined.app` ($53.90/year on Vercel; `.in` and `.com` taken; tagline "The unexamined
+     trade is not worth taking"). Second choice `hardwon.in` (free, buy from an Indian registrar). Also free on `.app` and
+     `.in` at $9.99 then $15/year: hardearned, annealed, whetted, slowgrown. Checked against the registries on 2026-11-01;
+     re-check before buying, and check the Indian trademark registry.
+  2. **Buy the domain**, and make the bot with @BotFather under the new name. The token goes into `.env.local` by the owner's
+     own hand, never in chat, plus `TELEGRAM_BOT_USERNAME`.
+  3. **Clerk production instance** on that domain: Google off, email verification code on, access mode Waitlist.
+  Then Claude does: rename the site (brand word, icons, manifest, legal pages, notifications, docs, `VAPID_SUBJECT`, domain on
+  Vercel, Clerk's DNS records); copy the bot token to the server and set the username on Vercel; after the owner signs in once on
+  the new domain, `npm run claim-legacy -- user_new --from user_3LT1ntUygNbHxmyfsYO9QBzM95P`, then update `OWNER_USER_ID` on the
+  PC and the server and the "Live setup" table. A linked chat keeps working on the new bot once its owner taps Start there.
+  Local `npm run dev` stays on Clerk's development instance, so it signs in as a different, empty account.
+- Still open from earlier days: the owner testing Telegram (`/today`) and Settings export on the phone, an uptime monitor on
+  `/api/health`, the server's 67 pending security updates, a lawyer's read of the legal pages, and a full CSP.
 
 ## Changelog
 
+- **2026-11-01**: End of session: Day 7 paused on the owner's choice of a new name and domain (see Status and roadmap).
 - **2026-11-01**: Day 7 prep: `claim-legacy --from` moves a whole account to a new Clerk id (for the switch to Clerk's
   production instance); notifications and the server unit say Edgebook instead of Delta Journal.
 - **2026-11-01**: The legal pages name Anish as the operator (data fiduciary) in `src/lib/legal.ts`.
