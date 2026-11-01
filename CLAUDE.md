@@ -68,7 +68,7 @@ the owner's, so they only ever sync into `OWNER_USER_ID`; other users get per-us
 | `npm run rebuild` | Recompute trades and auto tags from stored data for every user (after changing `src/lib/config.ts`) |
 | `npm run demo:seed` | Replace the public demo account's made-up trades with a fresh set ending yesterday (dates go stale; re-run now and then) |
 | `npm run keys:generate` | Create the key pair that locks users' Delta keys and write it into `.env.local` (refuses to replace an existing pair) |
-| `npm run claim-legacy -- user_xxx` | Move all `legacy` rows to that Clerk user (who must have signed in once and have no synced data) |
+| `npm run claim-legacy -- user_xxx [--from user_old]` | Move all `legacy` rows (or a whole account, with `--from`, e.g. the Clerk development user to the production one) to that Clerk user, who must have signed in once and have no synced data. Carries the founder dates over; a stored Delta key cannot move (sealed to its owner) and is dropped |
 | `npm run db:generate` | New migration after editing `src/db/schema.ts` |
 | `npm run db:migrate` | Apply migrations to `DATABASE_URL` (the hosted app never migrates) |
 | `npm run db:copy-to-cloud` | Copy `data/journal.db` into an **empty** Turso DB, checking every table's row count |
@@ -505,6 +505,8 @@ Week plan and progress:
 
 ## Changelog
 
+- **2026-11-01**: Day 7 prep: `claim-legacy --from` moves a whole account to a new Clerk id (for the switch to Clerk's
+  production instance); notifications and the server unit say Edgebook instead of Delta Journal.
 - **2026-11-01**: The legal pages name Anish as the operator (data fiduciary) in `src/lib/legal.ts`.
 - **2026-11-01**: Full redesign with Hallmark (Editorial theme): light first with a dark mode, Bricolage Grotesque and
   Source Serif 4, square ink-and-paper system (`tokens.css`, `base.css`, `design.md`), every page and component rebuilt;

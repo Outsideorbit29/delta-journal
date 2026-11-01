@@ -39,6 +39,32 @@ describe("claimRows", () => {
     db.$client.close();
   });
 
+  it("moves a whole account to a new Clerk id: data, Telegram, founder dates; the sealed key is dropped", async () => {
+    const db = await openDatabase(`file:${path.join(dir, "move.db")}`);
+    await db.insert(schema.users).values([
+      { id: "user_dev", email: "a@example.com", createdAt: 100, plan: "founder", accessUntil: 900 },
+      { id: "user_prod", createdAt: 500, plan: "founder", accessUntil: 5000 },
+    ]);
+    await db.insert(schema.journalEntries).values({ tradeId: "t1", userId: "user_dev", emotions: [], mistakes: [], createdAt: 1, updatedAt: 1 });
+    await db.insert(schema.telegramLinks).values({ userId: "user_dev", chatId: "42", linkedAt: 1 });
+    await db.insert(schema.deltaCredentials).values({ userId: "user_dev", keyHint: "abcd", sealed: "box", status: "ok", createdAt: 1, updatedAt: 1 });
+    // The new account's own first visit left state that would collide.
+    await db.insert(schema.appState).values([
+      { userId: "user_dev", key: "telegram.notify_since", value: "1" },
+      { userId: "user_prod", key: "telegram.notify_since", value: "9" },
+    ]);
+
+    const moved = await claimRows(db, "user_dev", "user_prod");
+    expect(moved).toMatchObject({ journal_entries: 1, telegram_links: 1, delta_credentials_dropped: 1, delta_credentials: 0, account_moved: 1 });
+    expect((await db.select().from(schema.journalEntries))[0].userId).toBe("user_prod");
+    expect((await db.select().from(schema.telegramLinks))[0]).toMatchObject({ userId: "user_prod", chatId: "42" });
+    expect(await db.select().from(schema.deltaCredentials)).toEqual([]);
+    expect((await db.select().from(schema.appState)).map((r) => [r.userId, r.value])).toEqual([["user_prod", "1"]]);
+    const users = await db.select().from(schema.users);
+    expect(users).toEqual([expect.objectContaining({ id: "user_prod", createdAt: 100, plan: "founder", accessUntil: 900 })]);
+    db.$client.close();
+  });
+
   it("refuses to merge into a user who already has synced data", async () => {
     const db = await openDatabase(`file:${path.join(dir, "busy.db")}`);
     await db.insert(schema.users).values({ id: "u", createdAt: 1, plan: "founder", accessUntil: 2 });
