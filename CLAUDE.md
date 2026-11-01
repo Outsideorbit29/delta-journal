@@ -190,7 +190,7 @@ Telegram: `telegram_links` (one per user: unique `chat_id`, `chat_name`, `linked
 are globally unique, so primary keys stay as they were. Ownership is enforced by filtering on
 `user_id` in every query, and an upsert only updates a row the same user owns (`setWhere`), so a
 record can never move between users. `sync_state` has the primary key (user, resource).
-`app_state` has (user, key), with `user_id` `''` for process-wide state (`telegram.update_offset`).
+`app_state` has (user, key), with `user_id` `''` for process-wide state (`telegram.update_offset:<bot id>`, one per bot, so a new bot starts from zero; `bot.heartbeat`).
 Per-user state (`telegram.notify_since`, `telegram.weekly_review_for`) sits under the user.
 
 There are no foreign keys. Rebuild deletes `auto` tags only, and only the rebuilt user's rows.

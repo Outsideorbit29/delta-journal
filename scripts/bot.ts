@@ -36,7 +36,12 @@ import { adoptOwnerChat, chatForUser } from "@/lib/telegram/links";
 
 const POLL_TIMEOUT_SEC = 25;
 const SYNC_EVERY_MS = Math.max(15, Number(process.env.TELEGRAM_SYNC_SECONDS) || 60) * 1000;
-const STATE_OFFSET = "telegram.update_offset";
+/**
+ * How far the bot has read Telegram's updates. Update ids count per bot, so the
+ * key carries the bot's id (the token's number before the colon): a new bot
+ * starts from zero instead of skipping its first updates.
+ */
+const offsetKey = (token: string) => `telegram.update_offset:${token.split(":")[0]}`;
 
 let stopping = false;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -73,11 +78,12 @@ async function main() {
   log(push ? "Phone notifications on." : "Phone notifications off (no VAPID keys).");
   log(sealPrivateKey() ? "Syncing every user who connected a Delta key." : "Only syncing the owner (no DELTA_KEYS_PRIVATE_KEY).");
   void syncLoop(db, owner, context);
-  await pollLoop(bot);
+  await pollLoop(bot, token);
 }
 
 /** Receives every chat's button taps and messages. */
-async function pollLoop(bot: SharedBot) {
+async function pollLoop(bot: SharedBot, token: string) {
+  const STATE_OFFSET = offsetKey(token);
   let offset = Number(await getState(bot.db, STATE_OFFSET)) || 0;
   let failures = 0;
   while (!stopping) {
