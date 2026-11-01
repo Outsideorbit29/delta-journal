@@ -445,6 +445,28 @@ describe("one bot shared by every user", () => {
     expect(tg.sent.at(-1)!.text).toContain("expired or was already used");
   });
 
+  it("limits replies to unlinked chats and floods from linked ones", async () => {
+    const tg = new FakeTelegram();
+    for (let i = 0; i < 12; i++) await routeUpdate(shared(tg), message("/start", "7777"));
+    expect(tg.sent).toHaveLength(10);
+
+    tg.sent = [];
+    contexts.length = 0;
+    now += 60_000; // past the minute the earlier tests used
+    for (let i = 0; i < 61; i++) await routeUpdate(shared(tg), message("/help", ALICE_CHAT));
+    expect(contexts).toHaveLength(60);
+    now += 60_000; // a new minute
+    await routeUpdate(shared(tg), message("/help", ALICE_CHAT));
+    expect(contexts).toHaveLength(61);
+  });
+
+  it("limits /sync to 20 an hour", async () => {
+    const tg = new FakeTelegram();
+    for (let i = 0; i < 21; i++) await handleUpdate({ ...ctx(tg), userId: "alice", chatId: ALICE_CHAT }, message("/sync", ALICE_CHAT));
+    expect(tg.sent.filter((s) => s.text.startsWith("Synced")).length).toBe(20);
+    expect(tg.sent.at(-1)!.text).toBe("Too many tries. Try again in 60 minutes.");
+  });
+
   it("disconnects a chat on /disconnect", async () => {
     const tg = new FakeTelegram();
     await routeUpdate(shared(tg), message("/disconnect", BOB_CHAT));

@@ -329,3 +329,16 @@ export const telegramLinks = sqliteTable("telegram_links", {
   codeHash: text("code_hash").unique(),
   codeExpiresAt: integer("code_expires_at"),
 });
+
+// Fixed-window rate limits (src/lib/rate-limit.ts). `subject` is a user id, or
+// "chat:<id>" for a Telegram chat that is not linked to anyone.
+export const rateLimits = sqliteTable(
+  "rate_limits",
+  {
+    subject: text("subject").notNull(),
+    action: text("action").notNull(),
+    windowStart: integer("window_start").notNull(),
+    count: integer("count").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.subject, t.action] })],
+);

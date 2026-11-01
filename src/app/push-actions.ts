@@ -1,6 +1,7 @@
 "use server";
 
 import { getDb } from "@/db";
+import { rateLimit, tooMany } from "@/lib/rate-limit";
 import { currentUserId } from "@/lib/session";
 import { isBrowserSubscription, pushConfigured, removeSubscription, saveSubscription, sendPush } from "@/lib/push";
 
@@ -31,7 +32,10 @@ export async function sendTestPush(): Promise<PushActionResult> {
   if (!pushConfigured()) return { ok: false, message: NOT_SET_UP };
   const userId = await currentUserId();
   if (!userId) return { ok: false, message: "Sign in first." };
-  const r = await sendPush(await getDb(), userId, {
+  const db = await getDb();
+  const limit = await rateLimit(db, userId, "push.test");
+  if (!limit.ok) return { ok: false, message: tooMany(limit) };
+  const r = await sendPush(db, userId, {
     title: "Edgebook",
     body: "Test notification: closed trades, weekly reviews and sync problems will show up like this.",
     url: "/settings",

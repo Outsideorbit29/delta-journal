@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getDb } from "@/db";
+import { rateLimit, tooMany } from "@/lib/rate-limit";
 import { currentUserId } from "@/lib/session";
 import { createLinkCode, linkUrl, unlinkTelegram } from "@/lib/telegram/links";
 
@@ -16,7 +17,10 @@ export interface TelegramActionResult {
 export async function connectTelegram(): Promise<TelegramActionResult> {
   const userId = await currentUserId();
   if (!userId) return { ok: false, message: "Sign in first." };
-  const code = await createLinkCode(await getDb(), userId);
+  const db = await getDb();
+  const limit = await rateLimit(db, userId, "telegram.link");
+  if (!limit.ok) return { ok: false, message: tooMany(limit) };
+  const code = await createLinkCode(db, userId);
   revalidatePath("/settings");
   return { ok: true, message: "", url: linkUrl(code) };
 }

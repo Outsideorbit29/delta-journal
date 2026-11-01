@@ -8,6 +8,7 @@ import { suggestionsFor } from "@/lib/journal/entry";
 import { EMPTY_ENTRY, loadJournalEntry, saveJournalEntry } from "@/lib/journal/save";
 import { formatMoney, formatPercent } from "@/lib/format";
 import { istDate } from "@/lib/stats";
+import { rateLimit, tooMany, type LimitedAction } from "@/lib/rate-limit";
 import { explainSyncError } from "@/lib/sync-errors";
 import type { TelegramClient, TgCallbackQuery, TgMessage, TgUpdate } from "./api";
 import { STATE_NOTIFY_SINCE, unlinkTelegram, redeemLinkCode, userForChat } from "./links";
@@ -96,15 +97,34 @@ export async function routeUpdate(bot: SharedBot, update: TgUpdate): Promise<voi
   if (!msg) return;
   const chatId = String(msg.chat.id);
 
+  const now = bot.now?.() ?? Date.now();
+
   const code = update.message?.text?.trim().match(/^\/start(?:@\w+)?\s+(\S+)$/)?.[1];
-  if (code) return linkChat(bot, update.message!, code);
+  if (code) {
+    if (!(await rateLimit(bot.db, `chat:${chatId}`, "bot.stranger", now)).ok) return;
+    return linkChat(bot, update.message!, code);
+  }
 
   const userId = await userForChat(bot.db, chatId);
-  if (userId) return handleUpdate(bot.context(userId, chatId), update);
+  if (userId) {
+    // A flood of messages is dropped (taps are still acknowledged, so buttons stop spinning).
+    if ((await rateLimit(bot.db, userId, "bot.update", now)).ok) return handleUpdate(bot.context(userId, chatId), update);
+    if (update.callback_query) await bot.tg.answerCallback(update.callback_query.id, "Slow down a little.");
+    return;
+  }
 
   if (update.callback_query) return bot.tg.answerCallback(update.callback_query.id, "This chat is not connected to Edgebook.");
   // Only private chats are answered, and only for commands, so the bot cannot be used to spam a group.
-  if (msg.chat.type === "private" && update.message?.text?.startsWith("/")) await bot.tg.sendMessage(chatId, NOT_LINKED);
+  if (msg.chat.type !== "private" || !update.message?.text?.startsWith("/")) return;
+  if ((await rateLimit(bot.db, `chat:${chatId}`, "bot.stranger", now)).ok) await bot.tg.sendMessage(chatId, NOT_LINKED);
+}
+
+/** Counts an attempt for the user; when over the limit, says so in their chat and returns false. */
+async function allowed(ctx: BotContext, action: LimitedAction, { quiet = false } = {}): Promise<boolean> {
+  const now = ctx.now?.() ?? Date.now();
+  const result = await rateLimit(ctx.db, ctx.userId, action, now);
+  if (!result.ok && !quiet && ctx.chatId) await ctx.tg.sendMessage(ctx.chatId, tooMany(result, now));
+  return result.ok;
 }
 
 async function linkChat(bot: SharedBot, msg: TgMessage, code: string) {
@@ -244,6 +264,7 @@ async function addVoiceNote(ctx: BotContext, tradeId: string, fileId: string) {
     await ctx.tg.sendMessage(ctx.chatId!, `Voice notes need AI to transcribe them. ${AI_NOT_CONFIGURED}`);
     return;
   }
+  if (!(await allowed(ctx, "ai.transcribe"))) return;
   let text: string;
   try {
     text = (await ctx.ai.transcribe(await ctx.tg.downloadFile(fileId))).trim();
@@ -281,7 +302,7 @@ async function addNote(ctx: BotContext, tradeId: string, text: string | undefine
 
 /** Asks the AI which journal answers the note implies, and offers the new ones as one tap. */
 async function offerSuggestions(ctx: BotContext, tradeId: string, note: string) {
-  if (!ctx.ai) return;
+  if (!ctx.ai || !(await allowed(ctx, "ai.suggest", { quiet: true }))) return;
   const [trade] = await ctx.db.select().from(schema.trades).where(and(eq(schema.trades.userId, ctx.userId), eq(schema.trades.id, tradeId)));
   if (!trade) return;
   let suggestion: NoteSuggestion;
@@ -345,6 +366,7 @@ async function reviewCommand(ctx: BotContext) {
     await ctx.tg.sendMessage(ctx.chatId!, AI_NOT_CONFIGURED);
     return;
   }
+  if (!(await allowed(ctx, "ai.review"))) return;
   await ctx.tg.sendMessage(ctx.chatId!, "Writing your review of the last 7 days…");
   await sendReview(ctx);
 }
@@ -436,6 +458,7 @@ async function todayCommand(ctx: BotContext) {
 }
 
 async function syncCommand(ctx: BotContext) {
+  if (!(await allowed(ctx, "bot.sync"))) return;
   try {
     const s = await ctx.sync();
     const sent = await notifyClosedTrades(ctx);

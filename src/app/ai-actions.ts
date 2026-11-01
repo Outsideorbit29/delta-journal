@@ -6,6 +6,7 @@ import { getDb, schema } from "@/db";
 import { AI_NOT_CONFIGURED, aiConfigured, explainAiError } from "@/lib/ai/models";
 import { generateReview } from "@/lib/ai/review";
 import { suggestFromNote, type NoteSuggestion } from "@/lib/ai/suggest";
+import { rateLimit, tooMany } from "@/lib/rate-limit";
 import { currentUserId } from "@/lib/session";
 
 export interface AiResult<T = undefined> {
@@ -20,8 +21,11 @@ export async function reviewAction(days: number): Promise<AiResult> {
   if (!userId) return { ok: false, message: "Sign in first." };
   if (!aiConfigured()) return { ok: false, message: AI_NOT_CONFIGURED };
   if (![7, 30, 90].includes(days)) return { ok: false, message: "Choose 7, 30 or 90 days." };
+  const db = await getDb();
+  const limit = await rateLimit(db, userId, "ai.review");
+  if (!limit.ok) return { ok: false, message: tooMany(limit) };
   try {
-    const row = await generateReview(await getDb(), userId, days);
+    const row = await generateReview(db, userId, days);
     if (!row) return { ok: false, message: `No closed trades in the last ${days} days.` };
     revalidatePath("/", "layout");
     return { ok: true, message: "Review ready." };
@@ -37,7 +41,10 @@ export async function suggestAction(tradeId: string, note: string): Promise<AiRe
   if (!aiConfigured()) return { ok: false, message: AI_NOT_CONFIGURED };
   const text = note.trim();
   if (!text) return { ok: false, message: "Write a note first." };
-  const [trade] = await (await getDb()).select().from(schema.trades)
+  const db = await getDb();
+  const limit = await rateLimit(db, userId, "ai.suggest");
+  if (!limit.ok) return { ok: false, message: tooMany(limit) };
+  const [trade] = await db.select().from(schema.trades)
     .where(and(eq(schema.trades.userId, userId), eq(schema.trades.id, tradeId)));
   if (!trade) return { ok: false, message: "That trade no longer exists." };
   try {
