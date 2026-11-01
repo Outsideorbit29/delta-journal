@@ -22,7 +22,7 @@ export function CostBreakdown({ stats }: { stats: Stats }) {
   const costs = stats.fees + stats.liquidationFees;
 
   return (
-    <div className="space-y-3">
+    <div className="face-label space-y-3">
       <ul className="space-y-2">
         {rows.map((r) => {
           const width = (Math.abs(r.value) / span) * 100;
@@ -34,7 +34,7 @@ export function CostBreakdown({ stats }: { stats: Stats }) {
               <div className="relative mx-20 mt-0.5 h-5">
                 <div className="absolute inset-y-0 w-px bg-[var(--viz-axis)]" style={{ left: `${zero}%` }} aria-hidden />
                 <div
-                  className={`absolute top-0.5 h-4 ${negative ? "rounded-l" : "rounded-r"}`}
+                  className="absolute top-0.5 h-4"
                   style={{
                     left: negative ? `${zero - width}%` : `${zero}%`,
                     width: `${width}%`,
@@ -44,7 +44,7 @@ export function CostBreakdown({ stats }: { stats: Stats }) {
                   aria-hidden
                 />
                 <span
-                  className={`absolute top-1/2 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums ${r.total ? "font-semibold text-[var(--viz-ink)]" : "text-[var(--viz-ink-2)]"}`}
+                  className={`absolute top-1/2 -translate-y-1/2 whitespace-nowrap text-sm tabular-nums ${r.total ? "font-semibold text-[var(--viz-ink)]" : "text-[var(--viz-ink-2)]"}`}
                   style={negative ? { right: `calc(${100 - zero + width}% + 6px)` } : { left: `calc(${zero + width}% + 6px)` }}
                 >
                   {formatMoney(r.value, { sign: true })}

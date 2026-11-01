@@ -23,8 +23,8 @@ interface Props {
 /** Price chart card for a trade; the candles stream in while the rest of the page shows. */
 export function TradePriceChart(props: Props) {
   return (
-    <section className="rounded-lg border border-black/10 bg-[var(--viz-surface)] p-3 dark:border-white/10">
-      <Suspense fallback={<div className="flex h-[380px] items-center justify-center text-sm text-zinc-500">Loading price chart…</div>}>
+    <section className="border-y border-rule-2 py-4">
+      <Suspense fallback={<div className="face-label flex h-[380px] items-center justify-center bg-paper-2 text-sm text-muted">Loading the price chart…</div>}>
         <ChartWithCandles {...props} />
       </Suspense>
     </section>
@@ -43,8 +43,8 @@ async function ChartWithCandles({ trade, plannedStop, plannedTarget }: Props) {
   }
   return (
     <>
-      <p className="mb-2 text-xs text-zinc-500">
-        {trade.symbol} · {data.resolution} candles · times in IST · arrows mark each fill at its price
+      <p className="face-label mb-3 text-sm text-muted">
+        {trade.symbol}, {data.resolution} candles, times in IST. Arrows mark each fill at its price.
       </p>
       <TradeChart
         candles={data.candles}
@@ -62,5 +62,5 @@ async function ChartWithCandles({ trade, plannedStop, plannedTarget }: Props) {
 }
 
 function ChartMessage({ children }: { children: React.ReactNode }) {
-  return <div className="flex h-40 items-center justify-center px-4 text-center text-sm text-zinc-500">{children}</div>;
+  return <div className="face-label flex h-40 items-center justify-center bg-paper-2 px-4 text-center text-sm text-muted">{children}</div>;
 }

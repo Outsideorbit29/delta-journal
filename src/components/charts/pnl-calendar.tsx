@@ -42,9 +42,9 @@ export function PnlCalendar({ days }: { days: DayPnl[] }) {
   const shown = months.slice(0, older ? MAX_MONTHS : FIRST_MONTHS);
 
   return (
-    <div className="space-y-5">
+    <div className="face-label space-y-6">
       <Legend edges={edges} />
-      <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
+      <div className="grid gap-x-6 gap-y-12 sm:grid-cols-2 xl:grid-cols-3">
         {shown.map((month) => {
           const [y, m] = month.split("-").map(Number);
           const first = new Date(Date.UTC(y, m - 1, 1));
@@ -56,13 +56,13 @@ export function PnlCalendar({ days }: { days: DayPnl[] }) {
 
           return (
             <section key={month} className="relative" onPointerLeave={() => setHover(null)}>
-              <header className="mb-1.5 flex items-baseline justify-between text-sm">
-                <h3 className="font-medium text-[var(--viz-ink)]">{monthName.format(first)}</h3>
-                <span className="text-xs text-[var(--viz-ink-2)]">
-                  <span className="font-medium text-[var(--viz-ink)]">{formatMoney(net, { sign: true })}</span> · {trades} {trades === 1 ? "trade" : "trades"}
+              <header className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
+                <h3 className="text-lg text-[var(--viz-ink)]">{monthName.format(first)}</h3>
+                <span className="text-sm text-[var(--viz-ink-2)]">
+                  <span className="font-medium text-[var(--viz-ink)]">{formatMoney(net, { sign: true })}</span>, {trades} {trades === 1 ? "trade" : "trades"}
                 </span>
               </header>
-              <div className="grid grid-cols-7 gap-0.5 text-[10px]">
+              <div className="grid grid-cols-7 gap-0.5 text-xs">
                 {WEEKDAYS.map((w) => (
                   <div key={w} className="pb-0.5 text-center text-[var(--viz-muted)]" aria-hidden>
                     {w[0]}
@@ -90,8 +90,8 @@ export function PnlCalendar({ days }: { days: DayPnl[] }) {
                       onPointerEnter={(e) => show(e.currentTarget)}
                       onFocus={(e) => show(e.currentTarget)}
                       onBlur={() => setHover(null)}
-                      className={`flex aspect-square items-center justify-center rounded tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-[var(--viz-ink)] ${
-                        day ? "cursor-default hover:brightness-110" : "text-[var(--viz-muted)] ring-1 ring-inset ring-[var(--viz-grid)]"
+                      className={`flex aspect-square items-center justify-center tabular-nums outline-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus ${
+                        day ? "cursor-default" : "text-[var(--viz-muted)] ring-1 ring-inset ring-[var(--viz-grid)]"
                       }`}
                       style={style}
                     >
@@ -102,13 +102,13 @@ export function PnlCalendar({ days }: { days: DayPnl[] }) {
               </div>
               {hover?.month === month && (
                 <div
-                  className="pointer-events-none absolute z-10 w-44 -translate-x-1/2 -translate-y-full rounded-md border border-black/10 bg-[var(--viz-surface)] p-2 text-xs shadow-md dark:border-white/10"
+                  className="pointer-events-none absolute z-(--z-tooltip) w-48 -translate-x-1/2 -translate-y-full border border-rule-2 bg-paper p-3 text-sm"
                   style={{ left: hover.x, top: hover.y - 6 }}
                 >
-                  <div className="text-sm font-semibold text-[var(--viz-ink)]">{formatMoney(hover.day.netPnl, { sign: true })}</div>
+                  <div className="text-base font-medium text-[var(--viz-ink)]">{formatMoney(hover.day.netPnl, { sign: true })}</div>
                   <div className="text-[var(--viz-ink-2)]">{dayName.format(new Date(hover.day.date))}</div>
                   <div className="text-[var(--viz-ink-2)]">
-                    {hover.day.trades} {hover.day.trades === 1 ? "trade" : "trades"} · {hover.day.wins} won
+                    {hover.day.trades} {hover.day.trades === 1 ? "trade" : "trades"}, {hover.day.wins} won
                   </div>
                 </div>
               )}
@@ -120,13 +120,13 @@ export function PnlCalendar({ days }: { days: DayPnl[] }) {
         <button
           type="button"
           onClick={() => setOlder(true)}
-          className="w-full rounded-md border border-zinc-800 py-2 text-sm text-zinc-400 hover:border-zinc-700 hover:text-zinc-100"
+          className="min-h-10 w-full border border-ink text-sm whitespace-nowrap text-ink transition-colors duration-(--dur-short) hover:bg-paper-2"
         >
           Show older months ({Math.min(months.length, MAX_MONTHS) - shown.length} more)
         </button>
       )}
       {older && months.length > shown.length && (
-        <p className="text-xs text-[var(--viz-muted)]">
+        <p className="text-sm text-[var(--viz-muted)]">
           Showing the latest {shown.length} of {months.length} months with trades. Narrow the date range to see older months.
         </p>
       )}
@@ -137,20 +137,20 @@ export function PnlCalendar({ days }: { days: DayPnl[] }) {
 function Legend({ edges }: { edges: number[] }) {
   const steps = [4, 3, 2, 1] as const;
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[var(--viz-ink-2)]">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-[var(--viz-ink-2)]">
       <div className="flex items-center gap-1.5">
         <span>Loss</span>
         {steps.map((s) => (
-          <span key={`l${s}`} className="h-3 w-3 rounded-sm" style={{ background: `var(--viz-loss-${s})` }} aria-hidden />
+          <span key={`l${s}`} className="h-3 w-3" style={{ background: `var(--viz-loss-${s})` }} aria-hidden />
         ))}
-        <span className="h-3 w-3 rounded-sm" style={{ background: "var(--viz-neutral)" }} aria-hidden />
+        <span className="h-3 w-3" style={{ background: "var(--viz-neutral)" }} aria-hidden />
         {[...steps].reverse().map((s) => (
-          <span key={`p${s}`} className="h-3 w-3 rounded-sm" style={{ background: `var(--viz-profit-${s})` }} aria-hidden />
+          <span key={`p${s}`} className="h-3 w-3" style={{ background: `var(--viz-profit-${s})` }} aria-hidden />
         ))}
         <span>Profit</span>
       </div>
       <span className="text-[var(--viz-muted)]">
-        Steps at {edges.map((e) => formatMoney(e)).join(", ")} · empty squares had no closed trades
+        Steps at {edges.map((e) => formatMoney(e)).join(", ")}. Empty squares had no closed trades.
       </span>
     </div>
   );

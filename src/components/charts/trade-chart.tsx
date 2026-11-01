@@ -36,9 +36,23 @@ interface Props {
   plannedTarget: number | null;
 }
 
+/**
+ * The chart library parses colours itself and knows no oklch(), so each token is
+ * resolved to plain rgb by painting one pixel with it.
+ */
+function toRgb(color: string): string {
+  const ctx = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+  if (!ctx || !color) return color;
+  ctx.clearRect(0, 0, 1, 1);
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, 1, 1);
+  const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+  return a === 255 ? `rgb(${r}, ${g}, ${b})` : `rgba(${r}, ${g}, ${b}, ${(a / 255).toFixed(3)})`;
+}
+
 function tokens() {
   const css = getComputedStyle(document.documentElement);
-  const v = (name: string) => css.getPropertyValue(name).trim();
+  const v = (name: string) => toRgb(css.getPropertyValue(name).trim());
   return {
     surface: v("--viz-surface"),
     ink2: v("--viz-ink-2"),
@@ -50,18 +64,27 @@ function tokens() {
   };
 }
 
+// The page is dark when the reader chose dark (data-mode on <html>), or chose nothing and the OS is dark.
 const darkQuery = "(prefers-color-scheme: dark)";
 function subscribeScheme(onChange: () => void) {
   const mq = window.matchMedia(darkQuery);
   mq.addEventListener("change", onChange);
-  return () => mq.removeEventListener("change", onChange);
+  const mo = new MutationObserver(onChange);
+  mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-mode"] });
+  return () => {
+    mq.removeEventListener("change", onChange);
+    mo.disconnect();
+  };
 }
-const isDark = () => window.matchMedia(darkQuery).matches;
+const isDark = () => {
+  const mode = document.documentElement.dataset.mode;
+  return mode ? mode === "dark" : window.matchMedia(darkQuery).matches;
+};
 
 /** Candles around the trade with each fill marked at its price, plus entry, exit and stop lines. */
 export function TradeChart({ candles, resolutionSec, legs, avgEntry, avgExit, stopPrice, stopMoved, plannedStop, plannedTarget }: Props) {
   const ref = useRef<HTMLDivElement>(null);
-  // Rebuild the chart with the other palette when the OS theme flips.
+  // Rebuild the chart with the other palette when the reader's mode (or the OS theme) flips.
   const dark = useSyncExternalStore(subscribeScheme, isDark, () => false);
 
   useEffect(() => {

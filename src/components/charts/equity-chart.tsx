@@ -58,7 +58,7 @@ export function EquityChart({ points }: { points: EquityPoint[] }) {
   return (
     <div
       ref={ref}
-      className="relative outline-none focus-visible:ring-2 focus-visible:ring-[var(--viz-profit)]"
+      className="face-label relative outline-none focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-focus"
       tabIndex={0}
       role="img"
       aria-label={`Equity curve over ${last} closed trades, ending at ${formatMoney(end.equity)}. Use the arrow keys to read each trade.`}
@@ -71,7 +71,7 @@ export function EquityChart({ points }: { points: EquityPoint[] }) {
         {eqTicks.map((t) => (
           <g key={`e${t}`}>
             <line x1={M.left} x2={width - M.right} y1={yEq(t)} y2={yEq(t)} stroke={t === 0 ? "var(--viz-axis)" : "var(--viz-grid)"} />
-            <text x={M.left - 8} y={yEq(t)} dy="0.32em" textAnchor="end" className="fill-[var(--viz-muted)] text-[11px] tabular-nums">
+            <text x={M.left - 8} y={yEq(t)} dy="0.32em" textAnchor="end" className="fill-[var(--viz-muted)] text-xs tabular-nums">
               {axisMoney(t)}
             </text>
           </g>
@@ -90,7 +90,7 @@ export function EquityChart({ points }: { points: EquityPoint[] }) {
         {ddTicks.map((t) => (
           <g key={`d${t}`}>
             <line x1={M.left} x2={width - M.right} y1={yDd(t)} y2={yDd(t)} stroke={t === 0 ? "var(--viz-axis)" : "var(--viz-grid)"} />
-            <text x={M.left - 8} y={yDd(t)} dy="0.32em" textAnchor="end" className="fill-[var(--viz-muted)] text-[11px] tabular-nums">
+            <text x={M.left - 8} y={yDd(t)} dy="0.32em" textAnchor="end" className="fill-[var(--viz-muted)] text-xs tabular-nums">
               {axisMoney(t)}
             </text>
           </g>
@@ -100,11 +100,11 @@ export function EquityChart({ points }: { points: EquityPoint[] }) {
 
         {/* Trade-number axis */}
         {xTicks.map((t) => (
-          <text key={`x${t}`} x={x(t)} y={ddTop + DD_H + 18} textAnchor="middle" className="fill-[var(--viz-muted)] text-[11px] tabular-nums">
+          <text key={`x${t}`} x={x(t)} y={ddTop + DD_H + 18} textAnchor="middle" className="fill-[var(--viz-muted)] text-xs tabular-nums">
             {t}
           </text>
         ))}
-        <text x={width - M.right} y={ddTop + DD_H + 18} dx={10} className="fill-[var(--viz-muted)] text-[11px]">
+        <text x={width - M.right} y={ddTop + DD_H + 18} dx={10} className="fill-[var(--viz-muted)] text-xs">
           trades
         </text>
 
@@ -129,12 +129,12 @@ export function EquityChart({ points }: { points: EquityPoint[] }) {
 
       {h && (
         <div
-          className="pointer-events-none absolute z-10 w-52 rounded-md border border-black/10 bg-[var(--viz-surface)] p-2.5 text-xs shadow-md dark:border-white/10"
+          className="pointer-events-none absolute z-(--z-tooltip) w-56 border border-rule-2 bg-paper p-3 text-sm"
           style={{ left: Math.min(x(h.n) + 12, width - 216), top: M.top }}
         >
           <div className="text-[var(--viz-ink-2)]">
             {h.n === 0 ? "Start" : `After trade ${h.n}`}
-            {h.ts !== null && ` · ${formatDateTime(h.ts)}`}
+            {h.ts !== null && `, ${formatDateTime(h.ts)}`}
           </div>
           <dl className="mt-1.5 space-y-0.5">
             <TooltipRow color="var(--viz-profit)" label="Cumulative P&L" value={formatMoney(h.equity, { sign: true })} />
@@ -154,7 +154,7 @@ export function EquityChart({ points }: { points: EquityPoint[] }) {
 function TooltipRow({ color, label, value }: { color: string; label: string; value: string }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="h-0.5 w-3 rounded" style={{ background: color }} aria-hidden />
+      <span className="h-0.5 w-3" style={{ background: color }} aria-hidden />
       <dt className="flex-1 text-[var(--viz-ink-2)]">{label}</dt>
       <dd className="font-medium tabular-nums text-[var(--viz-ink)]">{value}</dd>
     </div>

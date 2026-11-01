@@ -5,7 +5,6 @@ import { PnlCalendar } from "@/components/charts/pnl-calendar";
 import { FilterBar } from "@/components/filter-bar";
 import { ScoreCard } from "@/components/score-card";
 import { TagChip } from "@/components/tag-chip";
-import { card, link } from "@/components/ui";
 import { getDb } from "@/db";
 import { listReviews } from "@/lib/ai/review";
 import { formatDateTime, formatMoney, formatPercent, pnlClass } from "@/lib/format";
@@ -31,7 +30,7 @@ export async function DashboardView({
   userId: string;
   filters: Filters;
   demo?: boolean;
-  /** "Good evening, Anish": shown above the filters. */
+  /** "Good evening, Anish": the page's title. */
   greeting?: string;
 }) {
   const path = demo ? "/demo" : "/";
@@ -54,94 +53,108 @@ export async function DashboardView({
   const rangeLabel = RANGES.find((r) => r.key === filters.range)!.label.toLowerCase();
 
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6">
-      {greeting && (
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{greeting}</h1>
-          <p className="text-sm text-zinc-500">Here&apos;s how your trading is going.</p>
+    <main id="main" className="container space-y-16 pt-10 pb-24">
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+        {greeting ? (
+          <h1 className="text-3xl leading-none">{greeting}</h1>
+        ) : (
+          <h1 className="text-3xl leading-none">{demo ? "The demo trader's dashboard" : "Dashboard"}</h1>
+        )}
+        <div className="space-y-2">
+          <FilterBar path={path} filters={filters} symbols={symbols} />
+          {!demo && mismatches > 0 && <p className="face-label text-sm text-warn">{mismatches} trades don&apos;t match Delta&apos;s P&L</p>}
         </div>
-      )}
-      <div className="space-y-2">
-        <FilterBar path={path} filters={filters} symbols={symbols} />
-        {!demo && mismatches > 0 && <p className="text-xs text-amber-300">{mismatches} trades don&apos;t match Delta&apos;s P&L</p>}
       </div>
 
       {stats.trades === 0 ? (
-        <section className="rounded-xl border border-dashed border-zinc-700 p-8 text-center text-sm text-zinc-500">
-          No closed trades in this view yet. Try a wider date range; new trades appear here within a minute of closing on Delta.
+        <section className="opens max-w-2xl">
+          <h2 className="text-xl">No closed trades in this view yet</h2>
+          <p className="mt-3 text-ink-2">Try a wider date range. New trades appear here within a minute of closing on Delta.</p>
         </section>
       ) : (
         <>
-          <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
-            <div className={`${card} flex flex-col justify-center p-5`}>
-              <div className="text-sm text-zinc-400">Net P&L, {rangeLabel}</div>
-              <div className={`mt-1 text-5xl font-semibold tracking-tight tabular-nums ${pnlClass(stats.netPnl)}`}>
-                {formatMoney(stats.netPnl, { sign: true })}
-              </div>
-              <div className="mt-2 text-sm text-zinc-400">
-                {stats.trades} closed trades, after {formatMoney(stats.fees + stats.liquidationFees)} of fees
-              </div>
-              <div className="mt-1 text-sm text-zinc-500">
+          {/* The lead: the net result, then what each habit cost. */}
+          <section className="opens grid gap-x-8 gap-y-10 lg:grid-cols-12">
+            <div className="min-w-0 lg:col-span-4">
+              <h2 className="face-label text-sm font-medium text-muted">Net P&L, {rangeLabel}</h2>
+              <p className={`figure-display mt-3 text-[clamp(3.5rem,6vw,5.5rem)] ${pnlClass(stats.netPnl)}`}>{formatMoney(stats.netPnl, { sign: true })}</p>
+              <p className="mt-4 max-w-xs text-lg text-ink">
+                {stats.trades} closed trades, after {formatMoney(stats.fees + stats.liquidationFees)} of fees.
+              </p>
+              <p className="face-label mt-3 text-sm text-muted">
                 {journaledHere} of {stats.trades} journaled
                 {!demo && journaledHere < stats.trades && (
                   <>
-                    {" · "}
-                    <Link href="/journal" className={link}>
-                      Journal the rest
+                    {", "}
+                    <Link href="/journal" className="link">
+                      journal the rest
                     </Link>
                   </>
                 )}
-              </div>
+              </p>
             </div>
             <Insights leaks={leaks} works={works} href={(tag) => filterHref(tagPath, filters, { tag })} />
           </section>
 
-          <section className={`grid gap-4 ${score ? "lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]" : ""}`}>
-            {score && <ScoreCard score={score} />}
-            <dl className={`grid grid-cols-2 gap-3 sm:grid-cols-3 ${score ? "lg:grid-cols-2" : "lg:grid-cols-6"}`}>
-              <Tile icon={ICONS.target} label="Win rate" value={formatPercent(stats.winRate)} hint={`${stats.wins} won, ${stats.losses} lost`} />
-              <Tile icon={ICONS.scale} label="Profit factor" value={stats.profitFactor === null ? "–" : stats.profitFactor.toFixed(2)} hint="gross wins ÷ gross losses" />
-              <Tile icon={ICONS.coin} label="Expectancy" value={formatMoney(stats.expectancy, { sign: true })} hint="average per trade" />
-              <Tile icon={ICONS.up} label="Average win" value={formatMoney(stats.avgWin)} hint={`average loss ${formatMoney(stats.avgLoss)}`} />
-              <Tile icon={ICONS.down} label="Max drawdown" value={formatMoney(stats.maxDrawdown)} hint="from the highest point" />
-              <Tile icon={ICONS.receipt} label="Trading costs" value={formatMoney(stats.fees + stats.liquidationFees)} hint="fees and liquidation fees" />
-            </dl>
+          <section className={`grid gap-x-8 gap-y-12 ${score ? "lg:grid-cols-12" : ""}`}>
+            {score && (
+              <div className="min-w-0 lg:col-span-7">
+                <ScoreCard score={score} />
+              </div>
+            )}
+            <div className={`min-w-0 ${score ? "lg:col-span-5" : ""}`}>
+              <h2 className="opens text-xl">The figures</h2>
+              <dl className={`mt-2 grid grid-cols-2 ${score ? "" : "sm:grid-cols-3 lg:grid-cols-6"}`}>
+                <Figure label="Win rate" value={formatPercent(stats.winRate)} hint={`${stats.wins} won, ${stats.losses} lost`} />
+                <Figure label="Profit factor" value={stats.profitFactor === null ? "–" : stats.profitFactor.toFixed(2)} hint="gross wins ÷ gross losses" />
+                <Figure label="Expectancy" value={formatMoney(stats.expectancy, { sign: true })} hint="average per trade" />
+                <Figure label="Average win" value={formatMoney(stats.avgWin)} hint={`average loss ${formatMoney(stats.avgLoss)}`} />
+                <Figure label="Max drawdown" value={formatMoney(stats.maxDrawdown)} hint="from the highest point" />
+                <Figure label="Trading costs" value={formatMoney(stats.fees + stats.liquidationFees)} hint="fees and liquidation fees" />
+              </dl>
+            </div>
           </section>
 
           {!demo && latestReview && (
-            <Link href="/review" className={`${card} block px-4 py-3 hover:border-zinc-700`}>
-              <span className="text-xs text-zinc-500">Latest AI review · {formatDateTime(latestReview.createdAt)} IST</span>
-              <span className="mt-0.5 block font-medium">{latestReview.review.headline}</span>
+            <Link href="/review" className="group block bg-paper-2 border-t border-rule-2 px-6 py-5 no-underline">
+              <span className="face-label block text-sm text-muted">
+                Latest AI review, <time dateTime={new Date(latestReview.createdAt).toISOString()}>{formatDateTime(latestReview.createdAt)} IST</time>
+              </span>
+              <span className="mt-1 block text-xl text-ink underline decoration-rule-2 decoration-1 underline-offset-4 group-hover:decoration-accent">
+                {latestReview.review.headline}
+              </span>
             </Link>
           )}
 
-          <Card title="Equity curve" subtitle="Cumulative net P&L after each closed trade, oldest to newest">
+          <Section title="Equity curve" subtitle="Cumulative net P&L after each closed trade, oldest to newest.">
             <EquityChart points={curve} />
-          </Card>
+          </Section>
 
-          <div className="grid gap-8 lg:grid-cols-[3fr_2fr]">
-            <Card title="Daily P&L" subtitle="Net P&L by day closed (IST)">
-              <PnlCalendar days={days} />
-            </Card>
-            <div className="space-y-8">
-              <Card title="Where your P&L went" subtitle="Trading result before costs, then each cost">
+          <div className="grid gap-x-8 gap-y-16 lg:grid-cols-12">
+            <div className="min-w-0 lg:col-span-7">
+              <Section title="Daily P&L" subtitle="Net P&L by the day a trade closed, in IST.">
+                <PnlCalendar days={days} />
+              </Section>
+            </div>
+            <div className="min-w-0 space-y-16 lg:col-span-5">
+              <Section title="Where your P&L went" subtitle="The trading result before costs, then each cost.">
                 <CostBreakdown stats={stats} />
-              </Card>
-              <Card title="By symbol">
+              </Section>
+              <Section title="By symbol">
                 <GroupTable groups={groupStats(trades, (t) => t.symbol)} label="Symbol" />
-              </Card>
-              <Card title="Long vs short">
+              </Section>
+              <Section title="Long and short">
                 <GroupTable groups={groupStats(trades, (t) => t.direction)} label="Side" />
-              </Card>
+              </Section>
             </div>
           </div>
 
-          <Card title="How tagged trades performed" subtitle="Worst first. Select a tag to see its trades.">
+          <Section title="How tagged trades performed" subtitle="Worst first. Select a tag to see its trades.">
             <TagTable trades={trades} filters={filters} path={demo ? "/demo" : "/trades"} />
-          </Card>
+          </Section>
 
-          <details className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60">
-            <summary className="cursor-pointer text-sm font-medium">Daily P&L table</summary>
+          <details className="group border-t border-rule-2 pt-4">
+            <summary className="face-label flex min-h-11 cursor-pointer items-center text-base text-ink">Daily P&L as a table</summary>
             <DailyTable days={days} />
           </details>
         </>
@@ -150,47 +163,49 @@ export async function DashboardView({
   );
 }
 
-/** The costliest habits, and what has worked, each linking to its trades. */
+/** The signature: the costliest habits set like a market table, each linking to its trades. */
 function Insights({ leaks, works, href }: { leaks: TagPerformance[]; works: TagPerformance[]; href: (tag: string) => string }) {
   if (!leaks.length && !works.length) return null;
   return (
-    <div className={`${card} p-5`}>
+    <div className="min-w-0 space-y-10 lg:col-span-8">
       {leaks.length > 0 && (
-        <>
-          <h2 className="font-semibold">Your biggest leaks</h2>
-          <ul className="mt-2 divide-y divide-zinc-800">
+        <div>
+          <h2 className="text-2xl">Your biggest leaks</h2>
+          <ul className="mt-4 divide-y divide-rule border-y border-rule-2">
             {leaks.map((r) => (
               <InsightRow key={r.tag} row={r} href={href(r.tag)} />
             ))}
           </ul>
-        </>
+        </div>
       )}
       {works.length > 0 && (
-        <>
-          <h2 className={`font-semibold ${leaks.length ? "mt-4" : ""}`}>What works for you</h2>
-          <ul className="mt-2 divide-y divide-zinc-800">
+        <div>
+          <h2 className="text-xl">What works for you</h2>
+          <ul className="mt-3 divide-y divide-rule border-y border-rule-2">
             {works.map((r) => (
-              <InsightRow key={r.tag} row={r} href={href(r.tag)} />
+              <InsightRow key={r.tag} row={r} href={href(r.tag)} small />
             ))}
           </ul>
-        </>
+        </div>
       )}
     </div>
   );
 }
 
-function InsightRow({ row, href }: { row: TagPerformance; href: string }) {
+function InsightRow({ row, href, small = false }: { row: TagPerformance; href: string; small?: boolean }) {
   return (
     <li>
-      <Link href={href} className="group flex items-start justify-between gap-4 py-2.5">
+      <Link href={href} className="group grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-6 py-4 no-underline">
         <span className="min-w-0">
-          <span className="font-medium group-hover:underline">{tagLabel(row.tag)}</span>
-          {TAG_HINTS[row.tag] && <span className="block text-xs text-zinc-500">{TAG_HINTS[row.tag]}</span>}
+          <span className={`face-label block text-ink underline decoration-transparent decoration-1 underline-offset-4 group-hover:decoration-accent ${small ? "text-lg" : "text-xl"}`}>
+            {tagLabel(row.tag)}
+          </span>
+          {TAG_HINTS[row.tag] && <span className="mt-1 block text-base text-muted">{TAG_HINTS[row.tag]}</span>}
         </span>
-        <span className="shrink-0 text-right">
-          <span className={`block font-semibold tabular-nums ${pnlClass(row.netPnl)}`}>{formatMoney(row.netPnl, { sign: true })}</span>
-          <span className="block text-xs text-zinc-500">
-            {row.trades} trades · {formatPercent(row.winRate)} won
+        <span className="text-right">
+          <span className={`figure-display block ${small ? "text-3xl" : "text-4xl"} ${pnlClass(row.netPnl)}`}>{formatMoney(row.netPnl, { sign: true })}</span>
+          <span className="face-label mt-1 block text-sm text-muted">
+            {row.trades} trades, {formatPercent(row.winRate)} won
           </span>
         </span>
       </Link>
@@ -198,48 +213,36 @@ function InsightRow({ row, href }: { row: TagPerformance; href: string }) {
   );
 }
 
-function Card({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+/** A dashboard section: opened by the heavy ink rule, the head flush under it. */
+function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
-    <section className={`${card} p-4`}>
-      <h2 className="font-semibold text-[var(--viz-ink)]">{title}</h2>
-      {subtitle && <p className="text-sm text-[var(--viz-ink-2)]">{subtitle}</p>}
-      <div className="mt-4">{children}</div>
+    <section className="opens">
+      <h2 className="text-xl">{title}</h2>
+      {subtitle && <p className="mt-1 text-base text-muted">{subtitle}</p>}
+      <div className="mt-6">{children}</div>
     </section>
   );
 }
 
-/** Outline icons (24px grid) for the stat tiles. */
-const ICONS = {
-  target: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zm0-5a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0-3.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z",
-  scale: "M12 4v16M5 20h14M6 8h12M6 8l-3 6a3 3 0 0 0 6 0zm12 0l-3 6a3 3 0 0 0 6 0z",
-  coin: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zm2.5-12.5h-3.5a2 2 0 0 0 0 4h2a2 2 0 0 1 0 4H9.5M12 6.5v11",
-  up: "M3 17l6-6 4 4 8-8M15 7h6v6",
-  down: "M3 7l6 6 4-4 8 8M15 17h6v-6",
-  receipt: "M6 3h12v18l-3-2-3 2-3-2-3 2zm3 5h6m-6 4h6",
-};
-
-function Tile({ icon, label, value, hint }: { icon: string; label: string; value: string; hint?: string }) {
+/** One figure in a ruled grid: the label, the value in the condensed face, a qualifier. */
+function Figure({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className={`${card} p-3`}>
-      <dt className="flex items-center justify-between gap-2 text-xs text-zinc-500">
-        {label}
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-brand/80" aria-hidden="true">
-          <path d={icon} />
-        </svg>
-      </dt>
-      <dd className="mt-1 text-lg font-semibold tabular-nums">{value}</dd>
-      {hint && <dd className="text-xs text-zinc-500">{hint}</dd>}
+    <div className="border-b border-rule py-4 odd:pr-6 even:border-l even:pl-6">
+      <dt className="face-label text-sm text-muted">{label}</dt>
+      <dd className="figure-display mt-1 text-3xl text-ink">{value}</dd>
+      {hint && <dd className="face-label mt-1 text-sm text-muted">{hint}</dd>}
     </div>
   );
 }
 
-const th = "px-3 py-2";
-const td = "px-3 py-1.5 tabular-nums";
+const th = "face-label px-3 py-3 text-sm font-medium whitespace-nowrap text-muted first:pl-0 last:pr-0";
+const td = "face-label px-3 py-2.5 text-base tabular-nums first:pl-0 last:pr-0";
 
 function GroupTable({ groups, label }: { groups: GroupStats[]; label: string }) {
   return (
-    <table className="w-full text-sm">
-      <thead className="text-left text-xs uppercase text-zinc-500">
+    <div className="overflow-x-auto">
+    <table className="w-full">
+      <thead className="border-b border-rule-2 text-left">
         <tr>
           <th className={th}>{label}</th>
           <th className={`${th} text-right`}>Trades</th>
@@ -248,10 +251,10 @@ function GroupTable({ groups, label }: { groups: GroupStats[]; label: string }) 
           <th className={`${th} text-right`}>Per trade</th>
         </tr>
       </thead>
-      <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+      <tbody className="divide-y divide-rule">
         {groups.map((g) => (
           <tr key={g.key}>
-            <td className="px-3 py-1.5 capitalize">{g.key}</td>
+            <td className={`${td} font-medium text-ink capitalize`}>{g.key}</td>
             <td className={`${td} text-right`}>{g.trades}</td>
             <td className={`${td} text-right`}>{formatPercent(g.winRate)}</td>
             <td className={`${td} text-right ${pnlClass(g.netPnl)}`}>{formatMoney(g.netPnl, { sign: true })}</td>
@@ -260,6 +263,7 @@ function GroupTable({ groups, label }: { groups: GroupStats[]; label: string }) 
         ))}
       </tbody>
     </table>
+    </div>
   );
 }
 
@@ -267,8 +271,8 @@ function TagTable({ trades, filters, path }: { trades: Parameters<typeof tagPerf
   const rows = tagPerformance(trades);
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead className="text-left text-xs uppercase text-zinc-500">
+      <table className="w-full">
+        <thead className="border-b border-rule-2 text-left">
           <tr>
             <th className={th}>Tag</th>
             <th className={`${th} text-right`}>Trades</th>
@@ -277,10 +281,10 @@ function TagTable({ trades, filters, path }: { trades: Parameters<typeof tagPerf
             <th className={`${th} text-right`}>Per trade</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+        <tbody className="divide-y divide-rule">
           {rows.map((r) => (
             <tr key={r.tag}>
-              <td className="px-3 py-1.5">
+              <td className={td}>
                 <TagChip tag={r.tag} href={filterHref(path, filters, { tag: r.tag })} />
               </td>
               <td className={`${td} text-right`}>{r.trades}</td>
@@ -298,27 +302,29 @@ function TagTable({ trades, filters, path }: { trades: Parameters<typeof tagPerf
 function DailyTable({ days }: { days: ReturnType<typeof dailyPnl> }) {
   const rows = [...days].reverse();
   return (
-    <table className="mt-3 w-full text-sm">
-      <thead className="text-left text-xs uppercase text-zinc-500">
-        <tr>
-          <th className={th}>Date (IST)</th>
-          <th className={`${th} text-right`}>Trades</th>
-          <th className={`${th} text-right`}>Won</th>
-          <th className={`${th} text-right`}>Net P&L</th>
-          <th className={`${th} text-right`}>Cumulative</th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-        {rows.map((d) => (
-          <tr key={d.date}>
-            <td className={td}>{d.date}</td>
-            <td className={`${td} text-right`}>{d.trades}</td>
-            <td className={`${td} text-right`}>{d.wins}</td>
-            <td className={`${td} text-right ${pnlClass(d.netPnl)}`}>{formatMoney(d.netPnl, { sign: true })}</td>
-            <td className={`${td} text-right`}>{formatMoney(d.cumulative, { sign: true })}</td>
+    <div className="mt-4 overflow-x-auto">
+      <table className="w-full">
+        <thead className="border-b border-rule-2 text-left">
+          <tr>
+            <th className={th}>Date (IST)</th>
+            <th className={`${th} text-right`}>Trades</th>
+            <th className={`${th} text-right`}>Won</th>
+            <th className={`${th} text-right`}>Net P&L</th>
+            <th className={`${th} text-right`}>Cumulative</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody className="divide-y divide-rule">
+          {rows.map((d) => (
+            <tr key={d.date}>
+              <td className={td}>{d.date}</td>
+              <td className={`${td} text-right`}>{d.trades}</td>
+              <td className={`${td} text-right`}>{d.wins}</td>
+              <td className={`${td} text-right ${pnlClass(d.netPnl)}`}>{formatMoney(d.netPnl, { sign: true })}</td>
+              <td className={`${td} text-right`}>{formatMoney(d.cumulative, { sign: true })}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
