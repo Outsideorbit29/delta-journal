@@ -18,8 +18,8 @@ export function TelegramConnect({ linked, chatName }: { linked: boolean; chatNam
   if (linked) {
     return (
       <div className="space-y-3">
-        <p className="text-sm text-zinc-400">
-          Connected{chatName ? <> to <strong className="text-zinc-200">{chatName}</strong></> : ""}. Closed trades arrive there with buttons to
+        <p className="text-base text-ink-2">
+          Connected{chatName ? <> to <strong className="face-label font-medium text-ink">{chatName}</strong></> : ""}. Closed trades arrive there with buttons to
           journal them; reply with text or a voice note to add a note.
         </p>
         <div className="flex flex-wrap items-center gap-2">
@@ -31,14 +31,14 @@ export function TelegramConnect({ linked, chatName }: { linked: boolean; chatNam
           </button>
         </div>
         {result?.url && <OpenLink url={result.url} />}
-        {result?.message && <p className="text-sm text-zinc-500">{result.message}</p>}
+        {result?.message && <p className="face-label text-sm text-muted">{result.message}</p>}
       </div>
     );
   }
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-zinc-400">
+      <p className="text-base text-ink-2">
         Get each closed trade in Telegram and journal it in a few taps, or with a voice note. Your weekly review arrives there too.
       </p>
       {result?.url ? (
@@ -48,20 +48,20 @@ export function TelegramConnect({ linked, chatName }: { linked: boolean; chatNam
           {pending ? "Making your link…" : "Connect Telegram"}
         </button>
       )}
-      {result && !result.ok && <p className="text-sm text-rose-400">{result.message}</p>}
-      {result?.message && result.ok && <p className="text-sm text-zinc-500">{result.message}</p>}
+      {result && !result.ok && <p className="face-label text-sm text-error">{result.message}</p>}
+      {result?.message && result.ok && <p className="face-label text-sm text-muted">{result.message}</p>}
     </div>
   );
 }
 
 function OpenLink({ url }: { url: string }) {
   return (
-    <div className="space-y-2 rounded-md border border-zinc-800 bg-zinc-950/60 p-3 text-sm">
+    <div className="space-y-3 bg-paper-2 border-t border-rule-2 px-5 py-4">
       <a href={url} target="_blank" rel="noopener noreferrer" className={buttonPrimary}>
         Open Telegram
       </a>
-      <p className="text-zinc-500">
-        In Telegram, tap <strong className="text-zinc-300">Start</strong>. This page updates by itself once it&apos;s connected. The link works once,
+      <p className="text-base text-ink-2">
+        In Telegram, tap <strong className="face-label font-medium text-ink">Start</strong>. This page updates by itself once it&apos;s connected. The link works once,
         for 15 minutes.
       </p>
     </div>

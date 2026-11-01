@@ -4,6 +4,7 @@ import { AutoRefresh } from "@/components/auto-refresh";
 import { DeltaConnect } from "@/components/delta-connect";
 import { PushSettings } from "@/components/push-settings";
 import { TelegramConnect } from "@/components/telegram-connect";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { getDb } from "@/db";
 import { DELETE_CONFIRMATION } from "@/lib/account";
 import { aiConfigured } from "@/lib/ai/models";
@@ -24,52 +25,68 @@ export default async function SettingsPage() {
   const error = sync.find((s) => s.lastError)?.lastError;
 
   return (
-    <main className="mx-auto w-full max-w-2xl space-y-6 px-4 py-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
+    <main id="main" className="container pt-10 pb-24">
+      <h1 className="text-3xl leading-none">Settings</h1>
 
-      <section className="space-y-4 p-4 rounded-xl border border-zinc-800 bg-zinc-900/60">
-        <h2 className="font-semibold">Delta Exchange</h2>
-        <DeltaConnect status={key} syncedBefore={lastRun > 0} />
-      </section>
+      <div className="mt-8 border-t-4 border-ink">
+        <Group title="Delta Exchange" intro="A read-only key lets Edgebook sync your trades every minute.">
+          <DeltaConnect status={key} syncedBefore={lastRun > 0} />
+        </Group>
 
-      <section className="space-y-3 p-4 rounded-xl border border-zinc-800 bg-zinc-900/60">
-        <h2 className="font-semibold">Telegram</h2>
-        {/* Remounts once the chat links, so the one-time link disappears. */}
-        <TelegramConnect key={telegram.linkedAt ?? "none"} linked={telegram.linked} chatName={telegram.chatName} />
-        {telegram.waiting && <AutoRefresh />}
-      </section>
+        <Group title="Telegram" intro="Journal each closed trade from your phone in a few taps.">
+          {/* Remounts once the chat links, so the one-time link disappears. */}
+          <TelegramConnect key={telegram.linkedAt ?? "none"} linked={telegram.linked} chatName={telegram.chatName} />
+          {telegram.waiting && <AutoRefresh />}
+        </Group>
 
-      <section className="space-y-3 p-4 rounded-xl border border-zinc-800 bg-zinc-900/60">
-        <div>
-          <h2 className="font-semibold">Notifications on this device</h2>
-          <p className="text-sm text-zinc-500">
-            Get a notification when a trade closes (tap it to journal), when your weekly review is ready, and when syncing with Delta stops working.
-          </p>
-        </div>
-        <PushSettings publicKey={vapidPublicKey()} />
-      </section>
+        <Group
+          title="Notifications"
+          intro="On this device: a closed trade (tap it to journal), your weekly review, and any problem syncing with Delta."
+        >
+          <PushSettings publicKey={vapidPublicKey()} />
+        </Group>
 
-      <section className="space-y-1 p-4 text-sm rounded-xl border border-zinc-800 bg-zinc-900/60">
-        <h2 className="mb-2 font-semibold">Status</h2>
-        <p>
-          <span className="text-zinc-500">Last sync with Delta: </span>
-          {lastRun ? `${formatDateTime(lastRun)} IST` : "never"}
-          {error && <span className="block text-amber-300">{explainSyncError(error)}</span>}
-        </p>
-        <p>
-          <span className="text-zinc-500">Syncing runs: </span>
-          on the Edgebook server, every minute
-        </p>
-        <p>
-          <span className="text-zinc-500">AI features: </span>
-          {aiConfigured() ? "on" : "off (no AI_GATEWAY_API_KEY)"}
-        </p>
-      </section>
+        <Group title="Appearance" intro="Light paper or dark. Kept in this browser.">
+          <ThemeToggle />
+        </Group>
 
-      <section className="space-y-3 p-4 rounded-xl border border-zinc-800 bg-zinc-900/60">
-        <h2 className="font-semibold">Your data</h2>
-        <AccountData confirmWord={DELETE_CONFIRMATION} />
-      </section>
+        <Group title="Status">
+          <dl className="face-label divide-y divide-rule border-y border-rule-2 text-base">
+            <div className="grid gap-x-6 py-3 sm:grid-cols-[12rem_minmax(0,1fr)]">
+              <dt className="text-muted">Last sync with Delta</dt>
+              <dd className="text-ink">
+                {lastRun ? `${formatDateTime(lastRun)} IST` : "never"}
+                {error && <span className="mt-1 block text-warn">{explainSyncError(error)}</span>}
+              </dd>
+            </div>
+            <div className="grid gap-x-6 py-3 sm:grid-cols-[12rem_minmax(0,1fr)]">
+              <dt className="text-muted">Syncing runs</dt>
+              <dd className="text-ink">on the Edgebook server, every minute</dd>
+            </div>
+            <div className="grid gap-x-6 py-3 sm:grid-cols-[12rem_minmax(0,1fr)]">
+              <dt className="text-muted">AI features</dt>
+              <dd className="text-ink">{aiConfigured() ? "on" : "off (no AI_GATEWAY_API_KEY)"}</dd>
+            </div>
+          </dl>
+        </Group>
+
+        <Group title="Your data">
+          <AccountData confirmWord={DELETE_CONFIRMATION} />
+        </Group>
+      </div>
     </main>
+  );
+}
+
+/** One settings group: its head and a line on the left, the controls on the right, a hairline between groups. */
+function Group({ title, intro, children }: { title: string; intro?: string; children: React.ReactNode }) {
+  return (
+    <section className="grid gap-x-8 gap-y-5 border-b border-rule-2 py-10 lg:grid-cols-12">
+      <div className="lg:col-span-4">
+        <h2 className="text-xl">{title}</h2>
+        {intro && <p className="mt-2 max-w-sm text-base text-muted">{intro}</p>}
+      </div>
+      <div className="min-w-0 lg:col-span-8">{children}</div>
+    </section>
   );
 }

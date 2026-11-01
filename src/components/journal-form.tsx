@@ -7,7 +7,7 @@ import type { NoteSuggestion } from "@/lib/ai/suggest";
 import type { JournalInput } from "@/lib/journal/entry";
 import { EMOTIONS, MISTAKES, RISKY_EMOTIONS, SETUPS, type Emotion, type Mistake, type Setup } from "@/lib/journal/vocab";
 import { formatPrice } from "@/lib/format";
-import { buttonPrimary } from "@/components/ui";
+import { buttonPrimary, buttonSecondary, input } from "@/components/ui";
 
 interface Props {
   tradeId: string;
@@ -100,7 +100,7 @@ export function JournalForm({ tradeId, initial, suggested, trade, submitLabel = 
 
   return (
     <form
-      className="space-y-5"
+      className="space-y-8"
       onSubmit={(e) => {
         e.preventDefault();
         save();
@@ -152,7 +152,7 @@ export function JournalForm({ tradeId, initial, suggested, trade, submitLabel = 
             No
           </Chip>
         </Field>
-        <Field label="Execution (1 poor – 5 great)">
+        <Field label="Execution" hint="1 is poor, 5 is great">
           {[1, 2, 3, 4, 5].map((n) => (
             <Chip key={n} pressed={entry.rating === n} onClick={() => update({ rating: entry.rating === n ? null : n })} aria-label={`Rating ${n}`}>
               {n}
@@ -177,50 +177,43 @@ export function JournalForm({ tradeId, initial, suggested, trade, submitLabel = 
         />
       </div>
 
-      <label className="block space-y-1.5">
-        <span className="text-sm font-medium">Notes</span>
+      <label className="block space-y-2">
+        <span className="face-label block text-base text-ink">Notes</span>
         <textarea
           value={entry.notes ?? ""}
           onChange={(e) => update({ notes: e.target.value })}
-          rows={3}
+          rows={4}
           placeholder="Why you took it, what you saw, what you'd do differently"
-          className="w-full rounded-md border border-zinc-300 bg-transparent px-3 py-2 text-sm dark:border-zinc-700"
+          className={`${input} py-2 font-serif text-base`}
         />
       </label>
 
       {aiEnabled && (
-        <div className="flex flex-wrap items-center gap-3 text-sm">
-          <button
-            type="button"
-            disabled={aiPending || !entry.notes?.trim()}
-            onClick={suggest}
-            className="rounded-md border border-zinc-300 px-3 py-1.5 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-          >
+        <div className="face-label flex flex-wrap items-center gap-3 text-sm">
+          <button type="button" disabled={aiPending || !entry.notes?.trim()} onClick={suggest} className={buttonSecondary} aria-busy={aiPending}>
             {aiPending ? "Reading your note…" : "Suggest answers from note"}
           </button>
           {ai && aiLabels.length > 0 && (
             <>
-              <span className="text-zinc-500">AI suggests: {aiLabels.join(" · ")} (dotted above)</span>
-              <button type="button" onClick={applyAi} className="text-[var(--viz-profit)] hover:underline">
-                Apply
+              <span className="text-muted">AI suggests: {aiLabels.join(", ")} (dotted above)</span>
+              <button type="button" onClick={applyAi} className="link min-h-10">
+                Apply them
               </button>
             </>
           )}
-          {aiMessage && <span className="text-zinc-500">{aiMessage}</span>}
+          {aiMessage && <span className="text-muted">{aiMessage}</span>}
         </div>
       )}
 
-      <div className="flex items-center gap-3">
-        <button
-          type="submit"
-          disabled={pending}
-          className={buttonPrimary}
-        >
+      <div className="flex flex-wrap items-center gap-4 border-t border-rule-2 pt-6">
+        <button type="submit" disabled={pending} className={`${buttonPrimary} min-h-11`} aria-busy={pending}>
           {pending ? "Saving…" : submitLabel}
         </button>
-        <span className="text-xs text-zinc-500">Ctrl+Enter</span>
+        <span className="face-label text-sm text-muted">
+          or <kbd className="face-label">Ctrl</kbd>&nbsp;+&nbsp;<kbd className="face-label">Enter</kbd>
+        </span>
         {result && (
-          <p role="status" className={`text-sm ${result.ok ? "text-zinc-500" : "text-rose-600 dark:text-rose-400"}`}>
+          <p role="status" className={`face-label text-sm ${result.ok ? "text-muted" : "text-error"}`}>
             {result.message}
           </p>
         )}
@@ -231,10 +224,10 @@ export function JournalForm({ tradeId, initial, suggested, trade, submitLabel = 
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
-    <fieldset className="space-y-1.5">
-      <legend className="text-sm font-medium">
+    <fieldset className="space-y-2.5">
+      <legend className="face-label text-base text-ink">
         {label}
-        {hint && <span className="ml-2 text-xs font-normal text-zinc-500">{hint}</span>}
+        {hint && <span className="ml-3 text-sm text-muted">{hint}</span>}
       </legend>
       <div className="flex flex-wrap gap-1.5">{children}</div>
     </fieldset>
@@ -256,18 +249,15 @@ function Chip({
   children: React.ReactNode;
   "aria-label"?: string;
 }) {
-  const on = warning
-    ? "border-amber-500 bg-amber-100 text-amber-950 dark:border-amber-400 dark:bg-amber-950 dark:text-amber-100"
-    : "border-brand bg-brand-soft text-brand";
-  const off = suggested
-    ? "border-dashed border-zinc-500 hover:bg-zinc-100 dark:border-zinc-400 dark:hover:bg-zinc-800"
-    : "border-zinc-300 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800";
+  // Chosen: filled (a risky answer in the warning ink). Suggested by the data or the AI: dotted.
+  const on = warning ? "border-warn bg-warn text-paper" : "border-ink bg-ink text-paper";
+  const off = suggested ? "border-dashed border-ink-2 text-ink hover:bg-paper-3" : "border-rule-2 text-ink-2 hover:border-ink hover:text-ink";
   return (
     <button
       type="button"
       aria-pressed={pressed}
       onClick={onClick}
-      className={`rounded-full border px-3 py-1 text-sm ${pressed ? on : off}`}
+      className={`face-label min-h-10 border px-3.5 text-sm transition-colors duration-(--dur-micro) ${pressed ? on : off}`}
       {...rest}
     >
       {children}
@@ -277,15 +267,10 @@ function Chip({
 
 function PriceInput({ label, value, onChange, hint }: { label: string; value: string; onChange: (v: string) => void; hint: string }) {
   return (
-    <label className="block space-y-1.5">
-      <span className="text-sm font-medium">{label}</span>
-      <input
-        inputMode="decimal"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-md border border-zinc-300 bg-transparent px-3 py-1.5 text-sm tabular-nums dark:border-zinc-700"
-      />
-      <span className="block text-xs text-zinc-500">{hint}</span>
+    <label className="block space-y-2">
+      <span className="face-label block text-base text-ink">{label}</span>
+      <input inputMode="decimal" value={value} onChange={(e) => onChange(e.target.value)} className={`${input} face-label tabular-nums`} />
+      <span className="face-label block text-sm text-muted">{hint}</span>
     </label>
   );
 }

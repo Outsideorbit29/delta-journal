@@ -19,9 +19,9 @@ export function JournalSection({ trade, entry, submitLabel }: { trade: TradeWith
   const autoTags = trade.tags.filter((g) => g.source === "auto").map((g) => g.tag);
 
   return (
-    <section className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60">
-      <h2 className="font-semibold">Journal</h2>
-      <p className="mb-4 text-sm text-zinc-500">
+    <section className="bg-paper-2 border-t-4 border-ink px-5 py-8 sm:px-8">
+      <h2 className="text-2xl">Journal</h2>
+      <p className="mt-1 mb-8 text-base text-ink-2">
         {entry ? "Your notes on this trade." : "Not journaled yet. A few taps now make the habit analysis much sharper."}
       </p>
       <JournalForm

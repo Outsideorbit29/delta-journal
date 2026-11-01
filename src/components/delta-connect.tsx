@@ -8,10 +8,10 @@ import { explainSyncError } from "@/lib/sync-errors";
 /** How to create a Delta key, the IPs to whitelist, the key form and its status. Used by Settings and onboarding. */
 export function DeltaConnect({ status, syncedBefore }: { status: DeltaKeyStatus | null; syncedBefore: boolean }) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-8">
       <KeyStatus status={status} syncedBefore={syncedBefore} />
       {status?.status === "pending" && <AutoRefresh />}
-      <ol className="list-decimal space-y-2 pl-5 text-sm text-zinc-600 dark:text-zinc-400">
+      <ol className="list-decimal space-y-3 pl-6 text-base text-ink-2 marker:font-[family-name:var(--font-display)] marker:text-ink">
         <li>On Delta Exchange India, open your account&apos;s API keys page and create a new key.</li>
         <li>
           Give it the <strong>Read Data</strong> permission only. Edgebook never places orders, so never give it Trading.
@@ -21,7 +21,7 @@ export function DeltaConnect({ status, syncedBefore }: { status: DeltaKeyStatus 
           <ul className="mt-1 space-y-1">
             {syncServerIps().map((ip) => (
               <li key={ip}>
-                <code className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs select-all dark:bg-zinc-800">{ip}</code>
+                <code className="face-label inline-block bg-paper-2 px-2 py-1 text-sm text-ink select-all">{ip}</code>
               </li>
             ))}
           </ul>
@@ -29,7 +29,7 @@ export function DeltaConnect({ status, syncedBefore }: { status: DeltaKeyStatus 
         <li>Paste the key and the secret below.</li>
       </ol>
       <DeltaKeyForm connected={!!status} />
-      <p className="text-xs text-zinc-500">
+      <p className="max-w-[60ch] text-sm text-muted">
         Your key is locked the moment you save it. This website can store it but can never unlock it; only our sync server can, and it
         only reads your trades.
       </p>
@@ -40,25 +40,25 @@ export function DeltaConnect({ status, syncedBefore }: { status: DeltaKeyStatus 
 function KeyStatus({ status, syncedBefore }: { status: DeltaKeyStatus | null; syncedBefore: boolean }) {
   if (!status) {
     return (
-      <p className="text-sm text-zinc-500">
+      <p className="face-label text-base text-ink-2">
         {syncedBefore ? "Syncing with a key set up on the server. Connect your own key below to replace it." : "Not connected yet."}
       </p>
     );
   }
-  const key = <code className="text-xs">…{status.keyHint}</code>;
+  const key = <code className="face-label text-ink">…{status.keyHint}</code>;
   if (status.status === "pending")
-    return <p className="text-sm text-zinc-500">Key {key} saved. Checking it with Delta now; this page updates by itself within a minute.</p>;
+    return <p className="face-label text-base text-ink-2">Key {key} saved. Checking it with Delta now; this page updates by itself within a minute.</p>;
   if (status.status === "ok")
     return (
-      <p className="text-sm text-zinc-500">
+      <p className="face-label text-base text-ink">
         Connected with key {key}
         {status.checkedAt ? `, last synced ${formatDateTime(status.checkedAt)} IST` : ""}.
       </p>
     );
   return (
-    <div className="rounded-md border border-amber-900/60 bg-amber-950/40 p-3 text-sm text-amber-200">
-      <p className="font-medium">Key {key} is not working</p>
-      <p className="mt-1 text-amber-200/80">{explainSyncError(status.lastError ?? "")}</p>
+    <div className="bg-warn-soft px-5 py-4 text-warn">
+      <p className="face-label text-base font-medium">Key {key} is not working</p>
+      <p className="mt-1 text-base text-ink-2">{explainSyncError(status.lastError ?? "")}</p>
     </div>
   );
 }

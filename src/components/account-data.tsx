@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { deleteMyAccount, type AccountActionResult } from "@/app/account-actions";
-import { buttonSecondary } from "@/components/ui";
+import { buttonDanger, buttonSecondary, input } from "@/components/ui";
 
 /** Download your data, or delete your account (typing the confirmation word first). */
 export function AccountData({ confirmWord }: { confirmWord: string }) {
@@ -25,9 +25,9 @@ export function AccountData({ confirmWord }: { confirmWord: string }) {
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <p className="text-sm text-zinc-400">
+        <p className="text-base text-ink-2">
           Download a copy of everything Edgebook stores about you. How we use it:{" "}
-          <a href="/privacy" className="text-brand hover:underline">Privacy Policy</a>.
+          <a href="/privacy" className="link">Privacy Policy</a>.
         </p>
         <div className="flex flex-wrap gap-2">
           <a href="/api/export" className={buttonSecondary}>
@@ -39,23 +39,23 @@ export function AccountData({ confirmWord }: { confirmWord: string }) {
         </div>
       </div>
 
-      <div className="space-y-2 border-t border-zinc-800 pt-4">
+      <div className="space-y-3 border-t border-rule pt-6">
         {!open ? (
-          <button type="button" onClick={() => setOpen(true)} className="text-sm text-rose-400 hover:underline">
-            Delete my account…
+          <button type="button" onClick={() => setOpen(true)} className={buttonDanger}>
+            Delete my account
           </button>
         ) : (
-          <form onSubmit={remove} className="space-y-3 rounded-md border border-rose-900/60 bg-rose-950/30 p-3">
-            <p className="text-sm text-rose-200">
+          <form onSubmit={remove} className="space-y-4 border-t-4 border-loss bg-paper-2 px-5 py-5">
+            <p className="text-base text-ink">
               This deletes your trades, journal, AI reviews, Delta key, Telegram link and sign-in, permanently. It cannot be undone. Download
               your data first if you want to keep it.
             </p>
-            <label className="block space-y-1 text-sm">
-              <span className="text-rose-200/80">
+            <label className="block space-y-2">
+              <span className="face-label block text-base text-ink">
                 Type <strong>{confirmWord}</strong> to confirm
               </span>
               <input
-                className="w-full rounded-md border border-rose-900/60 bg-zinc-950 px-3 py-2 text-sm"
+                className={`${input} face-label max-w-xs`}
                 value={typed}
                 onChange={(e) => setTyped(e.target.value)}
                 autoComplete="off"
@@ -66,7 +66,7 @@ export function AccountData({ confirmWord }: { confirmWord: string }) {
               <button
                 type="submit"
                 disabled={pending || typed.trim() !== confirmWord}
-                className="inline-flex items-center justify-center rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-500 disabled:opacity-50"
+                className="face-label inline-flex min-h-10 items-center justify-center border border-loss bg-loss px-5 text-sm text-paper transition-colors duration-(--dur-short) hover:bg-error disabled:cursor-not-allowed disabled:opacity-55"
               >
                 {pending ? "Deleting…" : "Delete my account"}
               </button>
@@ -76,7 +76,7 @@ export function AccountData({ confirmWord }: { confirmWord: string }) {
             </div>
           </form>
         )}
-        {result && <p className={`text-sm ${result.ok ? "text-zinc-400" : "text-rose-400"}`}>{result.message}</p>}
+        {result && <p role="status" className={`face-label text-sm ${result.ok ? "text-muted" : "text-error"}`}>{result.message}</p>}
       </div>
     </div>
   );

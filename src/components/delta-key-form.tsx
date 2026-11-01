@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { connectDelta, disconnectDelta, type DeltaKeyResult } from "@/app/delta-actions";
-import { buttonPrimary, buttonSecondary } from "@/components/ui";
+import { buttonPrimary, buttonSecondary, input as inputClass } from "@/components/ui";
 
 /** Paste a Delta key and secret; they are sealed on the server and never shown again. */
 export function DeltaKeyForm({ connected }: { connected: boolean }) {
@@ -25,15 +25,14 @@ export function DeltaKeyForm({ connected }: { connected: boolean }) {
 
   const disconnect = () => start(async () => setResult(await disconnectDelta()));
 
-  const input =
-    "w-full rounded-md border border-zinc-300 bg-white px-3 py-2 font-mono text-sm dark:border-zinc-700 dark:bg-zinc-900";
+  const input = `${inputClass} face-label`;
   const button = buttonPrimary;
   const secondary = buttonSecondary;
 
   return (
-    <form onSubmit={save} className="space-y-3">
-      <label className="block space-y-1 text-sm">
-        <span className="text-zinc-600 dark:text-zinc-400">API key</span>
+    <form onSubmit={save} className="space-y-5">
+      <label className="block space-y-2">
+        <span className="face-label block text-base text-ink">API key</span>
         <input
           className={input}
           value={apiKey}
@@ -43,8 +42,8 @@ export function DeltaKeyForm({ connected }: { connected: boolean }) {
           required
         />
       </label>
-      <label className="block space-y-1 text-sm">
-        <span className="text-zinc-600 dark:text-zinc-400">API secret</span>
+      <label className="block space-y-2">
+        <span className="face-label block text-base text-ink">API secret</span>
         <input
           className={input}
           type="password"
@@ -66,7 +65,7 @@ export function DeltaKeyForm({ connected }: { connected: boolean }) {
         )}
       </div>
       {result && (
-        <p role="status" className={`text-sm ${result.ok ? "text-zinc-500" : "text-rose-600 dark:text-rose-400"}`}>
+        <p role="status" className={`face-label text-sm ${result.ok ? "text-muted" : "text-error"}`}>
           {result.message}
         </p>
       )}

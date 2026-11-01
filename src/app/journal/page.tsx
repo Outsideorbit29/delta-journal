@@ -18,87 +18,96 @@ export default async function JournalQueue({ searchParams }: PageProps<"/journal
   const total = queue.length + journaled.size;
 
   return (
-    <main className="mx-auto w-full max-w-5xl space-y-6 px-4 py-6">
-      <header className="flex flex-wrap items-baseline justify-between gap-2">
+    <main id="main" className="container space-y-10 pt-10 pb-24">
+      <header className="flex flex-wrap items-end justify-between gap-6 border-b-4 border-ink pb-6">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Journal</h1>
-          <p className="text-sm text-zinc-500">
-            {journaled.size} of {total} closed trades journaled · {queue.length} to go
+          <h1 className="text-3xl leading-none">Journal</h1>
+          <p className="face-label mt-2 text-base text-ink-2">
+            {journaled.size} of {total} closed trades journaled, {queue.length} to go
           </p>
         </div>
-        <div className="h-1.5 w-48 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800" aria-hidden>
-          <div className="h-full rounded-full bg-[var(--viz-profit)]" style={{ width: `${total ? (journaled.size / total) * 100 : 0}%` }} />
+        <div className="w-56" role="img" aria-label={`${journaled.size} of ${total} journaled`}>
+          <div className="h-2 bg-paper-3">
+            <div className="h-2 bg-accent" style={{ width: `${total ? (journaled.size / total) * 100 : 0}%` }} />
+          </div>
         </div>
       </header>
 
       {!current ? (
-        <p className="rounded-lg border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500 dark:border-zinc-700">
-          {total === 0
-            ? "No closed trades yet. Each trade you close on Delta shows up here, ready to journal, within a minute."
-            : "Every closed trade is journaled. New trades show up here within a minute of closing."}
-        </p>
+        <section className="max-w-2xl">
+          <h2 className="text-xl">{total === 0 ? "No closed trades yet" : "Every closed trade is journaled"}</h2>
+          <p className="mt-2 text-ink-2">
+            {total === 0
+              ? "Each trade you close on Delta shows up here, ready to journal, within a minute."
+              : "New trades show up here within a minute of closing."}
+          </p>
+        </section>
       ) : (
-        <>
-          <section className="space-y-2">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="text-xl font-semibold">
-                <Link href={`/trades/${encodeURIComponent(current.id)}`} className="hover:underline">
-                  {current.symbol}{" "}
-                  <span className={current.direction === "long" ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}>
-                    {current.direction}
-                  </span>
-                </Link>
-                <span className={`ml-3 ${pnlClass(current.netPnl)}`}>{formatMoney(current.netPnl, { sign: true })}</span>
-              </h2>
-              <nav className="flex gap-3 text-sm">
+        <div className="grid gap-x-8 gap-y-12 lg:grid-cols-12">
+          <div className="space-y-10 lg:col-span-8">
+            <section>
+              <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
+                <h2 className="text-[clamp(2rem,4vw,3rem)]">
+                  <Link href={`/trades/${encodeURIComponent(current.id)}`} className="no-underline hover:underline hover:decoration-accent">
+                    {current.symbol} {current.direction}
+                  </Link>
+                </h2>
+                <p className={`figure-display text-[clamp(2rem,4vw,3rem)] ${pnlClass(current.netPnl)}`}>{formatMoney(current.netPnl, { sign: true })}</p>
+              </div>
+              <p className="face-label mt-2 text-base text-muted">
+                Opened {formatDateTime(current.openedTs)} IST, held {formatDuration(current.holdSeconds)}, {current.maxQty.toLocaleString()} contracts
+                {current.leverage ? ` at ${current.leverage}x` : ""}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {current.tags.map((g) => (
+                  <TagChip key={g.tag} tag={g.tag} detail={g.detail} />
+                ))}
+              </div>
+              <nav aria-label="Queue" className="face-label mt-5 flex gap-6 text-sm">
                 {skip > 0 && (
-                  <Link href={skip === 1 ? "/journal" : `/journal?skip=${skip - 1}`} className="text-zinc-500 hover:underline">
-                    ← Previous
+                  <Link href={skip === 1 ? "/journal" : `/journal?skip=${skip - 1}`} className="link">
+                    Previous trade
                   </Link>
                 )}
                 {skip < queue.length - 1 && (
-                  <Link href={`/journal?skip=${skip + 1}`} className="text-zinc-500 hover:underline">
-                    Skip →
+                  <Link href={`/journal?skip=${skip + 1}`} className="link">
+                    Skip this one
                   </Link>
                 )}
               </nav>
-            </div>
-            <p className="text-sm text-zinc-500">
-              {formatDateTime(current.openedTs)} IST · held {formatDuration(current.holdSeconds)} · {current.maxQty.toLocaleString()} contracts
-              {current.leverage ? ` at ${current.leverage}x` : ""}
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {current.tags.map((g) => (
-                <TagChip key={g.tag} tag={g.tag} detail={g.detail} />
-              ))}
-            </div>
-          </section>
+            </section>
 
-          <TradePriceChart trade={current} plannedStop={null} plannedTarget={null} />
-          <JournalSection trade={current} entry={null} submitLabel="Save & next" />
+            <TradePriceChart trade={current} plannedStop={null} plannedTarget={null} />
+            <JournalSection trade={current} entry={null} submitLabel="Save & next" />
+          </div>
 
           {queue.length > 1 && (
-            <section className="space-y-2">
-              <h2 className="text-sm font-medium text-zinc-500">Up next</h2>
-              <ul className="divide-y divide-zinc-100 text-sm dark:divide-zinc-800 rounded-xl border border-zinc-800 bg-zinc-900/60">
-                {queue
-                  .map((t, i) => ({ t, i }))
-                  .filter(({ i }) => i !== skip)
-                  .slice(skip, skip + 8)
-                  .map(({ t, i }) => (
-                    <li key={t.id}>
-                      <Link href={`/journal?skip=${i}`} className="flex justify-between gap-4 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-900">
-                        <span>
-                          {formatDateTime(t.openedTs)} · {t.symbol} {t.direction}
-                        </span>
-                        <span className={`tabular-nums ${pnlClass(t.netPnl)}`}>{formatMoney(t.netPnl, { sign: true })}</span>
-                      </Link>
-                    </li>
-                  ))}
-              </ul>
-            </section>
+            <aside className="lg:col-span-4">
+              <div className="opens lg:sticky lg:top-24">
+                <h2 className="text-xl">Up next</h2>
+                <ul className="face-label mt-4 divide-y divide-rule border-y border-rule-2 text-base">
+                  {queue
+                    .map((t, i) => ({ t, i }))
+                    .filter(({ i }) => i !== skip)
+                    .slice(skip, skip + 8)
+                    .map(({ t, i }) => (
+                      <li key={t.id}>
+                        <Link href={`/journal?skip=${i}`} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 py-3 no-underline hover:bg-paper-2">
+                          <span className="min-w-0">
+                            <span className="block text-ink">
+                              {t.symbol} {t.direction}
+                            </span>
+                            <span className="block text-sm text-muted">{formatDateTime(t.openedTs)}</span>
+                          </span>
+                          <span className={`self-center tabular-nums ${pnlClass(t.netPnl)}`}>{formatMoney(t.netPnl, { sign: true })}</span>
+                        </Link>
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            </aside>
           )}
-        </>
+        </div>
       )}
     </main>
   );

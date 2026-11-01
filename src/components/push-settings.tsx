@@ -75,10 +75,10 @@ export function PushSettings({ publicKey }: { publicKey: string | null }) {
 
   return (
     <div className="space-y-3">
-      {support === "checking" && <p className="text-sm text-zinc-500">Checking this device…</p>}
-      {support === "unsupported" && <p className="text-sm text-zinc-500">This browser does not support push notifications.</p>}
+      {support === "checking" && <p className="face-label text-sm text-muted">Checking this device…</p>}
+      {support === "unsupported" && <p className="text-base text-ink-2">This browser does not support push notifications.</p>}
       {support === "ios-not-installed" && (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="text-base text-ink-2">
           On iPhone, notifications only work in the installed app: tap Share → <strong>Add to Home Screen</strong>, open Edgebook from the home
           screen, and come back here.
         </p>
@@ -87,7 +87,7 @@ export function PushSettings({ publicKey }: { publicKey: string | null }) {
         <div className="flex flex-wrap items-center gap-2">
           {subscription ? (
             <>
-              <span className="text-sm text-zinc-600 dark:text-zinc-400">On for this device.</span>
+              <span className="face-label text-base text-ink">On for this device.</span>
               <button type="button" onClick={test} disabled={pending} className={button}>
                 Send a test
               </button>
@@ -103,7 +103,7 @@ export function PushSettings({ publicKey }: { publicKey: string | null }) {
         </div>
       )}
       {result && (
-        <p role="status" className={`text-sm ${result.ok ? "text-zinc-500" : "text-rose-600 dark:text-rose-400"}`}>
+        <p role="status" className={`face-label text-sm ${result.ok ? "text-muted" : "text-error"}`}>
           {result.message}
         </p>
       )}

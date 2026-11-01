@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { reviewAction, type AiResult } from "@/app/ai-actions";
-import { buttonPrimary } from "@/components/ui";
+import { buttonPrimary, buttonSecondary } from "@/components/ui";
 
 export function ReviewButtons() {
   const [result, setResult] = useState<AiResult | null>(null);
@@ -22,14 +22,15 @@ export function ReviewButtons() {
           key={d}
           type="button"
           disabled={pending}
+          aria-busy={pending && days === d}
           onClick={() => run(d)}
-          className={buttonPrimary}
+          className={d === 7 ? buttonPrimary : buttonSecondary}
         >
-          {pending && days === d ? "Writing review…" : `Review last ${d} days`}
+          {pending && days === d ? "Writing the review…" : `Review the last ${d} days`}
         </button>
       ))}
       {result && !result.ok && (
-        <p role="status" className="text-sm text-rose-600 dark:text-rose-400">
+        <p role="status" className="face-label w-full text-sm text-error">
           {result.message}
         </p>
       )}

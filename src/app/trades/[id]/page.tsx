@@ -66,18 +66,20 @@ export default async function TradePage({ params }: PageProps<"/trades/[id]">) {
   ];
 
   return (
-    <main className="mx-auto w-full max-w-5xl space-y-8 px-4 py-8">
+    <main id="main" className="container space-y-14 pt-10 pb-24">
       <div>
-        <Link href="/" className="text-sm text-zinc-500 hover:underline">
-          ← All trades
+        <Link href="/trades" className="face-label link text-sm">
+          All trades
         </Link>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight">
-          {trade.symbol} <span className={trade.direction === "long" ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}>{trade.direction}</span>
-          <span className={`ml-3 ${pnlClass(trade.netPnl)}`}>{trade.status === "open" ? "open" : formatMoney(trade.netPnl, { sign: true })}</span>
-        </h1>
-        {/* Each tag once: the ones with an explanation as a list, the rest as chips. */}
+        <div className="mt-4 flex flex-wrap items-end justify-between gap-x-10 gap-y-4 border-b-4 border-ink pb-6">
+          <h1 className="text-[clamp(2.5rem,5vw,4rem)]">
+            {trade.symbol} {trade.direction}
+          </h1>
+          <p className={`figure-display text-[clamp(2.5rem,5vw,4rem)] ${pnlClass(trade.netPnl)}`}>{trade.status === "open" ? "open" : formatMoney(trade.netPnl, { sign: true })}</p>
+        </div>
+        {/* Each tag once: the ones with an explanation as a list, the rest as tags. */}
         {trade.tags.some((g) => g.detail) && (
-          <ul className="mt-3 space-y-1 text-sm text-zinc-400">
+          <ul className="mt-5 space-y-2 text-base text-ink-2">
             {trade.tags.filter((g) => g.detail).map((g) => (
               <li key={g.tag}>
                 <TagChip tag={g.tag} href={`/trades?tag=${encodeURIComponent(g.tag)}`} /> {g.detail}
@@ -85,7 +87,7 @@ export default async function TradePage({ params }: PageProps<"/trades/[id]">) {
             ))}
           </ul>
         )}
-        <div className="mt-2 flex flex-wrap gap-1.5">
+        <div className="mt-3 flex flex-wrap gap-1.5">
           {trade.tags.filter((g) => !g.detail).map((g) => (
             <TagChip key={g.tag} tag={g.tag} href={`/trades?tag=${encodeURIComponent(g.tag)}`} />
           ))}
@@ -93,7 +95,7 @@ export default async function TradePage({ params }: PageProps<"/trades/[id]">) {
       </div>
 
       {trade.warnings.length > 0 && (
-        <ul className="rounded-md bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+        <ul className="face-label space-y-1 bg-warn-soft px-5 py-4 text-sm text-warn">
           {trade.warnings.map((w) => (
             <li key={w}>{w}</li>
           ))}
@@ -104,56 +106,62 @@ export default async function TradePage({ params }: PageProps<"/trades/[id]">) {
 
       {trade.status === "closed" && <JournalSection trade={trade} entry={entry} />}
 
-      <div className="grid gap-6 md:grid-cols-[2fr_1fr]">
-        <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-sm">
-          {rows.map(([k, v]) => (
-            <div key={k} className="contents">
-              <dt className="text-zinc-500">{k}</dt>
-              <dd className="tabular-nums">{v}</dd>
-            </div>
-          ))}
-        </dl>
-        <dl className="space-y-1.5 p-4 text-sm rounded-xl border border-zinc-800 bg-zinc-900/60">
-          {pnl.map(([k, v]) => (
-            <div key={k} className={`flex justify-between ${k === "Net P&L" ? "border-t border-zinc-200 pt-1.5 font-semibold dark:border-zinc-800" : ""}`}>
-              <dt>{k}</dt>
-              <dd className={`tabular-nums ${pnlClass(v)}`}>{formatMoney(v, { sign: true })}</dd>
-            </div>
-          ))}
+      <div className="grid gap-x-8 gap-y-12 lg:grid-cols-12">
+        <section className="opens lg:col-span-7">
+          <h2 className="text-xl">The trade</h2>
+          <dl className="face-label mt-4 divide-y divide-rule border-t border-rule-2 text-base">
+            {rows.map(([k, v]) => (
+              <div key={k} className="grid grid-cols-[9rem_minmax(0,1fr)] gap-x-6 py-2.5">
+                <dt className="text-muted">{k}</dt>
+                <dd className="text-ink tabular-nums">{v}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+        <section className="opens lg:col-span-5">
+          <h2 className="text-xl">Where the money went</h2>
+          <dl className="face-label mt-4 border-t border-rule-2 text-base">
+            {pnl.map(([k, v]) => (
+              <div key={k} className={`flex justify-between gap-4 py-2.5 ${k === "Net P&L" ? "border-t-4 border-ink" : "border-b border-rule"}`}>
+                <dt className={k === "Net P&L" ? "text-ink" : "text-muted"}>{k}</dt>
+                <dd className={k === "Net P&L" ? `figure-display text-3xl ${pnlClass(v)}` : `tabular-nums ${pnlClass(v)}`}>{formatMoney(v, { sign: true })}</dd>
+              </div>
+            ))}
+          </dl>
           {trade.deltaRealizedPnl !== null && (
-            <p className={`pt-2 text-xs ${trade.pnlMatchesDelta ? "text-zinc-500" : "text-amber-700 dark:text-amber-300"}`}>
+            <p className={`face-label mt-4 text-sm ${trade.pnlMatchesDelta ? "text-muted" : "text-warn"}`}>
               Delta reports {formatMoney(trade.deltaRealizedPnl, { sign: true })} gross: {trade.pnlMatchesDelta ? "matches" : "does not match"}.
             </p>
           )}
-          {trade.feeCredits > 0 && <p className="text-xs text-zinc-500">{formatMoney(trade.feeCredits)} of fees were paid with fee credits.</p>}
-        </dl>
+          {trade.feeCredits > 0 && <p className="face-label mt-1 text-sm text-muted">{formatMoney(trade.feeCredits)} of fees were paid with fee credits.</p>}
+        </section>
       </div>
 
-      <section className="space-y-2">
-        <h2 className="text-lg font-semibold">Fills</h2>
-        <div className="overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-900/60">
-          <table className="w-full text-sm">
-            <thead className="bg-zinc-50 text-left text-xs uppercase text-zinc-500 dark:bg-zinc-900">
+      <section className="opens">
+        <h2 className="text-xl">Fills</h2>
+        <div className="mt-4 overflow-x-auto">
+          <table className="face-label w-full text-base">
+            <thead className="border-b border-rule-2 text-left">
               <tr>
-                <th className="px-3 py-2">Time (IST)</th>
-                <th className="px-3 py-2">Action</th>
-                <th className="px-3 py-2 text-right">Contracts</th>
-                <th className="px-3 py-2 text-right">Price</th>
-                <th className="px-3 py-2 text-right">Fee</th>
-                <th className="px-3 py-2">Order</th>
+                <th className={th}>Time (IST)</th>
+                <th className={th}>Action</th>
+                <th className={`${th} text-right`}>Contracts</th>
+                <th className={`${th} text-right`}>Price</th>
+                <th className={`${th} text-right`}>Fee</th>
+                <th className={th}>Order</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+            <tbody className="divide-y divide-rule">
               {trade.legs.map((l) => (
                 <tr key={l.fillId}>
-                  <td className="whitespace-nowrap px-3 py-1.5">{formatDateTime(l.ts)}</td>
-                  <td className="px-3 py-1.5 capitalize">{l.kind}</td>
-                  <td className="px-3 py-1.5 text-right tabular-nums">{l.qty > 0 ? `+${l.qty}` : l.qty}</td>
-                  <td className="px-3 py-1.5 text-right tabular-nums">{formatPrice(l.price)}</td>
-                  <td className="px-3 py-1.5 text-right tabular-nums">{formatMoney(l.fee)}</td>
-                  <td className="px-3 py-1.5 text-zinc-500">
+                  <td className={`${td} whitespace-nowrap`}>{formatDateTime(l.ts)}</td>
+                  <td className={`${td} text-ink capitalize`}>{l.kind}</td>
+                  <td className={`${td} text-right tabular-nums`}>{l.qty > 0 ? `+${l.qty}` : l.qty}</td>
+                  <td className={`${td} text-right tabular-nums`}>{formatPrice(l.price)}</td>
+                  <td className={`${td} text-right tabular-nums`}>{formatMoney(l.fee)}</td>
+                  <td className={`${td} text-muted`}>
                     {l.fillType === "liquidation" ? "liquidation" : (l.stopOrderType?.replace(/_order$/, "").replace("_", " ") ?? l.orderType?.replace("_order", "") ?? "–")}
-                    {l.source ? ` · ${l.source.replace("_", " ")}` : ""}
+                    {l.source ? `, ${l.source.replace("_", " ")}` : ""}
                   </td>
                 </tr>
               ))}
@@ -164,3 +172,6 @@ export default async function TradePage({ params }: PageProps<"/trades/[id]">) {
     </main>
   );
 }
+
+const th = "px-3 py-3 text-sm font-medium whitespace-nowrap text-muted first:pl-0";
+const td = "px-3 py-2.5 text-ink-2 first:pl-0";
