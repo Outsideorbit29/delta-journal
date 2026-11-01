@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
@@ -34,10 +34,27 @@ async function ensureUser(userId: string) {
   await connection();
   const now = Date.now();
   const db = await getDb();
-  const [existing] = await db.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.id, userId));
-  if (existing) return;
+  const [existing] = await db.select({ email: schema.users.email }).from(schema.users).where(eq(schema.users.id, userId));
+  if (existing?.email != null) return;
+  // The email is for support mail, data export and deletion. Fetched from Clerk once;
+  // "" marks an account without one, so Clerk is not asked again on every request.
+  const email = await primaryEmail();
+  if (existing) {
+    if (email !== null) await db.update(schema.users).set({ email }).where(eq(schema.users.id, userId));
+    return;
+  }
   await db
     .insert(schema.users)
-    .values({ id: userId, createdAt: now, plan: "founder", accessUntil: now + FOUNDER_ACCESS_DAYS * DAY_MS })
+    .values({ id: userId, email, createdAt: now, plan: "founder", accessUntil: now + FOUNDER_ACCESS_DAYS * DAY_MS })
     .onConflictDoNothing();
+}
+
+/** The signed-in user's primary email from Clerk, "" if they have none, or null if Clerk could not be asked. */
+async function primaryEmail(): Promise<string | null> {
+  try {
+    const user = await currentUser();
+    return user ? (user.primaryEmailAddress?.emailAddress ?? "") : null;
+  } catch {
+    return null;
+  }
 }
