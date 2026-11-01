@@ -15,6 +15,18 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        // Every page: no framing (clickjacking), no MIME sniffing, no full URLs leaking to other sites,
+        // and no camera, microphone or location. HTTPS-only (HSTS) is already sent by Vercel.
+        source: "/:path*",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()" },
+        ],
+      },
+      {
         // The service worker must never be cached, or phones keep an old one.
         source: "/sw.js",
         headers: [
