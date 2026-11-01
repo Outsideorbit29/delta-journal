@@ -2,8 +2,12 @@ import { count, eq, getTableName } from "drizzle-orm";
 import type { Db } from "./index";
 import * as schema from "./schema";
 
-/** Every table with an owner. Global caches (trade_candles) and users are not here. */
-const OWNED = [
+/**
+ * Every table with an owner (a user_id column). Global caches (trade_candles),
+ * users and rate_limits (keyed by subject) are not here. Claim, export and
+ * account deletion all use this list, so a new per-user table goes here.
+ */
+export const OWNED = [
   schema.fills,
   schema.orders,
   schema.walletTransactions,
@@ -17,6 +21,7 @@ const OWNED = [
   schema.aiReviews,
   schema.pushSubscriptions,
   schema.deltaCredentials,
+  schema.telegramLinks,
 ] as const;
 
 export type ClaimResult = Record<string, number>;

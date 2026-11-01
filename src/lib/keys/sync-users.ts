@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { schema, type Db } from "@/db";
+import { accountExists, deleteAccountData } from "@/lib/account";
 import { DeltaClient } from "@/lib/delta/client";
 import { syncAll, type SyncSummary } from "@/lib/sync";
 import { markDeltaKeyChecked, openDeltaKey, type DeltaKey } from "./credentials";
@@ -9,6 +10,8 @@ import { markDeltaKeyChecked, openDeltaKey, type DeltaKey } from "./credentials"
 
 export type ClientFactory = (key: DeltaKey) => DeltaClient;
 const deltaClient: ClientFactory = (key) => new DeltaClient(key.apiKey, key.apiSecret, process.env.DELTA_BASE_URL);
+
+export const ACCOUNT_DELETED = "The account was deleted during the sync; its data was erased again.";
 
 export const KEY_UNREADABLE = "The stored key could not be unlocked. Connect your Delta key again.";
 
@@ -65,6 +68,11 @@ async function syncRow(db: Db, row: Row, privateKey: string, makeClient: ClientF
   }
   try {
     const summary = await syncAll(row.userId, makeClient(key));
+    // The account was deleted while this sync ran: erase what the sync just wrote.
+    if (!(await accountExists(db, row.userId))) {
+      await deleteAccountData(db, row.userId);
+      throw new Error(ACCOUNT_DELETED);
+    }
     await markDeltaKeyChecked(db, row.userId, row.sealed, null, now);
     return summary;
   } catch (err) {

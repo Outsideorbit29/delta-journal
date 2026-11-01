@@ -5,7 +5,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { eq } from "drizzle-orm";
+import { eq, getTableName } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Db } from "@/db";
 import type { DeltaFill } from "@/lib/delta/types";
@@ -26,6 +26,9 @@ const { getDeltaKeyStatus, removeDeltaKey, saveDeltaKey } = await import("@/lib/
 const { generateSealKeys } = await import("@/lib/keys/sealed");
 const { chatForUser, createLinkCode, getTelegramLink, unlinkTelegram, redeemLinkCode, userForChat } = await import("@/lib/telegram/links");
 const { handleUpdate } = await import("@/lib/telegram/bot");
+const { deleteAccountData, exportAccount, tradesCsv } = await import("@/lib/account");
+const { OWNED } = await import("@/db/claim");
+const { rateLimit } = await import("@/lib/rate-limit");
 type BotContext = import("@/lib/telegram/bot").BotContext;
 
 const A = "user_A";
@@ -183,5 +186,43 @@ describe("each user only sees their own data", () => {
     expect(await getDeltaKeyStatus(db, A)).toBeNull();
     await removeDeltaKey(db, A);
     expect((await getDeltaKeyStatus(db, B))?.keyHint).toBe("keyB");
+  });
+
+  it("exports only the user's own rows, without secrets", async () => {
+    const a = await exportAccount(db, A, T0);
+    const b = await exportAccount(db, B, T0);
+    const rows = (x: typeof a) => Object.values(x.tables).flat();
+    expect(rows(a).length).toBeGreaterThan(0);
+    expect(rows(a).every((r) => r.userId === A)).toBe(true);
+    expect(rows(b).every((r) => r.userId === B)).toBe(true);
+    expect(Object.keys(a.tables).sort()).toEqual(OWNED.map((t) => getTableName(t)).sort());
+
+    const json = JSON.stringify(b);
+    expect(b.tables.delta_credentials).toEqual([expect.objectContaining({ keyHint: "keyB" })]);
+    expect(json).not.toContain("sealed");
+    expect(b.tables.push_subscriptions.length + b.tables.telegram_links.length).toBeGreaterThan(0);
+    for (const secret of ['"p256dh"', '"auth"', '"codeHash"']) expect(json).not.toContain(secret);
+
+    const csvA = await tradesCsv(db, A);
+    const [aTrade] = await db.select().from(schema.trades).where(eq(schema.trades.userId, A));
+    const [bTrade] = await db.select().from(schema.trades).where(eq(schema.trades.userId, B));
+    expect(csvA).toContain(aTrade.id);
+    expect(csvA).not.toContain(bTrade.id);
+  });
+
+  it("deleting an account erases every row of that user and nothing of anyone else", async () => {
+    await db.insert(schema.users).values([{ id: A, createdAt: T0 }, { id: B, createdAt: T0 }]);
+    await rateLimit(db, A, "push.test", T0);
+    await rateLimit(db, B, "push.test", T0);
+    const before = await exportAccount(db, B, T0);
+    const deleted = await deleteAccountData(db, A);
+    expect(deleted.users).toBe(1);
+    expect(deleted.trades).toBeGreaterThan(0);
+    expect(deleted.rate_limits).toBe(1);
+
+    const left = await exportAccount(db, A, T0);
+    expect(left.account).toBeNull();
+    expect(Object.values(left.tables).flat()).toEqual([]);
+    expect(await exportAccount(db, B, T0)).toEqual(before);
   });
 });

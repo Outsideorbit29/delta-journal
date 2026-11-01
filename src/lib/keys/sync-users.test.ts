@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Db } from "@/db";
 import { DeltaApiError, type DeltaClient } from "@/lib/delta/client";
@@ -13,7 +14,8 @@ process.env.DATABASE_URL = `file:${path.join(dir, "test.db")}`;
 // Imported after DATABASE_URL is set, so syncAll's getDb() opens the temporary database.
 const { getDb, schema } = await import("@/db");
 const { checkDeltaKey, getDeltaKeyStatus, removeDeltaKey, saveDeltaKey } = await import("./credentials");
-const { KEY_UNREADABLE, syncStoredKeys, syncWithStoredKey } = await import("./sync-users");
+const { ACCOUNT_DELETED, KEY_UNREADABLE, syncStoredKeys, syncWithStoredKey } = await import("./sync-users");
+const { deleteAccountData } = await import("@/lib/account");
 
 const keys = generateSealKeys();
 const T0 = Date.UTC(2026, 9, 30, 9);
@@ -53,6 +55,8 @@ const makeClient = ({ apiKey, apiSecret }: { apiKey: string; apiSecret: string }
 
 beforeAll(async () => {
   db = await getDb();
+  // Signing in creates the account row before anyone can save a key.
+  await db.insert(schema.users).values(["user_a", "user_b", "user_c", "user_d", "user_gone"].map((id) => ({ id, createdAt: T0 })));
 });
 
 afterAll(() => {
@@ -128,5 +132,20 @@ describe("stored Delta keys", () => {
       }) as unknown as DeltaClient;
     await syncWithStoredKey(db, "user_d", keys.privateKey, slow);
     expect(await getDeltaKeyStatus(db, "user_d")).toMatchObject({ keyHint: "keyE", status: "pending" });
+  });
+
+  it("erases what a sync wrote if the account was deleted while it ran", async () => {
+    await saveDeltaKey(db, "user_gone", { apiKey: "AAAAAAAAAAAAAAAAkeyA", apiSecret: "secretAsecretAsecretA" }, keys.publicKey, T0);
+    const deletedMidSync = (key: { apiKey: string; apiSecret: string }) =>
+      ({
+        async getAll(p: string) {
+          if (p === "/v2/fills") await deleteAccountData(db, "user_gone");
+          return makeClient(key).getAll(p);
+        },
+      }) as unknown as DeltaClient;
+    await expect(syncWithStoredKey(db, "user_gone", keys.privateKey, deletedMidSync)).rejects.toThrow(ACCOUNT_DELETED);
+    for (const table of [schema.fills, schema.trades, schema.deltaCredentials, schema.syncState]) {
+      expect(await db.select().from(table).where(eq(table.userId, "user_gone"))).toEqual([]);
+    }
   });
 });

@@ -1,9 +1,11 @@
 import { connection } from "next/server";
+import { AccountData } from "@/components/account-data";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { DeltaConnect } from "@/components/delta-connect";
 import { PushSettings } from "@/components/push-settings";
 import { TelegramConnect } from "@/components/telegram-connect";
 import { getDb } from "@/db";
+import { DELETE_CONFIRMATION } from "@/lib/account";
 import { aiConfigured } from "@/lib/ai/models";
 import { formatDateTime } from "@/lib/format";
 import { getDeltaKeyStatus } from "@/lib/keys/credentials";
@@ -62,6 +64,11 @@ export default async function SettingsPage() {
           <span className="text-zinc-500">AI features: </span>
           {aiConfigured() ? "on" : "off (no AI_GATEWAY_API_KEY)"}
         </p>
+      </section>
+
+      <section className="space-y-3 p-4 rounded-xl border border-zinc-800 bg-zinc-900/60">
+        <h2 className="font-semibold">Your data</h2>
+        <AccountData confirmWord={DELETE_CONFIRMATION} />
       </section>
     </main>
   );
