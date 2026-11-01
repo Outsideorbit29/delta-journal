@@ -92,7 +92,9 @@ Scripts load `.env.local` via `node --env-file-if-exists=.env.local --import tsx
 | `DELTA_KEYS_PRIVATE_KEY` | PC + server, **never Vercel** | Unlocks them; only the sync server uses it. The PC copy is the backup: losing it means every user reconnects |
 | `SYNC_SERVER_IPS` | optional | Comma-separated IPs users whitelist; defaults to the Lightsail IPv4 and IPv6 |
 | `OWNER_USER_ID` | PC + server | The owner's Clerk user id. `DELTA_API_KEY`, `npm run sync`, the bot and the local Sync button act for this account only. Unset = `legacy` |
-| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | PC only | Bot `@Jornalling_bot`; only that chat is answered |
+| `TELEGRAM_BOT_TOKEN` | PC + server | Bot `@Jornalling_bot`, shared by every user (each links their chat in Settings) |
+| `TELEGRAM_CHAT_ID` | PC + server, optional | The owner's chat from before accounts; linked to `OWNER_USER_ID` on the bot's first start |
+| `TELEGRAM_BOT_USERNAME` | optional (web app + server) | The bot's @name for the t.me link in Settings; default `Jornalling_bot` |
 | `TELEGRAM_SYNC_SECONDS` | optional | Bot sync interval, default 60, minimum 15 |
 | `AI_GATEWAY_API_KEY` | PC + Vercel | AI Gateway (free tier, see AI section) |
 | `AI_REVIEW_MODEL`, `AI_FAST_MODEL`, `AI_TRANSCRIBE_MODEL` | optional | Model overrides |
@@ -125,7 +127,8 @@ src/
   lib/config.ts            Tag thresholds (tunable; then `npm run rebuild`)
   lib/stats.ts             computeStats, equityCurve, dailyPnl (IST), groupStats, tagPerformance (pure)
   lib/journal/             vocab.ts (fixed choices), entry.ts (parse/validate, journalTags, suggestionsFor, risk), save.ts (shared save)
-  lib/telegram/            api.ts (minimal Bot API client), render.ts (cards, callbacks, review text; pure), bot.ts (handlers)
+  lib/telegram/            api.ts (minimal Bot API client), render.ts (cards, callbacks, review text; pure), bot.ts (routeUpdate
+                           + per-user handlers, notifications), links.ts (link codes, chat ↔ user)
   lib/ai/                  models.ts (ids, aiConfigured, explainAiError), suggest.ts, review.ts
   lib/session.ts           requireUserId() (pages; redirects to /sign-in) and currentUserId() (actions, routes; null);
                            both create the user's `users` row on first visit (plan "founder", 90 days free)
@@ -140,19 +143,20 @@ src/
   app/                     page.tsx (dashboard), trades/, trades/[id]/, journal/ (queue), review/ (AI), settings/,
                            sign-in/[[...sign-in]], sign-up/[[...sign-up]], waitlist/[[...waitlist]] (Clerk), demo/ (public),
                            manifest.ts, icon.tsx, apple-icon.tsx, pwa-icon/[size]/, api/trades, api/sync,
-                           actions.ts (sync), journal-actions.ts, ai-actions.ts, push-actions.ts, delta-actions.ts (connect/disconnect a key),
+                           actions.ts (sync), journal-actions.ts, ai-actions.ts, push-actions.ts, delta-actions.ts (connect/disconnect a key), telegram-actions.ts (link/unlink a chat),
                            loading.tsx files
   components/              charts/ (equity, calendar, cost breakdown, candlestick, scale), journal-form, journal-section,
                            trade-price-chart, review-view, review-buttons, push-settings, filter-bar, nav-links, sync-button,
                            tag-chip, hide-on-login, delta-key-form, delta-connect (key steps + status, shared by Settings and
                            onboarding), auto-refresh, dashboard-view (dashboard for a user or the demo: P&L hero, "Your biggest
                            leaks", score card + icon tiles, charts), landing (+ landing/steps, landing/trade-feed), score-card (radar),
-                           site-menu (visitor header: section links, ☰ on phones), onboarding, logo, ui.ts
+                           site-menu (visitor header: section links, ☰ on phones), onboarding, telegram-connect (Settings), logo, ui.ts
                            (shared classes), sync-status (header pill: synced / problem / not connected → Settings),
                            nav-links (desktop links + phone BottomNav)
 public/sw.js               Service worker: shows pushes, opens the tapped notification's URL (no offline cache)
 scripts/                   sync.ts, rebuild.ts, bot.ts, db-migrate.ts, db-copy-to-cloud.ts, claim-legacy.ts, keys-generate.ts, demo-seed.ts
-drizzle/                   SQL migrations 0000-0009 + meta (0008 = multi-user, its table rebuilds hand-fixed; 0009 = delta_credentials)
+drizzle/                   SQL migrations 0000-0010 + meta (0008 = multi-user, its table rebuilds hand-fixed; 0009 = delta_credentials;
+                           0010 = telegram_links)
 ```
 
 ## Data model (`src/db/schema.ts`)
@@ -168,8 +172,11 @@ Caches/state: `trade_candles`, `telegram_messages` (message → trade, kinds `tr
 Accounts: `users` (Clerk user id, email, `plan` default `founder`, `access_until`).
 Keys: `delta_credentials` (one per user: `key_hint` = last 4 characters, `sealed` key and secret, `status`
 `pending` | `ok` | `error`, `last_error`, `checked_at`).
+Telegram: `telegram_links` (one per user: unique `chat_id`, `chat_name`, `linked_at`, and a pending one-time
+`code_hash` (SHA-256) with `code_expires_at`).
 
-**Every table except `users` and `trade_candles` has `user_id`** (default `legacy`). Delta ids
+**Every table except `users` and `trade_candles` has `user_id`** (default `legacy`; `telegram_links` and
+`delta_credentials` are keyed by it). Delta ids
 are globally unique, so primary keys stay as they were. Ownership is enforced by filtering on
 `user_id` in every query, and an upsert only updates a row the same user owns (`setWhere`), so a
 record can never move between users. `sync_state` has the primary key (user, resource).
@@ -222,19 +229,32 @@ Telegram buttons; keys are stored, labels can change. Answers become tags `setup
 queue of un-journaled closed trades, newest first, with Save & next.
 
 ### Telegram bot (`lib/telegram/`, `scripts/bot.ts`)
-- Long polling (no public URL). Answers **only `TELEGRAM_CHAT_ID`**; before it is set it only
-  replies to `/start` with the chat id. Strangers get no response at all.
-- Each sync: new closes since the first run (`telegram.notify_since`) get a card. Taps walk
-  setup → feelings → mistakes → plan → rating, saving each tap and editing the card in place.
+- **One bot for every user.** Long polling (no public URL). `routeUpdate` looks up the user behind each chat
+  (`telegram_links`) and runs that user's handlers (`BotContext` = user + their chat). An unlinked private chat only gets
+  a "connect it in Settings" reply to commands; groups and channels are never answered or linked.
+- Linking: Settings → Telegram → **Connect Telegram** makes a one-time code (16 random bytes, base64url; only its
+  SHA-256 is stored; 15 minutes; replaces any earlier code) and shows `t.me/<bot>?start=<code>`. Tapping Start sends
+  `/start <code>`; the chat becomes that user's (leaving any other user it was linked to) and the page, which refreshes
+  every 5 s while a code is waiting, shows "Connected to @name". `/disconnect` or Settings → Disconnect unlinks.
+  Linking or unlinking resets the user's notification starting point to "now", so old trades never flood in.
+  On start, the bot links `TELEGRAM_CHAT_ID` to `OWNER_USER_ID` once (the pre-accounts setup), without that reset.
+- Every lookup of a sent message (`telegram_messages`) also filters on the user, so an old card in a chat that moved
+  to another account does nothing.
+- Each minute the bot syncs the owner, then every user with a key, then for each user: tells them about a **new**
+  sync problem (plain words from `explainSyncError`, Telegram + push, once per distinct error; "working again" when it
+  recovers; seeded from `delta_credentials` so a restart does not repeat known problems), announces new closes
+  (`notifyClosedTrades`, only after a sync wrote something, or once after a start, or while over the 10-per-run cap),
+  and sends the weekly review on **Sunday from 20:00 IST** (`telegram.weekly_review_for`; weeks without trades are skipped).
+- New closes since the user's starting point (`telegram.notify_since`) get a card in their chat and a push. A user with
+  no chat but a subscribed phone gets the push only, and their starting point moves past each pushed trade.
+  Taps walk setup → feelings → mistakes → plan → rating, saving each tap and editing the card in place.
   Callback data is short (`s:v:breakout`…), and the trade comes from the message id.
 - Notes: reply to a card, or tap Add note (ForceReply). **Voice notes** are transcribed by AI.
-  After a note, AI suggests new answers (`a:y` / `a:n`).
-- Commands: `/journal` (last 7 days), `/today`, `/sync`, `/review`, `/help`. The weekly review is sent
-  automatically on **Sunday from 20:00 IST**, once per week (`telegram.weekly_review_for`).
-- Sync failures are messaged once per distinct error. A Delta IP error names the exact IP to whitelist.
-- With VAPID keys set, the same events also go out as **phone push notifications**
-  (`ctx.push` → `sendPush`): each new close (tap → `/trades/<id>`), the weekly review (→ `/review`)
-  and sync failures (→ `/settings`). A push failure never blocks the Telegram message (`notifyPhone`).
+  After a note, AI suggests new answers (`a:y` / `a:n`). AI calls run per user (`botAi(db, userId)`).
+- Commands: `/journal` (last 7 days), `/today`, `/sync` (the user's own key; the owner falls back to the server's
+  key), `/review`, `/disconnect`, `/help`.
+- Pushes (with VAPID keys): each new close (tap → `/trades/<id>`), the weekly review (→ `/review`) and sync failures
+  (→ `/settings`), only to users with a subscribed device. A push failure never blocks the Telegram message (`notifyPhone`).
 
 ### Public pages, onboarding and the demo
 - The landing page (rebuilt 2026-11-01, inspired by the layout of a competitor's site but with our own words, colours and
@@ -269,7 +289,7 @@ tip) and on the landing page (the demo trader). Owner: 53 Needs work on 2026-11-
 - The bot on the server holds `DELTA_KEYS_PRIVATE_KEY`. Every minute, after the owner's sync, it syncs every other
   user with a stored key, one at a time; one user's failure never stops the others. Each outcome goes on the key
   (`ok`, or `error` with Delta's message, which names the IP to whitelist). A key replaced mid-sync stays `pending`.
-  Failures are logged once per distinct error, not every minute; telling the user by Telegram or push is Day 5.
+  Failures are logged and told to the user (Telegram and push) once per distinct error, not every minute.
 - The owner syncs with their own stored key once they connect one, otherwise with the server's `DELTA_API_KEY`.
 - Not yet possible: refusing keys that have Trading permission (no known Delta endpoint reports a key's permissions),
   so the page tells users to choose Read Data only.
@@ -425,7 +445,10 @@ Week plan and progress:
 - **Day 3 (done, 2026-10-31): sealed per-user Delta keys and the multi-user sync** (see "Per-user Delta keys").
   Migration 0009 only adds a table, so old code keeps running while it rolls out.
 - **Day 4 (done, 2026-11-01): landing page, waitlist, onboarding, public demo, empty states.**
-- Day 5: shared Edgebook Telegram bot with account linking, per-user push and AI, invite codes capped at 10.
+- **Day 5 (done, 2026-11-01): one shared Telegram bot with account linking** (Settings → Telegram), per-user
+  notifications of closes, weekly reviews and sync problems by Telegram and push, push-only users, per-user AI.
+  Migration 0010 only adds a table. Invite codes were dropped: Clerk's waitlist already gates sign-ups (the owner
+  approves each person), which covers "the first 10, chosen by the owner".
 - Day 6: legal pages (DPDP Act), export and delete, monitoring, rate limits, security review. Also store each
   user's email in `users.email` (from Clerk; it is still empty) for support mail, export and deletion.
 - Day 7: rebrand to Edgebook and launch. A Clerk **production** instance needs a domain we own, and its
@@ -433,6 +456,10 @@ Week plan and progress:
 
 ## Changelog
 
+- **2026-11-01**: Edgebook Day 5: one Telegram bot for every user. Users link their chat from Settings → Telegram
+  with a one-time link (`telegram_links`, migration 0010, `TELEGRAM_BOT_USERNAME`); each user gets their own closes,
+  weekly review and sync-problem messages by Telegram and push (push alone if they have no chat); `/disconnect`.
+  `TELEGRAM_CHAT_ID` is now only the owner's pre-accounts chat. Fixed a prerender warning in `ensureUser`.
 - **2026-11-01**: Behaviour score (six habit dimensions, trend, radar card); dashboard greeting and icon stat tiles; the
   landing page rebuilt as a full product page (bento grid, feature rows, animated steps and trade feed, pricing card,
   footer) with a ☰ visitor menu on phones.
