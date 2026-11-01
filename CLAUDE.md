@@ -46,6 +46,9 @@ the owner's, so they only ever sync into `OWNER_USER_ID`; other users get per-us
 
 - **Next.js 16.4** (App Router, Turbopack, **Cache Components on**, `src/` dir), React 19.3,
   TypeScript, Tailwind v4. Read `node_modules/next/dist/docs/` before using Next APIs (see AGENTS.md).
+- **Design system:** Hallmark's Editorial theme, locked in `design.md` (root). Tokens in `src/app/tokens.css` (a Tailwind
+  `@theme` block, so `bg-paper`, `text-ink`… are utilities) and `src/app/base.css`, both written by Hallmark's scaffold;
+  money, chart and dark-mode tokens in `globals.css`. Faces from `next/font`: Bricolage Grotesque and Source Serif 4.
 - **Drizzle ORM** + **@libsql/client** (SQLite locally, Turso in the cloud). Migrations in `drizzle/`.
 - **Clerk** (`@clerk/nextjs` 7) for accounts, installed through the Vercel Marketplace.
 - **AI SDK 7** (`ai`) through **Vercel AI Gateway** with plain `provider/model` strings; `zod` for schemas.
@@ -143,7 +146,7 @@ src/
   lib/insights.ts          biggestLeaks (costliest habit tags), whatWorks, TAG_HINTS (one line per habit); tested
   lib/score.ts             behaviourScore: six 0-100 habit dimensions, overall, label, trend; weakest(); tested
   lib/sync-errors.ts       explainSyncError (Delta errors → plain fix), formatAgo; tested
-  lib/queries.ts, format.ts, tags.ts (labels, warnings, topTags), range.ts, app-icon.tsx (teal Edgebook mark)
+  lib/queries.ts, format.ts, tags.ts (labels, warnings, topTags), range.ts, app-icon.tsx (ink square, paper rising line)
   app/                     page.tsx (dashboard), trades/, trades/[id]/, journal/ (queue), review/ (AI), settings/,
                            sign-in/[[...sign-in]], sign-up/[[...sign-up]], waitlist/[[...waitlist]] (Clerk), demo/ (public),
                            privacy/, terms/ (public legal pages),
@@ -154,7 +157,8 @@ src/
                            trade-price-chart, review-view, review-buttons, push-settings, filter-bar, nav-links, sync-button,
                            tag-chip, hide-on-login, delta-key-form, delta-connect (key steps + status, shared by Settings and
                            onboarding), auto-refresh, dashboard-view (dashboard for a user or the demo: P&L hero, "Your biggest
-                           leaks", score card + icon tiles, charts), landing (+ landing/steps, landing/trade-feed), score-card (radar),
+                           leaks" ledger, score card and ruled figures, charts), landing (+ landing/pinned, landing/steps, landing/trade-feed),
+                           score-card (bars), theme-toggle (light/dark/device, Settings), skeleton (loading screens),
                            site-menu (visitor header: section links, ☰ on phones), onboarding, telegram-connect and account-data (Settings), legal-page, logo, ui.ts
                            (shared classes), sync-status (header pill: synced / problem / not connected → Settings),
                            nav-links (desktop links + phone BottomNav)
@@ -265,12 +269,13 @@ queue of un-journaled closed trades, newest first, with Save & next.
   (→ `/settings`), only to users with a subscribed device. A push failure never blocks the Telegram message (`notifyPhone`).
 
 ### Public pages, onboarding and the demo
-- The landing page (rebuilt 2026-11-01, inspired by the layout of a competitor's site but with our own words, colours and
-  data): hero with a gradient headline, a live demo dashboard window, a bento grid (equity, behaviour score, sessions,
-  sync, AI), alternating feature rows, auto-advancing "How it works" steps, an animated trade feed, a feature marquee,
-  a founding-member pricing card, a closing call to action and a footer. Every number comes from the demo account.
-  Effects are CSS only (`.bg-grid`, `.text-gradient`, `.reveal` scroll-driven fade-ins, `.scroll-progress`, `.marquee`,
-  `.wave` in `globals.css`) and switch off for reduced motion.
+- The landing page (redesigned with Hallmark on 2026-11-01, Bento Grid shape): a Counter hero (head, one line, *Try the live
+  demo* and *Join the waitlist*) beside a **screenshot of the demo dashboard** (`public/screens/demo-ledger.png` and
+  `-dark.png`, shown by mode with `.for-light` / `.for-dark`); a bento of the demo's figures; a pinned run of four product
+  views (`landing/pinned.tsx`, sticky on wide screens, inline on phones); how it works as numbered rows; the demo's latest
+  trades as a ruled ledger; pricing as a ruled offer; one ink band with the actions again; an index-columns footer.
+  Every number comes from the demo account. **Re-take the screenshots after `npm run demo:seed` or a dashboard change**
+  (a puppeteer script forcing light and dark; `capture.mjs` from Hallmark only forces dark). No scroll animations.
 - `/` decides: signed out → the landing page (`components/landing.tsx`); signed in but never synced and no working key →
   onboarding (connect Delta, auto-refreshing every 5 s while the key is `pending`); otherwise the dashboard.
 - The header shows Demo / Sign in / Join the waitlist when signed out (`<Show when="signed-in">` from Clerk, inside
@@ -286,7 +291,7 @@ Stop discipline (no `moved_stop`, among trades with a stop), Position sizing (no
 Emotional control (no `sized_up_after_loss`/`added_to_loser`/`liquidated`), Patience (no `overtrading`/`hold:scalp`),
 Journaling (journaled). Overall = average; 80+ Strong, 60+ Solid, 40+ Needs work, else Leaking. Trend = the last ≤20 trades
 vs the ≤20 before. Needs 5 closed trades. It measures process, not P&L. Shown on the dashboard (with the weakest dimension's
-tip) and on the landing page (the demo trader). Owner: 53 Needs work on 2026-11-01 (journaling 1%).
+tip) as ruled bars, the weakest in the accent, and on the landing page (the demo trader). Owner: 53 Needs work on 2026-11-01 (journaling 1%).
 
 ### Per-user Delta keys (`lib/keys/`, `/settings`)
 - On Settings → Delta Exchange a user creates a **Read Data** key on Delta, whitelists our server's IPv4 and IPv6
@@ -378,14 +383,18 @@ Add to Home Screen.
 
 - Match the surrounding code: comment density, naming, idioms. Pure logic in `lib/`, tested.
 - Times: store UTC ms; display IST (`Asia/Kolkata`); daily buckets by IST date.
-- Money in USD; `formatMoney`, P&L text green/red; charts use the validated blue/red diverging
-  tokens in `globals.css` (validated against the dark surface).
-- **Design: dark only, teal brand** (decided 2026-11-01). `<html class="dark">` plus `@custom-variant dark` turn every
-  `dark:` style on; there is no light theme. Brand tokens `--brand` (#2dd4bf), `--brand-strong`, `--brand-ink`, `--brand-soft`
-  (Tailwind `bg-brand`, `text-brand`…) are for interactive UI only (buttons, links, active tabs, the logo), **never for
-  numbers**: P&L keeps green/red text and blue/red charts. Use the shared classes in `components/ui.ts` (`buttonPrimary`,
-  `buttonSecondary`, `card`, `link`). Phones get a bottom tab bar (`BottomNav`) and card lists; check every page at 390px.
-  Clerk's forms take the same colours through `appearance.variables` in `layout.tsx`.
+- Money in USD; `formatMoney`, P&L text `text-gain` / `text-loss` (via `pnlClass`) always with its sign; charts use the
+  blue/red diverging `--viz-*` tokens in `globals.css`, validated with the dataviz checker on both papers (green against
+  red fails colour-blind readers). The candlestick chart resolves the oklch tokens to rgb (lightweight-charts can't parse oklch).
+- **Design: Hallmark Editorial, light first with a dark mode** (redesigned 2026-11-01; `design.md` is the rule). Warm
+  paper, ink, one printer's green as a signal only (active nav, focus, link hover), square corners, a heavy 4px ink rule
+  (`.opens`) opening each section or table, 1px hairlines between rows, paper steps (`bg-paper-2`) for depth, no shadows.
+  Heads: the condensed display face; big numbers `.figure-display`; labels, controls, nav and table heads `.face-label`
+  (sentence case, never uppercase); reading text in the serif. Dark mode is re-derived in `globals.css`, chosen by the
+  device or by Settings → Appearance (`data-mode` on `<html>`, set before paint by a script in `layout.tsx`). Use
+  `components/ui.ts` (`buttonPrimary`, `buttonSecondary`, `input`, `well`, `link`), one filled primary per screen. Phones
+  get the bottom tab bar and ruled lists; check every page at 375px. Before shipping UI, run Hallmark's
+  `sloplint` (see "Gotchas" for the Windows flag). Clerk's forms take the tokens through `appearance` in `layout.tsx`.
 - Next 16 with Cache Components: pages reading data call `await connection()` and need a
   `loading.tsx` or `<Suspense>`; `usePathname` in the layout needs Suspense. Run `npx next typegen` for new routes.
 - Never weaken security defaults: localhost binding, auth fail-closed, no secrets in code or logs.
@@ -443,6 +452,8 @@ plus an Elastic IP would cost more than Lightsail, whose plans include the stati
 - Claude Code may kill background `npm run dev` / `npm run bot` when memory is low. Stopping a background
   `npx next dev` task can leave its `node … start-server.js` child running on port 3000; the next
   `next dev` then exits with "Another next dev server is already running". Kill that PID.
+- Git Bash rewrites `/demo` arguments into Windows paths: run Hallmark's `capture.mjs` and `sloplint --url` with
+  `MSYS_NO_PATHCONV=1`. The dev server sometimes keeps serving the old `globals.css`; restart it after editing the CSS.
 - `.env.local` points at Turso, and opening the database runs migrations: a local `npm run dev` or
   script with a new migration **migrates the live database**. Test against `DATABASE_URL=file:data/dev.db`
   (a copy of `data/journal.db`) until the rollout.
@@ -494,6 +505,10 @@ Week plan and progress:
 
 ## Changelog
 
+- **2026-11-01**: Full redesign with Hallmark (Editorial theme): light first with a dark mode, Bricolage Grotesque and
+  Source Serif 4, square ink-and-paper system (`tokens.css`, `base.css`, `design.md`), every page and component rebuilt;
+  landing page shows real dashboard screenshots; Settings → Appearance; skeleton loading screens; the trade page's
+  "All trades" link now goes to `/trades`; the score radar became bars; validated light and dark chart ramps.
 - **2026-11-01**: Edgebook Day 6: `/privacy` and `/terms` (DPDP Act), Settings → Your data (JSON and CSV export,
   account deletion), database-backed rate limits (`rate_limits`, migration 0011), `bot.heartbeat` + `GET /api/health`,
   security headers, users' emails stored from Clerk, `telegram_links` added to the claim/export/delete table list.

@@ -1,0 +1,36 @@
+[
+ {
+  "mode": "redesign",
+  "depth": "full",
+  "scope": "site",
+  "shape": "Bento Grid",
+  "theme": "editorial",
+  "axes": "light/display-condensed/chromatic-green",
+  "hero": "Counter",
+  "nav": "slab",
+  "footer": "index columns",
+  "imagery": "screenshots of the demo dashboard, light and dark",
+  "photos": [],
+  "entry": "none",
+  "fingerprint": "41b1e8",
+  "sections": [
+   "hero:counter",
+   "bento",
+   "pinned",
+   "rows:steps",
+   "table:ledger",
+   "offer:pricing",
+   "band:ink",
+   "footer:index"
+  ],
+  "signature": "the biggest-leaks ledger set as a market table",
+  "waived": [
+   "85",
+   "79",
+   "77",
+   "78"
+  ],
+  "prompt": "A trading journal for Indian traders on Delta Exchange that shows which habits cost them money",
+  "date": "2026-11-01"
+ }
+]
