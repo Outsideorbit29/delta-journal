@@ -8,7 +8,9 @@ import { suggestionsFor } from "@/lib/journal/entry";
 import { EMPTY_ENTRY, loadJournalEntry, saveJournalEntry } from "@/lib/journal/save";
 import { formatMoney, formatPercent } from "@/lib/format";
 import { istDate } from "@/lib/stats";
+import { explainSyncError } from "@/lib/sync-errors";
 import type { TelegramClient, TgCallbackQuery, TgMessage, TgUpdate } from "./api";
+import { STATE_NOTIFY_SINCE, unlinkTelegram, redeemLinkCode, userForChat } from "./links";
 import { applyCallback, changesEntry, escapeHtml, parseCallback, renderReview, renderTradeCard, suggestionSummary, type Stage } from "./render";
 
 /** AI features the bot uses; null when no AI Gateway key is configured. Injected so tests use fakes. */
@@ -18,12 +20,13 @@ export interface BotAi {
   review(days: number): Promise<ReviewRow | null>;
 }
 
+/** One user's view of the shared bot. */
 export interface BotContext {
-  /** The Edgebook user this bot serves (the owner until accounts can link their own chats). */
+  /** The Edgebook user this context acts for. */
   userId: string;
   db: Db;
   tg: TelegramClient;
-  /** The only chat the bot answers. Null until configured, when it only helps you find your chat id. */
+  /** The user's linked Telegram chat, or null when they have not linked one (phone notifications only). */
   chatId: string | null;
   /** Pulls new data from Delta; injected so tests do not call the exchange. */
   sync: () => Promise<{ fills: number; rebuild: { trades: number } | null }>;
@@ -38,6 +41,7 @@ export const COMMANDS = [
   { command: "today", description: "Today's P&L (IST)" },
   { command: "sync", description: "Sync with Delta now" },
   { command: "review", description: "AI coaching review of the last 7 days" },
+  { command: "disconnect", description: "Disconnect this chat from Edgebook" },
   { command: "help", description: "What this bot does" },
 ];
 
@@ -49,14 +53,24 @@ const HELP = [
   "/today: today's P&L",
   "/sync: sync with Delta now",
   "/review: AI coaching review of the last 7 days (also sent on Sunday evenings)",
+  "/disconnect: stop messages here (your journal stays in Edgebook)",
 ].join("\n");
 
-const MAX_CARDS_PER_RUN = 10;
+/** Shown to a chat that is not linked to an account. */
+const NOT_LINKED = [
+  "This is the Edgebook bot. It messages you when a trade closes so you can journal it in a few taps.",
+  "",
+  "To connect it, open Edgebook → <b>Settings</b> → <b>Telegram</b> and tap <b>Connect Telegram</b>.",
+].join("\n");
+
+const LINK_FAILED = "That link has expired or was already used. In Edgebook, open Settings → Telegram and tap Connect Telegram again.";
+
+/** At most this many trades are announced per user per run; the rest wait for the next. */
+export const MAX_CARDS_PER_RUN = 10;
 const JOURNAL_COMMAND_LIMIT = 5;
 const JOURNAL_COMMAND_DAYS = 7;
 const DAY_MS = 86_400_000;
 
-const STATE_NOTIFY_SINCE = "telegram.notify_since";
 const STATE_WEEKLY_REVIEW = "telegram.weekly_review_for";
 const IST_OFFSET_MS = 330 * 60_000;
 /** The automatic review goes out on Sunday from this hour (IST). */
@@ -64,18 +78,68 @@ const WEEKLY_REVIEW_HOUR = 20;
 
 // --- entry points --------------------------------------------------------------
 
+/** The one bot every user shares: it finds the user behind each chat. */
+export interface SharedBot {
+  db: Db;
+  tg: TelegramClient;
+  /** Builds the context for a user and their linked chat. */
+  context: (userId: string, chatId: string) => BotContext;
+  now?: () => number;
+}
+
+/**
+ * Routes an update to the user whose chat sent it. A chat that is not linked
+ * can only link itself ("/start <code>" from Settings) or ask what the bot is.
+ */
+export async function routeUpdate(bot: SharedBot, update: TgUpdate): Promise<void> {
+  const msg = update.message ?? update.callback_query?.message;
+  if (!msg) return;
+  const chatId = String(msg.chat.id);
+
+  const code = update.message?.text?.trim().match(/^\/start(?:@\w+)?\s+(\S+)$/)?.[1];
+  if (code) return linkChat(bot, update.message!, code);
+
+  const userId = await userForChat(bot.db, chatId);
+  if (userId) return handleUpdate(bot.context(userId, chatId), update);
+
+  if (update.callback_query) return bot.tg.answerCallback(update.callback_query.id, "This chat is not connected to Edgebook.");
+  // Only private chats are answered, and only for commands, so the bot cannot be used to spam a group.
+  if (msg.chat.type === "private" && update.message?.text?.startsWith("/")) await bot.tg.sendMessage(chatId, NOT_LINKED);
+}
+
+async function linkChat(bot: SharedBot, msg: TgMessage, code: string) {
+  const chatId = String(msg.chat.id);
+  // A group would show one person's trades to everyone in it.
+  if (msg.chat.type !== "private") {
+    await bot.tg.sendMessage(chatId, "Edgebook only connects to a private chat. Open the link from Settings on your phone instead.");
+    return;
+  }
+  const name = msg.from?.username ? `@${msg.from.username}` : (msg.from?.first_name ?? null);
+  const userId = await redeemLinkCode(bot.db, code, chatId, name, bot.now?.() ?? Date.now());
+  if (!userId) {
+    await bot.tg.sendMessage(chatId, LINK_FAILED);
+    return;
+  }
+  await bot.tg.sendMessage(
+    chatId,
+    ["<b>Connected to Edgebook ✓</b>", "", "From now on I'll message you here when a trade closes, so you can journal it in a few taps.", "", HELP].join("\n"),
+  );
+}
+
 export async function handleUpdate(ctx: BotContext, update: TgUpdate): Promise<void> {
   if (update.callback_query) await handleCallback(ctx, update.callback_query);
   else if (update.message) await handleMessage(ctx, update.message);
 }
 
 /**
- * Sends a journaling card for each trade that closed since the bot was first
- * set up and has neither a card nor a journal entry yet. The first run only
- * records the starting point, so your history does not flood the chat.
+ * Announces each trade that closed since the user's starting point (their
+ * first run, or when they last linked or unlinked a chat) and is not yet
+ * journaled: a journaling card in their chat and a phone notification. The
+ * first run only records the starting point, so history does not flood in.
+ * Without a chat, the starting point moves past each trade once it is pushed.
  */
 export async function notifyClosedTrades(ctx: BotContext): Promise<number> {
-  if (!ctx.chatId) return 0;
+  if (!ctx.chatId && !ctx.push) return 0;
   const now = ctx.now?.() ?? Date.now();
   const since = await getState(ctx.db, STATE_NOTIFY_SINCE, ctx.userId);
   if (since === null) {
@@ -89,14 +153,20 @@ export async function notifyClosedTrades(ctx: BotContext): Promise<number> {
     .where(and(eq(schema.telegramMessages.userId, ctx.userId), eq(schema.telegramMessages.kind, "trade")));
   const journaled = ctx.db.select({ id: schema.journalEntries.tradeId }).from(schema.journalEntries).where(eq(schema.journalEntries.userId, ctx.userId));
   const due = await ctx.db
-    .select({ id: schema.trades.id, symbol: schema.trades.symbol, direction: schema.trades.direction, netPnl: schema.trades.netPnl })
+    .select({
+      id: schema.trades.id,
+      symbol: schema.trades.symbol,
+      direction: schema.trades.direction,
+      netPnl: schema.trades.netPnl,
+      closedTs: schema.trades.closedTs,
+    })
     .from(schema.trades)
     .where(
       and(
         eq(schema.trades.userId, ctx.userId),
         eq(schema.trades.status, "closed"),
         gte(schema.trades.closedTs, Number(since)),
-        notInArray(schema.trades.id, carded),
+        ctx.chatId ? notInArray(schema.trades.id, carded) : undefined,
         notInArray(schema.trades.id, journaled),
       ),
     )
@@ -104,7 +174,7 @@ export async function notifyClosedTrades(ctx: BotContext): Promise<number> {
     .limit(MAX_CARDS_PER_RUN);
 
   for (const t of due) {
-    await sendTradeCard(ctx, t.id);
+    if (ctx.chatId) await sendTradeCard(ctx, t.id);
     await notifyPhone(ctx, {
       title: `${t.symbol} ${t.direction} closed · ${formatMoney(t.netPnl, { sign: true })}`,
       body: "Tap to journal it while it's fresh.",
@@ -112,7 +182,26 @@ export async function notifyClosedTrades(ctx: BotContext): Promise<number> {
       tag: `trade-${t.id}`,
     });
   }
+  // With a chat the cards mark what was sent; without one, the starting point does.
+  const last = due.at(-1)?.closedTs;
+  if (!ctx.chatId && last != null) await setState(ctx.db, STATE_NOTIFY_SINCE, String(last + 1), ctx.userId);
   return due.length;
+}
+
+/**
+ * Tells the user when their sync starts failing (once per distinct problem,
+ * not every minute) and when it works again. `previous` is the last error
+ * they were told about.
+ */
+export async function notifySyncProblem(ctx: BotContext, error: string | null, previous: string | null): Promise<void> {
+  if (error === previous) return;
+  if (!error) {
+    if (ctx.chatId) await ctx.tg.sendMessage(ctx.chatId, "Delta sync is working again.").catch(() => {});
+    return;
+  }
+  const plain = explainSyncError(error);
+  if (ctx.chatId) await ctx.tg.sendMessage(ctx.chatId, `<b>Delta sync stopped working</b>\n${escapeHtml(plain)}`).catch(() => {});
+  await notifyPhone(ctx, { title: "Delta sync stopped working", body: plain, url: "/settings", tag: "sync-error" });
 }
 
 // --- messages -------------------------------------------------------------------
@@ -121,17 +210,8 @@ async function handleMessage(ctx: BotContext, msg: TgMessage) {
   const chatId = String(msg.chat.id);
   const text = msg.text?.trim() ?? "";
 
-  if (!ctx.chatId) {
-    if (text.startsWith("/start")) {
-      await ctx.tg.sendMessage(
-        chatId,
-        `Your chat id is <code>${chatId}</code>.\nAdd <code>TELEGRAM_CHAT_ID=${chatId}</code> to .env.local and restart <code>npm run bot</code>.`,
-      );
-    }
-    return;
-  }
-  // Everyone else gets no answer at all.
-  if (chatId !== ctx.chatId) return;
+  // A context only ever answers the user's own linked chat.
+  if (!ctx.chatId || chatId !== ctx.chatId) return;
 
   if (msg.reply_to_message) {
     const tradeId = await tradeForMessage(ctx, msg.reply_to_message.message_id);
@@ -147,7 +227,16 @@ async function handleMessage(ctx: BotContext, msg: TgMessage) {
   if (command === "/today") return todayCommand(ctx);
   if (command === "/sync") return syncCommand(ctx);
   if (command === "/review") return reviewCommand(ctx);
+  if (command === "/disconnect") return disconnectCommand(ctx);
   await ctx.tg.sendMessage(chatId, HELP);
+}
+
+async function disconnectCommand(ctx: BotContext) {
+  await unlinkTelegram(ctx.db, ctx.userId, ctx.now?.() ?? Date.now());
+  await ctx.tg.sendMessage(
+    ctx.chatId!,
+    "Disconnected. I won't message you here any more; your trades and journal stay in Edgebook. Connect again any time from Settings → Telegram.",
+  );
 }
 
 async function addVoiceNote(ctx: BotContext, tradeId: string, fileId: string) {
@@ -217,6 +306,7 @@ async function handleSuggestionTap(ctx: BotContext, cq: TgCallbackQuery, accept:
     .from(schema.telegramMessages)
     .where(
       and(
+        eq(schema.telegramMessages.userId, ctx.userId),
         eq(schema.telegramMessages.chatId, ctx.chatId!),
         eq(schema.telegramMessages.messageId, messageId),
         eq(schema.telegramMessages.kind, "suggestion"),
@@ -259,24 +349,28 @@ async function reviewCommand(ctx: BotContext) {
   await sendReview(ctx);
 }
 
-async function sendReview(ctx: BotContext): Promise<boolean> {
+/** Writes a review of the last 7 days and sends it to the chat, if there is one. `quiet` skips "nothing to review". */
+async function sendReview(ctx: BotContext, { quiet = false } = {}): Promise<boolean> {
   try {
     const row = await ctx.ai!.review(7);
     if (!row) {
-      await ctx.tg.sendMessage(ctx.chatId!, "No closed trades in the last 7 days, so there is nothing to review.");
+      if (ctx.chatId && !quiet) await ctx.tg.sendMessage(ctx.chatId, "No closed trades in the last 7 days, so there is nothing to review.");
       return false;
     }
-    await ctx.tg.sendMessage(ctx.chatId!, renderReview(row.review, row));
+    if (ctx.chatId) await ctx.tg.sendMessage(ctx.chatId, renderReview(row.review, row));
     return true;
   } catch (err) {
-    await ctx.tg.sendMessage(ctx.chatId!, escapeHtml(explainAiError(err)));
+    if (ctx.chatId) await ctx.tg.sendMessage(ctx.chatId, escapeHtml(explainAiError(err)));
     return false;
   }
 }
 
-/** Sends the weekly review once, on Sunday evening IST. Safe to call every minute. */
+/**
+ * Writes the weekly review once, on Sunday evening IST, and sends it to the
+ * user's chat and phone. Weeks without trades are skipped quietly. Safe to call every minute.
+ */
 export async function maybeSendWeeklyReview(ctx: BotContext): Promise<boolean> {
-  if (!ctx.ai || !ctx.chatId) return false;
+  if (!ctx.ai || (!ctx.chatId && !ctx.push)) return false;
   const now = ctx.now?.() ?? Date.now();
   const ist = new Date(now + IST_OFFSET_MS);
   if (ist.getUTCDay() !== 0 || ist.getUTCHours() < WEEKLY_REVIEW_HOUR) return false;
@@ -284,7 +378,7 @@ export async function maybeSendWeeklyReview(ctx: BotContext): Promise<boolean> {
   if ((await getState(ctx.db, STATE_WEEKLY_REVIEW, ctx.userId)) === week) return false;
   // Marked before sending, so a failure is not retried every minute; /review can be used instead.
   await setState(ctx.db, STATE_WEEKLY_REVIEW, week, ctx.userId);
-  const sent = await sendReview(ctx);
+  const sent = await sendReview(ctx, { quiet: true });
   if (sent) await notifyPhone(ctx, { title: "Your weekly trading review is ready", body: "See the habits that cost you most this week.", url: "/review", tag: "weekly-review" });
   return sent;
 }
@@ -418,7 +512,9 @@ async function tradeForMessage(ctx: BotContext, messageId: number): Promise<stri
   const [row] = await ctx.db
     .select({ tradeId: schema.telegramMessages.tradeId })
     .from(schema.telegramMessages)
-    .where(and(eq(schema.telegramMessages.chatId, ctx.chatId!), eq(schema.telegramMessages.messageId, messageId)));
+    .where(
+      and(eq(schema.telegramMessages.userId, ctx.userId), eq(schema.telegramMessages.chatId, ctx.chatId!), eq(schema.telegramMessages.messageId, messageId)),
+    );
   return row?.tradeId ?? null;
 }
 
@@ -433,7 +529,14 @@ async function latestCard(ctx: BotContext, tradeId: string): Promise<number | nu
   const [card] = await ctx.db
     .select({ messageId: schema.telegramMessages.messageId })
     .from(schema.telegramMessages)
-    .where(and(eq(schema.telegramMessages.chatId, ctx.chatId!), eq(schema.telegramMessages.tradeId, tradeId), eq(schema.telegramMessages.kind, "trade")))
+    .where(
+      and(
+        eq(schema.telegramMessages.userId, ctx.userId),
+        eq(schema.telegramMessages.chatId, ctx.chatId!),
+        eq(schema.telegramMessages.tradeId, tradeId),
+        eq(schema.telegramMessages.kind, "trade"),
+      ),
+    )
     .orderBy(desc(schema.telegramMessages.createdAt))
     .limit(1);
   return card?.messageId ?? null;

@@ -5,7 +5,18 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { openDatabase, schema, type Db } from "@/db";
 import type { ReplyMarkup, TelegramClient, TgMessage, TgUpdate } from "./api";
-import { handleUpdate, maybeSendWeeklyReview, notifyClosedTrades, type BotAi, type BotContext } from "./bot";
+import {
+  getState,
+  handleUpdate,
+  maybeSendWeeklyReview,
+  notifyClosedTrades,
+  notifySyncProblem,
+  routeUpdate,
+  type BotAi,
+  type BotContext,
+  type SharedBot,
+} from "./bot";
+import { createLinkCode, STATE_NOTIFY_SINCE, userForChat } from "./links";
 
 const CHAT = "1001";
 const STRANGER = "666";
@@ -69,10 +80,10 @@ function ctx(tg: FakeTelegram, chatId: string | null = CHAT, ai: BotAi | null = 
   return { userId: "u1", db, tg, chatId, sync: async () => ({ fills: 0, rebuild: { trades: 0 } }), ai, now: () => now };
 }
 
-async function insertTrade(id: string, closedTs: number, netPnl = -4.75) {
+async function insertTrade(id: string, closedTs: number, netPnl = -4.75, userId = "u1") {
   await db.insert(schema.trades).values({
     id,
-    userId: "u1",
+    userId,
     productId: 1,
     symbol: "XAUTUSD",
     contractType: "perpetual_futures",
@@ -102,8 +113,8 @@ async function insertTrade(id: string, closedTs: number, netPnl = -4.75) {
     warnings: [],
   });
   await db.insert(schema.tradeTags).values([
-    { tradeId: id, userId: "u1", tag: "after_loss", source: "auto", detail: null },
-    { tradeId: id, userId: "u1", tag: "moved_stop", source: "auto", detail: null },
+    { tradeId: id, userId, tag: "after_loss", source: "auto", detail: null },
+    { tradeId: id, userId, tag: "moved_stop", source: "auto", detail: null },
   ]);
 }
 
@@ -187,7 +198,7 @@ describe("Telegram bot", () => {
     expect(entry.notes).toBe("FOMO entry");
   });
 
-  it("ignores everyone except the configured chat", async () => {
+  it("a user's context ignores every other chat", async () => {
     const tg = new FakeTelegram();
     const [card] = await db.select().from(schema.telegramMessages).where(eq(schema.telegramMessages.tradeId, "t2"));
     await handleUpdate(ctx(tg), say("/today", { chatId: STRANGER }));
@@ -199,12 +210,10 @@ describe("Telegram bot", () => {
     expect(entry.setup).toBeNull();
   });
 
-  it("before a chat is configured, only tells you your chat id", async () => {
+  it("without a chat or a phone, announces nothing", async () => {
     const tg = new FakeTelegram();
-    await handleUpdate(ctx(tg, null), say("hello", { chatId: STRANGER }));
+    await handleUpdate(ctx(tg, null), say("/today", { chatId: STRANGER }));
     expect(tg.sent).toHaveLength(0);
-    await handleUpdate(ctx(tg, null), say("/start", { chatId: STRANGER }));
-    expect(tg.sent[0].text).toContain(`TELEGRAM_CHAT_ID=${STRANGER}`);
     expect(await notifyClosedTrades(ctx(tg, null))).toBe(0);
   });
 
@@ -329,5 +338,119 @@ describe("phone notifications from the bot", () => {
     now += 60_000;
     expect(await notifyClosedTrades(broken)).toBe(1);
     expect(tg.sent).toHaveLength(1);
+  });
+});
+
+describe("phone-only users (no Telegram chat)", () => {
+  it("pushes each new close once and moves their starting point past it", async () => {
+    const tg = new FakeTelegram();
+    const pushed: { url: string }[] = [];
+    const phoneOnly: BotContext = { ...ctx(tg, null), userId: "p1", push: async (m) => void pushed.push(m) };
+    expect(await notifyClosedTrades(phoneOnly)).toBe(0); // first run: starting point only
+    const closedTs = now + 1_000;
+    await insertTrade("p-1", closedTs, 2, "p1");
+    now += 60_000;
+    expect(await notifyClosedTrades(phoneOnly)).toBe(1);
+    expect(await notifyClosedTrades(phoneOnly)).toBe(0);
+    expect(pushed.map((m) => m.url)).toEqual(["/trades/p-1"]);
+    expect(tg.sent).toHaveLength(0);
+    expect(await getState(db, STATE_NOTIFY_SINCE, "p1")).toBe(String(closedTs + 1));
+  });
+
+  it("gets the weekly review on their phone", async () => {
+    const pushed: { url: string }[] = [];
+    const ai: BotAi = {
+      transcribe: async () => "",
+      suggest: async () => ({ setup: null, emotions: [], mistakes: [], followedPlan: null }),
+      review: async () => ({ id: 2, userId: "p1", periodStart: 0, periodEnd: 0, tradeCount: 1, model: "fake", review: {} as never, inputTokens: 1, outputTokens: 1, createdAt: 0 }),
+    };
+    now = Date.UTC(2026, 10, 8, 14, 31); // Sunday 20:01 IST
+    const phoneOnly: BotContext = { ...ctx(new FakeTelegram(), null, ai), userId: "p1", push: async (m) => void pushed.push(m) };
+    expect(await maybeSendWeeklyReview(phoneOnly)).toBe(true);
+    expect(pushed.map((m) => m.url)).toEqual(["/review"]);
+  });
+});
+
+describe("sync problems", () => {
+  it("tells the user once per distinct problem, in plain words, and when it works again", async () => {
+    const tg = new FakeTelegram();
+    const pushed: { title: string }[] = [];
+    const c: BotContext = { ...ctx(tg), push: async (m) => void pushed.push(m) };
+    const ipError = 'Delta GET /v2/fills failed (401): {"error":{"code":"ip_not_whitelisted_for_api_key"}}';
+    await notifySyncProblem(c, ipError, null);
+    await notifySyncProblem(c, ipError, ipError);
+    await notifySyncProblem(c, null, ipError);
+    await notifySyncProblem(c, null, null);
+    expect(tg.sent.map((s) => s.text)).toEqual([expect.stringContaining("IP whitelist"), "Delta sync is working again."]);
+    expect(pushed.map((m) => m.title)).toEqual(["Delta sync stopped working"]);
+  });
+});
+
+describe("one bot shared by every user", () => {
+  const ALICE_CHAT = "5001";
+  const BOB_CHAT = "5002";
+  const contexts: string[] = [];
+  const shared = (tg: FakeTelegram): SharedBot => ({
+    db,
+    tg,
+    now: () => now,
+    context: (userId, chatId) => {
+      contexts.push(`${userId}@${chatId}`);
+      return { userId, db, tg, chatId, sync: async () => ({ fills: 0, rebuild: null }), ai: null, now: () => now };
+    },
+  });
+  const message = (text: string, chatId: string, type: "private" | "group" = "private"): TgUpdate => ({
+    update_id: updateId++,
+    message: { message_id: updateId + 9000, chat: { id: Number(chatId), type }, from: { id: Number(chatId), username: `u${chatId}` }, text },
+  });
+
+  it("only explains itself to chats that are not linked, and never in groups", async () => {
+    const tg = new FakeTelegram();
+    await routeUpdate(shared(tg), message("/start", ALICE_CHAT));
+    await routeUpdate(shared(tg), message("hello", ALICE_CHAT));
+    await routeUpdate(shared(tg), message("/today", ALICE_CHAT, "group"));
+    expect(tg.sent.map((s) => s.text)).toEqual([expect.stringContaining("<b>Settings</b> → <b>Telegram</b>")]);
+    expect(contexts).toEqual([]);
+
+    await routeUpdate(shared(tg), tap(1, "s:v:range", ALICE_CHAT));
+    expect(tg.answers.at(-1)?.text).toBe("This chat is not connected to Edgebook.");
+  });
+
+  it("links each chat to its own account and routes it there", async () => {
+    const tg = new FakeTelegram();
+    await insertTrade("alice-1", now - 1_000, 7, "alice");
+    await insertTrade("bob-1", now - 1_000, -9, "bob");
+
+    // A link opened in a group is refused, and the code still works afterwards in a private chat.
+    const aliceCode = await createLinkCode(db, "alice", now);
+    await routeUpdate(shared(tg), message(`/start ${aliceCode}`, "-77", "group"));
+    expect(await userForChat(db, "-77")).toBeNull();
+    await routeUpdate(shared(tg), message(`/start ${aliceCode}`, ALICE_CHAT));
+    await routeUpdate(shared(tg), message(`/start ${await createLinkCode(db, "bob", now)}`, BOB_CHAT));
+    expect(tg.sent.filter((s) => s.text.includes("Connected to Edgebook")).map((s) => s.chatId)).toEqual([ALICE_CHAT, BOB_CHAT]);
+    expect(await userForChat(db, ALICE_CHAT)).toBe("alice");
+
+    tg.sent = [];
+    await routeUpdate(shared(tg), message("/today", ALICE_CHAT));
+    await routeUpdate(shared(tg), message("/today", BOB_CHAT));
+    expect(contexts).toEqual([`alice@${ALICE_CHAT}`, `bob@${BOB_CHAT}`]);
+    expect(tg.sent.map((s) => [s.chatId, s.text.split("\n")[0]])).toEqual([
+      [ALICE_CHAT, "<b>Today: +$7.00</b>"],
+      [BOB_CHAT, "<b>Today: -$9.00</b>"],
+    ]);
+
+    // A used code cannot take over a chat.
+    await routeUpdate(shared(tg), message(`/start ${aliceCode}`, BOB_CHAT));
+    expect(await userForChat(db, BOB_CHAT)).toBe("bob");
+    expect(tg.sent.at(-1)!.text).toContain("expired or was already used");
+  });
+
+  it("disconnects a chat on /disconnect", async () => {
+    const tg = new FakeTelegram();
+    await routeUpdate(shared(tg), message("/disconnect", BOB_CHAT));
+    expect(await userForChat(db, BOB_CHAT)).toBeNull();
+    expect(tg.sent[0].text).toContain("Disconnected");
+    await routeUpdate(shared(tg), message("/today", BOB_CHAT));
+    expect(tg.sent.at(-1)!.text).toContain("Connect Telegram");
   });
 });

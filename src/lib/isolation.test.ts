@@ -24,6 +24,9 @@ const { buildReviewInput, listReviews } = await import("@/lib/ai/review");
 const { saveSubscription, removeSubscription, sendPush } = await import("@/lib/push");
 const { getDeltaKeyStatus, removeDeltaKey, saveDeltaKey } = await import("@/lib/keys/credentials");
 const { generateSealKeys } = await import("@/lib/keys/sealed");
+const { chatForUser, createLinkCode, getTelegramLink, unlinkTelegram, redeemLinkCode, userForChat } = await import("@/lib/telegram/links");
+const { handleUpdate } = await import("@/lib/telegram/bot");
+type BotContext = import("@/lib/telegram/bot").BotContext;
 
 const A = "user_A";
 const B = "user_B";
@@ -148,6 +151,30 @@ describe("each user only sees their own data", () => {
     await removeSubscription(db, A, "https://push.example/b");
     expect((await sendPush(db, B, { title: "t", body: "b", url: "/" }, send)).sent).toBe(1);
     expect(sentTo).toEqual(["https://push.example/b"]);
+  });
+
+  it("keeps each user's Telegram chat separate, even after a chat moves to another account", async () => {
+    const code = await createLinkCode(db, B, T0);
+    expect(await redeemLinkCode(db, code, "chat-1", "@b", T0)).toBe(B);
+    expect(await getTelegramLink(db, A, T0)).toMatchObject({ linked: false, chatName: null });
+    expect(await chatForUser(db, A)).toBeNull();
+    await unlinkTelegram(db, A, T0);
+    expect(await userForChat(db, "chat-1")).toBe(B);
+
+    // B's card in the chat, then the chat moves to A: A's taps on B's old card do nothing.
+    const [bTrade] = await db.select().from(schema.trades).where(eq(schema.trades.userId, B));
+    await db.insert(schema.telegramMessages).values({ chatId: "chat-1", messageId: 1, userId: B, tradeId: bTrade.id, kind: "trade", createdAt: T0 });
+    expect(await redeemLinkCode(db, await createLinkCode(db, A, T0), "chat-1", "@a", T0)).toBe(A);
+    const answers: (string | undefined)[] = [];
+    const tg = {
+      answerCallback: async (_id: string, text?: string) => void answers.push(text),
+      editMessage: async () => {},
+      sendMessage: async () => ({ message_id: 2, chat: { id: 1 } }),
+    } as unknown as BotContext["tg"];
+    const ctxA: BotContext = { userId: A, db, tg, chatId: "chat-1", sync: async () => ({ fills: 0, rebuild: null }), ai: null };
+    await handleUpdate(ctxA, { update_id: 1, callback_query: { id: "q", from: { id: 1 }, data: "s:v:breakout", message: { message_id: 1, chat: { id: "chat-1" as never } } } });
+    expect(answers).toEqual(["This button is no longer linked to a trade."]);
+    expect((await loadJournalEntry(db, B, bTrade.id))?.setup ?? null).toBeNull();
   });
 
   it("shows and deletes only the user's own Delta key", async () => {

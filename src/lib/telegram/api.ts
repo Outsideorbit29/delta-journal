@@ -3,10 +3,14 @@
 
 export interface TgUser {
   id: number;
+  username?: string;
+  first_name?: string;
 }
 
 export interface TgChat {
   id: number;
+  /** "private" for a one-to-one chat with the bot; groups and channels are never linked. */
+  type?: "private" | "group" | "supergroup" | "channel";
 }
 
 export interface TgMessage {

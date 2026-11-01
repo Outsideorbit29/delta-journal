@@ -1,31 +1,37 @@
-// The Telegram journaling bot. Runs on your machine next to the web app:
+// The Edgebook Telegram bot and sync worker. Runs on the fixed-IP server:
 //   npm run bot
-// It long-polls Telegram (no public URL needed), syncs Delta every minute,
-// and messages you each newly closed trade with buttons to journal it.
+// It long-polls Telegram (no public URL needed) for every user's linked chat,
+// syncs every connected Delta account each minute, and tells each user about
+// their own newly closed trades, weekly review and sync problems, by Telegram
+// and phone notification.
 
 import { transcribe } from "ai";
-import { getDb, type Db } from "@/db";
+import { eq } from "drizzle-orm";
+import { getDb, schema, type Db } from "@/db";
 import { AI_MODELS, aiConfigured } from "@/lib/ai/models";
 import { generateReview } from "@/lib/ai/review";
 import { suggestFromNote } from "@/lib/ai/suggest";
 import { DeltaClient } from "@/lib/delta/client";
 import { sealPrivateKey } from "@/lib/keys/credentials";
-import { hasStoredKey, syncStoredKeys, syncWithStoredKey } from "@/lib/keys/sync-users";
+import { hasStoredKey, syncStoredKeys, syncWithStoredKey, type UserSyncResult } from "@/lib/keys/sync-users";
 import { pushConfigured, sendPush } from "@/lib/push";
 import { ownerUserId } from "@/lib/runtime";
 import { syncAll } from "@/lib/sync";
 import { TelegramApi, TelegramError } from "@/lib/telegram/api";
 import {
   COMMANDS,
+  MAX_CARDS_PER_RUN,
   getState,
-  handleUpdate,
   maybeSendWeeklyReview,
   notifyClosedTrades,
-  notifyPhone,
+  notifySyncProblem,
+  routeUpdate,
   setState,
   type BotAi,
   type BotContext,
+  type SharedBot,
 } from "@/lib/telegram/bot";
+import { adoptOwnerChat, chatForUser } from "@/lib/telegram/links";
 
 const POLL_TIMEOUT_SEC = 25;
 const SYNC_EVERY_MS = Math.max(15, Number(process.env.TELEGRAM_SYNC_SECONDS) || 60) * 1000;
@@ -39,50 +45,52 @@ const message = (err: unknown) => (err instanceof Error ? err.message : String(e
 async function main() {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) throw new Error("Set TELEGRAM_BOT_TOKEN in .env.local (create a bot with @BotFather in Telegram).");
-  const chatId = process.env.TELEGRAM_CHAT_ID?.trim() || null;
 
   const db = await getDb();
-  // Until accounts can link their own Telegram chats, the bot serves the owner.
-  const userId = ownerUserId();
-  const ctx: BotContext = {
+  const tg = new TelegramApi(token);
+  const owner = ownerUserId();
+  const ai = aiConfigured();
+  const push = pushConfigured();
+  const context = (userId: string, chatId: string | null): BotContext => ({
     userId,
     db,
-    tg: new TelegramApi(token),
+    tg,
     chatId,
-    sync: () => syncOwner(db, userId),
-    ai: aiConfigured() ? botAi(db, userId) : null,
-    push: pushConfigured() ? (message) => sendPush(db, userId, message) : null,
-  };
-  await ctx.tg.setCommands(COMMANDS);
+    sync: () => syncUser(db, userId, owner),
+    ai: ai ? botAi(db, userId) : null,
+    push: push ? (m) => sendPush(db, userId, m) : null,
+  });
+  const bot: SharedBot = { db, tg, context };
+  await tg.setCommands(COMMANDS);
 
-  if (!chatId) {
-    log("TELEGRAM_CHAT_ID is not set. Send /start to your bot in Telegram to get it.");
-  } else {
-    log(`Bot running for chat ${chatId} as user ${userId}. Syncing Delta every ${SYNC_EVERY_MS / 1000}s. Ctrl+C to stop.`);
-    log(ctx.ai ? "AI features on: voice notes, note suggestions and weekly reviews." : "AI features off (no AI_GATEWAY_API_KEY).");
-    log(ctx.push ? "Phone notifications on." : "Phone notifications off (no VAPID keys).");
-    log(sealPrivateKey() ? "Syncing every user who connected a Delta key." : "Not syncing other users (no DELTA_KEYS_PRIVATE_KEY).");
-    void syncLoop(ctx);
-  }
-  await pollLoop(ctx);
+  // The chat the bot served before accounts could link their own becomes the owner's.
+  const legacyChat = process.env.TELEGRAM_CHAT_ID?.trim();
+  if (legacyChat && (await adoptOwnerChat(db, owner, legacyChat))) log(`Linked TELEGRAM_CHAT_ID to the owner (${owner}).`);
+
+  log(`Bot running. Syncing Delta every ${SYNC_EVERY_MS / 1000}s; the owner is ${owner}. Ctrl+C to stop.`);
+  log(ai ? "AI features on: voice notes, note suggestions and weekly reviews." : "AI features off (no AI_GATEWAY_API_KEY).");
+  log(push ? "Phone notifications on." : "Phone notifications off (no VAPID keys).");
+  log(sealPrivateKey() ? "Syncing every user who connected a Delta key." : "Only syncing the owner (no DELTA_KEYS_PRIVATE_KEY).");
+  void syncLoop(db, owner, context);
+  await pollLoop(bot);
 }
 
-/** Receives button taps and messages. */
-async function pollLoop(ctx: BotContext) {
-  let offset = Number(await getState(ctx.db, STATE_OFFSET)) || 0;
+/** Receives every chat's button taps and messages. */
+async function pollLoop(bot: SharedBot) {
+  let offset = Number(await getState(bot.db, STATE_OFFSET)) || 0;
   let failures = 0;
   while (!stopping) {
     try {
-      const updates = await ctx.tg.getUpdates(offset, POLL_TIMEOUT_SEC);
+      const updates = await bot.tg.getUpdates(offset, POLL_TIMEOUT_SEC);
       failures = 0;
       for (const update of updates) {
         try {
-          await handleUpdate(ctx, update);
+          await routeUpdate(bot, update);
         } catch (err) {
           log("Could not handle update:", message(err));
         }
         offset = update.update_id + 1;
-        await setState(ctx.db, STATE_OFFSET, String(offset));
+        await setState(bot.db, STATE_OFFSET, String(offset));
       }
     } catch (err) {
       if (err instanceof TelegramError && err.code === 401) throw new Error("Telegram rejected TELEGRAM_BOT_TOKEN. Check it in .env.local.");
@@ -95,62 +103,94 @@ async function pollLoop(ctx: BotContext) {
 }
 
 /**
- * The owner syncs with their own stored key once they connect one in Settings,
- * and until then with the server's key from .env.local (DELTA_API_KEY).
+ * Syncs one user. The owner uses their own stored key once they connect one
+ * in Settings, and until then the server's key from .env.local (DELTA_API_KEY).
  */
-async function syncOwner(db: Db, userId: string) {
+async function syncUser(db: Db, userId: string, owner: string) {
   const privateKey = sealPrivateKey();
   if (privateKey && (await hasStoredKey(db, userId))) return syncWithStoredKey(db, userId, privateKey);
-  return syncAll(userId, DeltaClient.fromEnv());
+  if (userId === owner) return syncAll(userId, DeltaClient.fromEnv());
+  throw new Error("No Delta key is connected. Connect one in Edgebook → Settings.");
 }
 
-/** Syncs everyone else who connected a key. Their problems show on their own Settings page. */
-const userErrors = new Map<string, string>();
-async function syncOtherUsers(ctx: BotContext) {
-  const privateKey = sealPrivateKey();
-  if (!privateKey) return;
-  for (const r of await syncStoredKeys(ctx.db, privateKey, { skip: [ctx.userId] })) {
-    // Log each user's problem once, not every minute.
-    if (r.error && userErrors.get(r.userId) !== r.error) log(`Sync failed for ${r.userId}:`, r.error);
-    if (!r.error && userErrors.has(r.userId)) log(`Sync works again for ${r.userId}.`);
-    if (r.error) userErrors.set(r.userId, r.error);
-    else userErrors.delete(r.userId);
+/** The owner first, then everyone else who connected a key. One user's failure never stops the others. */
+async function syncEveryone(db: Db, owner: string): Promise<UserSyncResult[]> {
+  const results: UserSyncResult[] = [];
+  try {
+    results.push({ userId: owner, summary: await syncUser(db, owner, owner) });
+  } catch (err) {
+    results.push({ userId: owner, error: message(err) });
   }
+  const privateKey = sealPrivateKey();
+  if (privateKey) results.push(...(await syncStoredKeys(db, privateKey, { skip: [owner] })));
+  return results;
 }
 
-/** Pulls new data from Delta and announces newly closed trades. */
-async function syncLoop(ctx: BotContext) {
-  let lastError: string | null = null;
+/**
+ * Each minute: sync everyone, then tell each user about their own new closes,
+ * sync problems and (on Sunday evening) their weekly review.
+ */
+async function syncLoop(db: Db, owner: string, context: (userId: string, chatId: string | null) => BotContext) {
+  // The last sync error each user was told about. Seeded from the stored keys,
+  // so a restart does not repeat a problem users already know about.
+  const told = new Map<string, string>();
+  for (const k of await db.select().from(schema.deltaCredentials).where(eq(schema.deltaCredentials.status, "error"))) {
+    if (k.lastError) told.set(k.userId, k.lastError);
+  }
+  // Users whose closes still need checking: everyone once after a start, then
+  // only after a sync wrote something, or when the last check hit its cap.
+  const unchecked = new Set<string>();
+  const seen = new Set<string>();
+
   while (!stopping) {
+    let results: UserSyncResult[] = [];
     try {
-      await ctx.sync();
-      const sent = await notifyClosedTrades(ctx);
-      if (sent) log(`Sent ${sent} trade(s) to journal.`);
-      if (await maybeSendWeeklyReview(ctx)) log("Sent the weekly review.");
-      if (lastError) {
-        await ctx.tg.sendMessage(ctx.chatId!, "Delta sync is working again.");
-        lastError = null;
-      }
+      results = await syncEveryone(db, owner);
     } catch (err) {
-      const text = message(err);
-      log("Sync failed:", text);
-      // Tell you once per distinct problem (for example a new IP to whitelist), not every minute.
-      if (text !== lastError) {
-        lastError = text;
-        await ctx.tg.sendMessage(ctx.chatId!, `Delta sync failed: ${text.replace(/[<>&]/g, "")}`).catch(() => {});
-        await notifyPhone(ctx, { title: "Delta sync stopped working", body: text, url: "/settings", tag: "sync-error" });
-      }
+      log("Sync round failed:", message(err));
     }
-    try {
-      await syncOtherUsers(ctx);
-    } catch (err) {
-      log("Syncing other users failed:", message(err));
+    for (const r of results) {
+      try {
+        const ctx = context(r.userId, await chatForUser(db, r.userId));
+        if (!ctx.push || !(await hasDevice(db, r.userId))) ctx.push = null;
+
+        const error = r.error ?? null;
+        const previous = told.get(r.userId) ?? null;
+        if (error !== previous) log(error ? `Sync failed for ${r.userId}: ${error}` : `Sync works again for ${r.userId}.`);
+        await notifySyncProblem(ctx, error, previous);
+        if (error) told.set(r.userId, error);
+        else told.delete(r.userId);
+
+        if (!seen.has(r.userId)) {
+          seen.add(r.userId);
+          unchecked.add(r.userId);
+        }
+        if (r.summary?.rebuild) unchecked.add(r.userId);
+        if (unchecked.has(r.userId)) {
+          const sent = await notifyClosedTrades(ctx);
+          if (sent) log(`Announced ${sent} closed trade(s) to ${r.userId}.`);
+          if (sent < MAX_CARDS_PER_RUN) unchecked.delete(r.userId);
+        }
+        if (await maybeSendWeeklyReview(ctx)) log(`Sent the weekly review to ${r.userId}.`);
+      } catch (err) {
+        log(`Notifying ${r.userId} failed:`, message(err));
+      }
     }
     await sleep(SYNC_EVERY_MS);
   }
 }
 
-/** The AI calls the bot makes, all through AI Gateway. */
+/** Whether the user turned on phone notifications on any device. */
+async function hasDevice(db: Db, userId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ endpoint: schema.pushSubscriptions.endpoint })
+    .from(schema.pushSubscriptions)
+    .where(eq(schema.pushSubscriptions.userId, userId))
+    .limit(1);
+  return !!row;
+}
+
+/** The AI calls the bot makes for one user, all through AI Gateway. */
 function botAi(db: Db, userId: string): BotAi {
   return {
     transcribe: async (audio) => (await transcribe({ model: AI_MODELS.transcribe, audio })).text,
