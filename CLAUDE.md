@@ -16,7 +16,7 @@ round-trip trades, tags each trade with behaviour patterns, lets the trader jour
 trade (web or Telegram), and uses AI for weekly coaching reviews, note tagging and voice
 notes. It is installable on a phone as a PWA.
 
-It is becoming **Edgebook**, a multi-user product for Indian traders (see "Status and roadmap").
+It is becoming **Hardwon** (hardwon.in; planned as Edgebook until 2026-11-07), a multi-user product for Indian traders (see "Status and roadmap").
 Accounts are Clerk users, and every row of data belongs to one user (`user_id`). The owner's
 pre-accounts data belongs to the placeholder user `legacy` until `npm run claim-legacy` moves it.
 
@@ -465,10 +465,11 @@ Done (all pushed): 1 sync · 2 trades + auto tags · 3 dashboard and charts · 4
 
 8 phone push notifications · 9 always-on server with a fixed IP (AWS Lightsail Mumbai) (2026-10-31).
 
-### Next: Edgebook, a public multi-user product (decided 2026-10-31)
+### Next: Hardwon, a public multi-user product (decided 2026-10-31)
 
-- **Name:** Edgebook for now (replaces "Delta Journal"; Delta is another company's trademark). **Being replaced**, see Day 7:
-  three other trading journals already use the name (PFT-EdgeBook, EdgeBookPro, EdgeBook by TradersEdge.nl).
+- **Name:** **Hardwon**, on **hardwon.in** (chosen 2026-11-07; the owner buys it from GoDaddy, since Vercel does not sell
+  `.in`). It replaced "Edgebook", which three other trading journals already used, and "Delta Journal" (Delta is another
+  company's trademark). The sealed-key labels in `lib/keys/` still say `edgebook` on purpose: every stored key depends on them.
 - **Audience:** Indian traders only. The beta is Delta Exchange India only.
 - **Pricing:** the first 10 users are free for 3 months (the user picks who), then three paid plans (tiers being decided).
 - **Team and timeline:** the user builds solo with Claude; private beta in about one week (target ~2026-11-07).
@@ -501,20 +502,18 @@ Week plan and progress:
   server SSH is key-only, only port 22 listens, unattended upgrades are on, `.env.local` is 600. Open items: a lawyer's
   read of the legal pages, an uptime monitor on `/api/health`, a full CSP,
   and the server's pending security updates (67 on 2026-11-01).
-- **Day 7 (in progress, paused 2026-11-01, continuing next session): new name, domain, Clerk production, new bot, launch.**
+- **Day 7 (in progress since 2026-11-01): new name, domain, Clerk production, new bot, launch.**
   Done: the redesign is live; `claim-legacy --from` moves an account to a new Clerk id; the Telegram update offset is per bot.
   Decided by the owner: an **English-word name** (Sanskrit names were rejected), sign-in by **email code only** (no Google),
   and a **new Telegram bot** carrying the new name. Vercel does not sell `.in`.
   Waiting on the owner, in order:
-  1. **Pick the name.** Recommended `examined.app` ($53.90/year on Vercel; `.in` and `.com` taken; tagline "The unexamined
-     trade is not worth taking"). Second choice `hardwon.in` (free, buy from an Indian registrar). Also free on `.app` and
-     `.in` at $9.99 then $15/year: hardearned, annealed, whetted, slowgrown. Checked against the registries on 2026-11-01;
-     re-check before buying, and check the Indian trademark registry.
-  2. **Buy the domain**, and make the bot with @BotFather under the new name. The token goes into `.env.local` by the owner's
+  1. **Name: Hardwon, domain hardwon.in** (decided 2026-11-07, still free at the registry that day). The site, bot texts,
+     legal pages, manifest and docs are renamed. Point the domain's nameservers to Vercel (`ns1.vercel-dns.com`,
+     `ns2.vercel-dns.com`) so Claude can add Vercel's and Clerk's DNS records with `npx vercel dns`.
+  2. **The owner buys hardwon.in on GoDaddy** and makes the bot with @BotFather as Hardwon. The token goes into `.env.local` by the owner's
      own hand, never in chat, plus `TELEGRAM_BOT_USERNAME`.
   3. **Clerk production instance** on that domain: Google off, email verification code on, access mode Waitlist.
-  Then Claude does: rename the site (brand word, icons, manifest, legal pages, notifications, docs, `VAPID_SUBJECT`, domain on
-  Vercel, Clerk's DNS records); copy the bot token to the server and set the username on Vercel; after the owner signs in once on
+  Then Claude does: add hardwon.in to the Vercel project as the main address, `VAPID_SUBJECT`, Clerk's DNS records; copy the bot token to the server and set the username on Vercel; after the owner signs in once on
   the new domain, `npm run claim-legacy -- user_new --from user_3LT1ntUygNbHxmyfsYO9QBzM95P`, then update `OWNER_USER_ID` on the
   PC and the server and the "Live setup" table. A linked chat keeps working on the new bot once its owner taps Start there.
   Local `npm run dev` stays on Clerk's development instance, so it signs in as a different, empty account.
@@ -523,6 +522,8 @@ Week plan and progress:
 
 ## Changelog
 
+- **2026-11-07**: Renamed the product **Hardwon** (domain hardwon.in, bought from GoDaddy): every page, the bot's
+  messages, notifications, the manifest, legal pages and docs. The sealed-key labels keep `edgebook`.
 - **2026-11-01**: End of session: Day 7 paused on the owner's choice of a new name and domain (see Status and roadmap).
 - **2026-11-01**: Day 7 prep: `claim-legacy --from` moves a whole account to a new Clerk id (for the switch to Clerk's
   production instance); notifications and the server unit say Edgebook instead of Delta Journal.
