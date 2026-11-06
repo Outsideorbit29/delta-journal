@@ -16,7 +16,7 @@ export const LINK_CODE_TTL_MS = 15 * 60_000;
 export const STATE_NOTIFY_SINCE = "telegram.notify_since";
 
 /** The bot's @username, for t.me links. The website never holds the bot token. */
-export const telegramBotUsername = () => process.env.TELEGRAM_BOT_USERNAME?.trim().replace(/^@/, "") || "Jornalling_bot";
+export const telegramBotUsername = () => process.env.TELEGRAM_BOT_USERNAME?.trim().replace(/^@/, "") || "Hardwon_bot";
 
 export const linkUrl = (code: string) => `https://t.me/${telegramBotUsername()}?start=${code}`;
 

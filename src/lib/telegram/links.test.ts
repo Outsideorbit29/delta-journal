@@ -37,7 +37,7 @@ describe("Telegram account linking", () => {
   it("links a private chat with a one-time code, and the code works only once", async () => {
     const code = await createLinkCode(db, "alice", T0);
     expect(code).toMatch(/^[A-Za-z0-9_-]{22}$/);
-    expect(linkUrl(code)).toBe(`https://t.me/Jornalling_bot?start=${code}`);
+    expect(linkUrl(code)).toBe(`https://t.me/Hardwon_bot?start=${code}`);
     expect(await getTelegramLink(db, "alice", T0)).toEqual({ chatName: null, linkedAt: null, linked: false, waiting: true });
 
     expect(await redeemLinkCode(db, code, "111", "@alice", T0 + 1000)).toBe("alice");

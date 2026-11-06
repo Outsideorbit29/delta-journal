@@ -95,9 +95,9 @@ Scripts load `.env.local` via `node --env-file-if-exists=.env.local --import tsx
 | `DELTA_KEYS_PRIVATE_KEY` | PC + server, **never Vercel** | Unlocks them; only the sync server uses it. The PC copy is the backup: losing it means every user reconnects |
 | `SYNC_SERVER_IPS` | optional | Comma-separated IPs users whitelist; defaults to the Lightsail IPv4 and IPv6 |
 | `OWNER_USER_ID` | PC + server | The owner's Clerk user id. `DELTA_API_KEY`, `npm run sync`, the bot and the local Sync button act for this account only. Unset = `legacy` |
-| `TELEGRAM_BOT_TOKEN` | PC + server | Bot `@Jornalling_bot`, shared by every user (each links their chat in Settings) |
+| `TELEGRAM_BOT_TOKEN` | PC + server | Bot **`@Hardwon_bot`** (since 2026-11-07; `@Jornalling_bot` before), shared by every user (each links their chat in Settings) |
 | `TELEGRAM_CHAT_ID` | PC + server, optional | The owner's chat from before accounts; linked to `OWNER_USER_ID` on the bot's first start |
-| `TELEGRAM_BOT_USERNAME` | optional (web app + server) | The bot's @name for the t.me link in Settings; default `Jornalling_bot` |
+| `TELEGRAM_BOT_USERNAME` | Vercel + server (+ PC) | `Hardwon_bot`: the bot's @name for the t.me link in Settings (also the code's default) |
 | `TELEGRAM_SYNC_SECONDS` | optional | Bot sync interval, default 60, minimum 15 |
 | `AI_GATEWAY_API_KEY` | PC + Vercel | AI Gateway (free tier, see AI section) |
 | `AI_REVIEW_MODEL`, `AI_FAST_MODEL`, `AI_TRANSCRIBE_MODEL` | optional | Model overrides |
@@ -510,7 +510,8 @@ Week plan and progress:
   1. **Name: Hardwon, domain hardwon.in** (decided 2026-11-07, still free at the registry that day). The site, bot texts,
      legal pages, manifest and docs are renamed. Point the domain's nameservers to Vercel (`ns1.vercel-dns.com`,
      `ns2.vercel-dns.com`) so Claude can add Vercel's and Clerk's DNS records with `npx vercel dns`.
-  2. **The owner buys hardwon.in on GoDaddy** and makes the bot with @BotFather as Hardwon. The token goes into `.env.local` by the owner's
+  2. **Done:** hardwon.in bought on GoDaddy (KYC passed 2026-11-07; waiting for GoDaddy to lift the registrar hold), and
+     **@Hardwon_bot** is live on the server (token and username copied over stdin; username set on Vercel). The token goes into `.env.local` by the owner's
      own hand, never in chat, plus `TELEGRAM_BOT_USERNAME`.
   3. **Clerk production instance** on that domain: Google off, email verification code on, access mode Waitlist.
   Then Claude does: add hardwon.in to the Vercel project as the main address, `VAPID_SUBJECT`, Clerk's DNS records; copy the bot token to the server and set the username on Vercel; after the owner signs in once on
@@ -522,6 +523,8 @@ Week plan and progress:
 
 ## Changelog
 
+- **2026-11-07**: The bot is now **@Hardwon_bot** on the server; `TELEGRAM_BOT_USERNAME=Hardwon_bot` on Vercel and the server.
+  hardwon.in added to the Vercel project; its nameservers wait on GoDaddy lifting the `.in` registrar hold.
 - **2026-11-07**: Renamed the product **Hardwon** (domain hardwon.in, bought from GoDaddy): every page, the bot's
   messages, notifications, the manifest, legal pages and docs. The sealed-key labels keep `edgebook`.
 - **2026-11-01**: End of session: Day 7 paused on the owner's choice of a new name and domain (see Status and roadmap).
