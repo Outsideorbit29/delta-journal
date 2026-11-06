@@ -29,7 +29,7 @@ fees dwarf gross P&L, scalps lose, and moving a stop while still losing is the c
 
 | Part | Where | Notes |
 |---|---|---|
-| Web app (PWA) | https://delta-journal-three.vercel.app | Vercel project `delta-journal` (team `anish-kumars-projects`), Hobby plan, region `bom1` (Mumbai). Git-connected: **every push to `main` deploys to production.** |
+| Web app (PWA) | **https://hardwon.in** (since 2026-11-07; `delta-journal-three.vercel.app` redirects there in production, `proxy.ts`) | Vercel project `delta-journal` (team `anish-kumars-projects`), Hobby plan, region `bom1` (Mumbai). Git-connected: **every push to `main` deploys to production.** |
 | Database | Turso (libSQL), free plan | `DATABASE_URL` / `DATABASE_AUTH_TOKEN`. Both the hosted app and the PC use it. |
 | Sync + Telegram bot | **AWS Lightsail server** `delta-journal`, Mumbai, static IP `15.206.227.0` | systemd service `delta-journal-bot`, running 24/7 since 2026-10-31. See "Always-on server". The PC no longer runs the bot. |
 | Code | https://github.com/Outsideorbit29/delta-journal (private) | Branch `main`. |
@@ -89,7 +89,7 @@ Scripts load `.env.local` via `node --env-file-if-exists=.env.local --import tsx
 | `DELTA_SERVER_API_KEY`, `DELTA_SERVER_API_SECRET` | PC only | Holds the server's key on the PC so it can be copied to the server as its `DELTA_API_*` (see "Always-on server") |
 | `DELTA_BASE_URL` | optional | Defaults to `https://api.india.delta.exchange` |
 | `DATABASE_URL`, `DATABASE_AUTH_TOKEN` | PC + Vercel | Turso `libsql://…` + token. Unset = `file:data/journal.db` |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` | PC + Vercel | Clerk accounts. On Vercel they come from the Marketplace integration (type "Config"); on the PC they were pulled once into `.env.local`. Currently a Clerk **development** instance (`pk_test`) on both |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` | PC + Vercel | Clerk accounts, from the Marketplace integration (type "Config"). **Vercel production uses Clerk's production instance** (domain hardwon.in, set 2026-11-07); the PC keeps the **development** instance's keys, so local sign-ins are separate accounts |
 | `NEXT_PUBLIC_CLERK_SIGN_IN_URL`, `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | PC + Vercel | `/sign-in`, `/sign-up` (not secret) |
 | `DELTA_KEYS_PUBLIC_KEY` | PC + Vercel + server | Locks (seals) users' Delta keys. Not secret |
 | `DELTA_KEYS_PRIVATE_KEY` | PC + server, **never Vercel** | Unlocks them; only the sync server uses it. The PC copy is the backup: losing it means every user reconnects |
@@ -328,7 +328,7 @@ tip) as ruled bars, the weakest in the accent, and on the landing page (the demo
   Vercel instances and the bot.
 - **Monitoring:** the bot writes `bot.heartbeat` (process-wide `app_state`: time, users synced, users failing) after
   every round. `GET /api/health` (public, counts only) returns 200 while it is under 5 minutes old, else 503. Point a
-  free uptime monitor (UptimeRobot, Better Stack…) at `https://delta-journal-three.vercel.app/api/health`.
+  free uptime monitor (UptimeRobot, Better Stack…) at `https://hardwon.in/api/health`.
 - **Security headers** (`next.config.ts`, every path): `X-Frame-Options: DENY` + `frame-ancestors 'none'`, `nosniff`,
   `strict-origin-when-cross-origin`, a `Permissions-Policy` denying camera/mic/location/payment/USB. Vercel already
   sends HSTS. No full CSP yet (Clerk's scripts and Next's inline scripts need a nonce setup).
@@ -510,10 +510,14 @@ Week plan and progress:
   1. **Name: Hardwon, domain hardwon.in** (decided 2026-11-07, still free at the registry that day). The site, bot texts,
      legal pages, manifest and docs are renamed. Point the domain's nameservers to Vercel (`ns1.vercel-dns.com`,
      `ns2.vercel-dns.com`) so Claude can add Vercel's and Clerk's DNS records with `npx vercel dns`.
-  2. **Done:** hardwon.in bought on GoDaddy (KYC passed 2026-11-07; waiting for GoDaddy to lift the registrar hold), and
-     **@Hardwon_bot** is live on the server (token and username copied over stdin; username set on Vercel). The token goes into `.env.local` by the owner's
+  2. **Done:** hardwon.in bought on GoDaddy (`.in` KYC passed through Digio 2026-11-07, then GoDaddy lifted its registrar
+     hold), nameservers moved to Vercel (`ns1/ns2.vercel-dns.com`), site live with HTTPS; **@Hardwon_bot** is live on the server. The token goes into `.env.local` by the owner's
      own hand, never in chat, plus `TELEGRAM_BOT_USERNAME`.
-  3. **Clerk production instance** on that domain: Google off, email verification code on, access mode Waitlist.
+  3. **Done:** Clerk's production instance (`clerk-orange-mountain`) has the domain hardwon.in (set from Vercel → Integrations →
+     Clerk → product Settings → Change Configuration; Hobby plan, no add-ons); Vercel added Clerk's five DNS records itself and
+     Clerk verified them. Sign-in is email verification code only (passwords off, no social connections); access mode Waitlist.
+     **Next:** the owner joins the waitlist on hardwon.in, approves themself in Clerk (production → Waitlist), signs in, then
+     `claim-legacy --from` the development user and `OWNER_USER_ID` updated on the PC and the server.
   Then Claude does: add hardwon.in to the Vercel project as the main address, `VAPID_SUBJECT`, Clerk's DNS records; copy the bot token to the server and set the username on Vercel; after the owner signs in once on
   the new domain, `npm run claim-legacy -- user_new --from user_3LT1ntUygNbHxmyfsYO9QBzM95P`, then update `OWNER_USER_ID` on the
   PC and the server and the "Live setup" table. A linked chat keeps working on the new bot once its owner taps Start there.
@@ -523,6 +527,8 @@ Week plan and progress:
 
 ## Changelog
 
+- **2026-11-07**: **hardwon.in is live**: nameservers on Vercel, the old vercel.app address redirects in production,
+  Clerk's production instance runs on it (email code sign-in, waitlist), `VAPID_SUBJECT=https://hardwon.in`.
 - **2026-11-07**: The bot is now **@Hardwon_bot** on the server; `TELEGRAM_BOT_USERNAME=Hardwon_bot` on Vercel and the server.
   hardwon.in added to the Vercel project; its nameservers wait on GoDaddy lifting the `.in` registrar hold.
 - **2026-11-07**: Renamed the product **Hardwon** (domain hardwon.in, bought from GoDaddy): every page, the bot's
