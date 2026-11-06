@@ -37,7 +37,7 @@ let configured = false;
 function configure() {
   if (configured) return;
   if (!pushConfigured()) throw new Error("Push is not set up: VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY are missing.");
-  webpush.setVapidDetails(process.env.VAPID_SUBJECT ?? "https://delta-journal-three.vercel.app", process.env.VAPID_PUBLIC_KEY!, process.env.VAPID_PRIVATE_KEY!);
+  webpush.setVapidDetails(process.env.VAPID_SUBJECT ?? "https://hardwon.in", process.env.VAPID_PUBLIC_KEY!, process.env.VAPID_PRIVATE_KEY!);
   configured = true;
 }
 
