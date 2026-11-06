@@ -1,4 +1,4 @@
-// Who runs Edgebook and how to reach them, for the Privacy Policy and Terms.
+// Who runs Hardwon and how to reach them, for the Privacy Policy and Terms.
 // One place, so the pages, the footer and Settings never disagree.
 
 export const LEGAL = {

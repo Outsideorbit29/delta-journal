@@ -18,6 +18,7 @@ import {
 // Format: "v1." + base64(ephemeral X25519 public key (32) | IV (12) | GCM tag (16) | ciphertext)
 
 const VERSION = "v1.";
+// Kept from the product's first name: changing it would change every derived key, so no stored key would open.
 const INFO = Buffer.from("edgebook delta key v1");
 
 /** A new key pair as base64 DER (SPKI public, PKCS#8 private), for .env files. */

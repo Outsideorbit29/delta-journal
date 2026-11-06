@@ -53,7 +53,7 @@ export async function Landing() {
           <div className="lg:col-span-5">
             <h1 className="max-w-[11ch] text-[clamp(3rem,5.6vw+1rem,6rem)] leading-[0.9]">See the habits that cost you money.</h1>
             <p className="mt-6 max-w-[30ch] text-[clamp(1.25rem,1.4vw+0.5rem,1.625rem)] leading-snug text-ink">
-              Edgebook rebuilds every Delta trade and shows what each habit cost.
+              Hardwon rebuilds every Delta trade and shows what each habit cost.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/demo" className={buttonPrimaryLarge}>
@@ -189,7 +189,7 @@ export async function Landing() {
                   },
                   {
                     title: "Journal a trade in a few taps",
-                    body: "When a trade closes, Edgebook sends it to Telegram and your phone. Tap your setup, how you felt and what went wrong. Voice notes are transcribed for you.",
+                    body: "When a trade closes, Hardwon sends it to Telegram and your phone. Tap your setup, how you felt and what went wrong. Voice notes are transcribed for you.",
                     visual: (
                       <div className="face-label space-y-5">
                         <div className="border-b border-rule-2 pb-4">
@@ -320,7 +320,7 @@ export async function Landing() {
       {/* Footer: the wordmark large over index columns. */}
       <footer className="border-t border-rule-2 pt-(--space-3xl) pb-(--space-2xl)">
         <div className="container">
-          <p className="figure-display text-[clamp(4rem,12vw,10rem)] leading-none text-ink">Edgebook</p>
+          <p className="figure-display text-[clamp(4rem,12vw,10rem)] leading-none text-ink">Hardwon</p>
           <div className="mt-12 grid gap-x-8 gap-y-10 border-t border-rule-2 pt-10 sm:grid-cols-2 lg:grid-cols-12">
             <p className="max-w-[30ch] text-lg text-ink-2 lg:col-span-4">A trading journal that shows the habits behind your P&L. Made for traders in India.</p>
             <nav aria-label="Product" className="lg:col-span-2">
@@ -346,9 +346,9 @@ export async function Landing() {
             <div className="lg:col-span-3">
               <h2 className="face-label text-sm font-medium text-muted">Good to know</h2>
               <ul className="mt-3 space-y-2 text-base text-ink-2">
-                <li>Edgebook is a journal, not investment advice.</li>
+                <li>Hardwon is a journal, not investment advice.</li>
                 <li>Independent, not affiliated with Delta Exchange.</li>
-                <li>Read-only: Edgebook never places orders.</li>
+                <li>Read-only: Hardwon never places orders.</li>
               </ul>
             </div>
             <nav aria-label="Legal" className="lg:col-span-3">

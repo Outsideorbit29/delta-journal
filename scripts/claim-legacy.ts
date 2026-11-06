@@ -1,4 +1,4 @@
-// Moves data to an Edgebook account.
+// Moves data to an Hardwon account.
 //   npm run claim-legacy -- user_xxx                  the pre-accounts data (owner "legacy")
 //   npm run claim-legacy -- user_new --from user_old  a whole account to a new Clerk id, for example
 //                                                     from the development instance to the production one

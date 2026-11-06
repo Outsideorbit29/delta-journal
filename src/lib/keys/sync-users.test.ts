@@ -8,7 +8,7 @@ import { DeltaApiError, type DeltaClient } from "@/lib/delta/client";
 import type { DeltaFill } from "@/lib/delta/types";
 import { generateSealKeys } from "./sealed";
 
-const dir = mkdtempSync(path.join(tmpdir(), "edgebook-keys-"));
+const dir = mkdtempSync(path.join(tmpdir(), "hardwon-keys-"));
 process.env.DATABASE_URL = `file:${path.join(dir, "test.db")}`;
 
 // Imported after DATABASE_URL is set, so syncAll's getDb() opens the temporary database.

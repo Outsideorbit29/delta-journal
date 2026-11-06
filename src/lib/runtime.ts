@@ -6,7 +6,7 @@ import { LEGACY_USER } from "@/db/schema";
  */
 export const canSyncHere = () => !process.env.VERCEL;
 
-export const SYNC_ELSEWHERE = "Syncing with Delta runs on the Edgebook server, not here.";
+export const SYNC_ELSEWHERE = "Syncing with Delta runs on the Hardwon server, not here.";
 
 /**
  * The account the PC's own Delta key (DELTA_API_KEY) belongs to: the owner's

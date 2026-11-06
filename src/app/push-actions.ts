@@ -36,7 +36,7 @@ export async function sendTestPush(): Promise<PushActionResult> {
   const limit = await rateLimit(db, userId, "push.test");
   if (!limit.ok) return { ok: false, message: tooMany(limit) };
   const r = await sendPush(db, userId, {
-    title: "Edgebook",
+    title: "Hardwon",
     body: "Test notification: closed trades, weekly reviews and sync problems will show up like this.",
     url: "/settings",
     tag: "test",

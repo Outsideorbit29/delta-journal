@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Waitlist } from "@clerk/nextjs";
 
-export const metadata = { title: "Join the waitlist, Edgebook" };
+export const metadata = { title: "Join the waitlist, Hardwon" };
 
 export default function WaitlistPage() {
   return (

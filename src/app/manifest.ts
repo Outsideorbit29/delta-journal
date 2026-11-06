@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Edgebook",
-    short_name: "Edgebook",
+    name: "Hardwon",
+    short_name: "Hardwon",
     description: "Trading journal and habit insights for Delta Exchange India traders",
     start_url: "/",
     scope: "/",

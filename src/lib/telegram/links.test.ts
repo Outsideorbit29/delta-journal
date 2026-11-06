@@ -22,7 +22,7 @@ let dir: string;
 let db: Db;
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), "edgebook-links-"));
+  dir = mkdtempSync(path.join(tmpdir(), "hardwon-links-"));
   db = await openDatabase(`file:${path.join(dir, "test.db")}`);
 });
 

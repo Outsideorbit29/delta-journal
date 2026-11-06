@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { computeStats, tagPerformance } from "@/lib/stats";
 
-const dir = mkdtempSync(path.join(tmpdir(), "edgebook-demo-"));
+const dir = mkdtempSync(path.join(tmpdir(), "hardwon-demo-"));
 process.env.DATABASE_URL = `file:${path.join(dir, "test.db")}`;
 
 // Imported after DATABASE_URL is set, so writeChanged and rebuild use the temporary database.

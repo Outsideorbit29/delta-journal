@@ -10,7 +10,7 @@ let dir: string;
 let db: Db;
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), "edgebook-limits-"));
+  dir = mkdtempSync(path.join(tmpdir(), "hardwon-limits-"));
   db = await openDatabase(`file:${path.join(dir, "test.db")}`);
 });
 

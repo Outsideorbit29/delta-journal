@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { and, eq, gt } from "drizzle-orm";
 import { schema, type Db } from "@/db";
 
-// Every Edgebook user shares one Telegram bot. A user links their private chat
+// Every Hardwon user shares one Telegram bot. A user links their private chat
 // by opening a one-time link from Settings (t.me/<bot>?start=<code>): the bot
 // receives "/start <code>" from that chat and ties the chat to the user.
 // Only the code's hash is stored, and a code works once, for 15 minutes.

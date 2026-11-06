@@ -1,6 +1,6 @@
 import { SignIn } from "@clerk/nextjs";
 
-export const metadata = { title: "Sign in, Edgebook" };
+export const metadata = { title: "Sign in, Hardwon" };
 
 export default function SignInPage() {
   return (

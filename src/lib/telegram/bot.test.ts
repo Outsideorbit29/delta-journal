@@ -413,7 +413,7 @@ describe("one bot shared by every user", () => {
     expect(contexts).toEqual([]);
 
     await routeUpdate(shared(tg), tap(1, "s:v:range", ALICE_CHAT));
-    expect(tg.answers.at(-1)?.text).toBe("This chat is not connected to Edgebook.");
+    expect(tg.answers.at(-1)?.text).toBe("This chat is not connected to Hardwon.");
   });
 
   it("links each chat to its own account and routes it there", async () => {
@@ -427,7 +427,7 @@ describe("one bot shared by every user", () => {
     expect(await userForChat(db, "-77")).toBeNull();
     await routeUpdate(shared(tg), message(`/start ${aliceCode}`, ALICE_CHAT));
     await routeUpdate(shared(tg), message(`/start ${await createLinkCode(db, "bob", now)}`, BOB_CHAT));
-    expect(tg.sent.filter((s) => s.text.includes("Connected to Edgebook")).map((s) => s.chatId)).toEqual([ALICE_CHAT, BOB_CHAT]);
+    expect(tg.sent.filter((s) => s.text.includes("Connected to Hardwon")).map((s) => s.chatId)).toEqual([ALICE_CHAT, BOB_CHAT]);
     expect(await userForChat(db, ALICE_CHAT)).toBe("alice");
 
     tg.sent = [];

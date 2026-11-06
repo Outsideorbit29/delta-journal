@@ -16,6 +16,8 @@ export const sealPublicKey = () => process.env.DELTA_KEYS_PUBLIC_KEY?.trim() || 
 export const sealPrivateKey = () => process.env.DELTA_KEYS_PRIVATE_KEY?.trim() || null;
 
 /** The box is bound to its owner, so a sealed key moved to another user's row will not open. */
+// "edgebook" is kept from the product's first name: every stored key was sealed with this exact
+// context, so changing it would make all of them impossible to open.
 const context = (userId: string) => `edgebook:delta:${userId}`;
 
 const KEY_PATTERN = /^[A-Za-z0-9]{16,128}$/;

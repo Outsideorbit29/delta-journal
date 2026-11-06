@@ -30,9 +30,9 @@ const sourceSerif = Source_Serif_4({
 });
 
 export const metadata: Metadata = {
-  title: "Edgebook",
+  title: "Hardwon",
   description: "A trading journal for Delta Exchange India that shows which habits cost you money.",
-  appleWebApp: { capable: true, title: "Edgebook", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "Hardwon", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
@@ -93,7 +93,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <header className="sticky top-0 z-[300] border-b-4 border-ink bg-paper pt-[env(safe-area-inset-top)]">
             <div className="container flex h-16 items-center justify-between gap-6">
               <div className="flex min-w-0 items-center gap-8">
-                <Link href="/" aria-label="Edgebook home" className="shrink-0">
+                <Link href="/" aria-label="Hardwon home" className="shrink-0">
                   <Logo />
                 </Link>
                 <HideOnLogin>

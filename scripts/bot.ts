@@ -1,4 +1,4 @@
-// The Edgebook Telegram bot and sync worker. Runs on the fixed-IP server:
+// The Hardwon Telegram bot and sync worker. Runs on the fixed-IP server:
 //   npm run bot
 // It long-polls Telegram (no public URL needed) for every user's linked chat,
 // syncs every connected Delta account each minute, and tells each user about
@@ -117,7 +117,7 @@ async function syncUser(db: Db, userId: string, owner: string) {
   const privateKey = sealPrivateKey();
   if (privateKey && (await hasStoredKey(db, userId))) return syncWithStoredKey(db, userId, privateKey);
   if (userId === owner) return syncAll(userId, DeltaClient.fromEnv());
-  throw new Error("No Delta key is connected. Connect one in Edgebook → Settings.");
+  throw new Error("No Delta key is connected. Connect one in Hardwon → Settings.");
 }
 
 /** The owner first, then everyone else who connected a key. One user's failure never stops the others. */

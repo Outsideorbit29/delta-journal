@@ -4,7 +4,7 @@ import { DashboardView } from "@/components/dashboard-view";
 import { DEMO_USER } from "@/lib/demo";
 import { readFilters } from "@/lib/range";
 
-export const metadata = { title: "Demo, Edgebook", description: "A read-only Edgebook dashboard of made-up trades: see which habits cost the demo trader money." };
+export const metadata = { title: "Demo, Hardwon", description: "A read-only Hardwon dashboard of made-up trades: see which habits cost the demo trader money." };
 
 /** A public, read-only dashboard of made-up trades. No account needed. */
 export default async function DemoPage({ searchParams }: PageProps<"/demo">) {

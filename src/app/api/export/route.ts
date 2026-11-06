@@ -5,7 +5,7 @@ import { istDate } from "@/lib/stats";
 import { rateLimit, tooMany } from "@/lib/rate-limit";
 import { currentUserId } from "@/lib/session";
 
-// Download everything Edgebook stores about you.
+// Download everything Hardwon stores about you.
 // GET /api/export            → JSON: every table's rows (secrets left out)
 // GET /api/export?format=csv → trades with their journal, for a spreadsheet
 export async function GET(request: Request) {
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
     headers: {
       ...(gzip ? { "Content-Encoding": "gzip", Vary: "Accept-Encoding" } : {}),
       "Content-Type": csv ? "text/csv; charset=utf-8" : "application/json; charset=utf-8",
-      "Content-Disposition": `attachment; filename="edgebook-${csv ? "trades" : "export"}-${day}.${csv ? "csv" : "json"}"`,
+      "Content-Disposition": `attachment; filename="hardwon-${csv ? "trades" : "export"}-${day}.${csv ? "csv" : "json"}"`,
       "Cache-Control": "private, no-store",
     },
   });

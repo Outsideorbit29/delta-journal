@@ -9,10 +9,10 @@ self.addEventListener("push", (event) => {
   try {
     data = event.data ? event.data.json() : {};
   } catch {
-    data = { title: "Edgebook", body: event.data ? event.data.text() : "" };
+    data = { title: "Hardwon", body: event.data ? event.data.text() : "" };
   }
   event.waitUntil(
-    self.registration.showNotification(data.title || "Edgebook", {
+    self.registration.showNotification(data.title || "Hardwon", {
       body: data.body || "",
       icon: "/pwa-icon/192",
       badge: "/pwa-icon/192",

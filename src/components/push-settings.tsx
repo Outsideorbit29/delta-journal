@@ -79,7 +79,7 @@ export function PushSettings({ publicKey }: { publicKey: string | null }) {
       {support === "unsupported" && <p className="text-base text-ink-2">This browser does not support push notifications.</p>}
       {support === "ios-not-installed" && (
         <p className="text-base text-ink-2">
-          On iPhone, notifications only work in the installed app: tap Share → <strong>Add to Home Screen</strong>, open Edgebook from the home
+          On iPhone, notifications only work in the installed app: tap Share → <strong>Add to Home Screen</strong>, open Hardwon from the home
           screen, and come back here.
         </p>
       )}

@@ -23,7 +23,7 @@ export interface BotAi {
 
 /** One user's view of the shared bot. */
 export interface BotContext {
-  /** The Edgebook user this context acts for. */
+  /** The Hardwon user this context acts for. */
   userId: string;
   db: Db;
   tg: TelegramClient;
@@ -42,7 +42,7 @@ export const COMMANDS = [
   { command: "today", description: "Today's P&L (IST)" },
   { command: "sync", description: "Sync with Delta now" },
   { command: "review", description: "AI coaching review of the last 7 days" },
-  { command: "disconnect", description: "Disconnect this chat from Edgebook" },
+  { command: "disconnect", description: "Disconnect this chat from Hardwon" },
   { command: "help", description: "What this bot does" },
 ];
 
@@ -54,17 +54,17 @@ const HELP = [
   "/today: today's P&L",
   "/sync: sync with Delta now",
   "/review: AI coaching review of the last 7 days (also sent on Sunday evenings)",
-  "/disconnect: stop messages here (your journal stays in Edgebook)",
+  "/disconnect: stop messages here (your journal stays in Hardwon)",
 ].join("\n");
 
 /** Shown to a chat that is not linked to an account. */
 const NOT_LINKED = [
-  "This is the Edgebook bot. It messages you when a trade closes so you can journal it in a few taps.",
+  "This is the Hardwon bot. It messages you when a trade closes so you can journal it in a few taps.",
   "",
-  "To connect it, open Edgebook → <b>Settings</b> → <b>Telegram</b> and tap <b>Connect Telegram</b>.",
+  "To connect it, open Hardwon → <b>Settings</b> → <b>Telegram</b> and tap <b>Connect Telegram</b>.",
 ].join("\n");
 
-const LINK_FAILED = "That link has expired or was already used. In Edgebook, open Settings → Telegram and tap Connect Telegram again.";
+const LINK_FAILED = "That link has expired or was already used. In Hardwon, open Settings → Telegram and tap Connect Telegram again.";
 
 /** At most this many trades are announced per user per run; the rest wait for the next. */
 export const MAX_CARDS_PER_RUN = 10;
@@ -113,7 +113,7 @@ export async function routeUpdate(bot: SharedBot, update: TgUpdate): Promise<voi
     return;
   }
 
-  if (update.callback_query) return bot.tg.answerCallback(update.callback_query.id, "This chat is not connected to Edgebook.");
+  if (update.callback_query) return bot.tg.answerCallback(update.callback_query.id, "This chat is not connected to Hardwon.");
   // Only private chats are answered, and only for commands, so the bot cannot be used to spam a group.
   if (msg.chat.type !== "private" || !update.message?.text?.startsWith("/")) return;
   if ((await rateLimit(bot.db, `chat:${chatId}`, "bot.stranger", now)).ok) await bot.tg.sendMessage(chatId, NOT_LINKED);
@@ -131,7 +131,7 @@ async function linkChat(bot: SharedBot, msg: TgMessage, code: string) {
   const chatId = String(msg.chat.id);
   // A group would show one person's trades to everyone in it.
   if (msg.chat.type !== "private") {
-    await bot.tg.sendMessage(chatId, "Edgebook only connects to a private chat. Open the link from Settings on your phone instead.");
+    await bot.tg.sendMessage(chatId, "Hardwon only connects to a private chat. Open the link from Settings on your phone instead.");
     return;
   }
   const name = msg.from?.username ? `@${msg.from.username}` : (msg.from?.first_name ?? null);
@@ -142,7 +142,7 @@ async function linkChat(bot: SharedBot, msg: TgMessage, code: string) {
   }
   await bot.tg.sendMessage(
     chatId,
-    ["<b>Connected to Edgebook ✓</b>", "", "From now on I'll message you here when a trade closes, so you can journal it in a few taps.", "", HELP].join("\n"),
+    ["<b>Connected to Hardwon ✓</b>", "", "From now on I'll message you here when a trade closes, so you can journal it in a few taps.", "", HELP].join("\n"),
   );
 }
 
@@ -255,7 +255,7 @@ async function disconnectCommand(ctx: BotContext) {
   await unlinkTelegram(ctx.db, ctx.userId, ctx.now?.() ?? Date.now());
   await ctx.tg.sendMessage(
     ctx.chatId!,
-    "Disconnected. I won't message you here any more; your trades and journal stay in Edgebook. Connect again any time from Settings → Telegram.",
+    "Disconnected. I won't message you here any more; your trades and journal stay in Hardwon. Connect again any time from Settings → Telegram.",
   );
 }
 

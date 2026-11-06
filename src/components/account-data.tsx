@@ -26,7 +26,7 @@ export function AccountData({ confirmWord }: { confirmWord: string }) {
     <div className="space-y-4">
       <div className="space-y-2">
         <p className="text-base text-ink-2">
-          Download a copy of everything Edgebook stores about you. How we use it:{" "}
+          Download a copy of everything Hardwon stores about you. How we use it:{" "}
           <a href="/privacy" className="link">Privacy Policy</a>.
         </p>
         <div className="flex flex-wrap gap-2">

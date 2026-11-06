@@ -3,7 +3,7 @@
 const STEPS = [
   {
     title: "Connect a read-only key",
-    body: "Create a Delta API key with only the Read Data permission, whitelist our server, paste it in. Edgebook can never trade.",
+    body: "Create a Delta API key with only the Read Data permission, whitelist our server, paste it in. Hardwon can never trade.",
   },
   {
     title: "Every trade, rebuilt",

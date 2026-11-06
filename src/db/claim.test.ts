@@ -7,7 +7,7 @@ import { toFillRow } from "@/lib/delta/ingest";
 import { LEGACY_USER } from "./schema";
 import { claimRows } from "./claim";
 
-const dir = mkdtempSync(path.join(tmpdir(), "edgebook-claim-"));
+const dir = mkdtempSync(path.join(tmpdir(), "hardwon-claim-"));
 afterAll(() => {
   try {
     rmSync(dir, { recursive: true, force: true });

@@ -1,7 +1,7 @@
 # systemd unit for the Telegram bot + Delta sync. setup.sh fills in the
 # __PLACEHOLDERS__ and installs it as /etc/systemd/system/delta-journal-bot.service.
 [Unit]
-Description=Edgebook: Telegram bot and Delta sync
+Description=Hardwon: Telegram bot and Delta sync
 After=network-online.target
 Wants=network-online.target
 

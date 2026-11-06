@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { SignUp } from "@clerk/nextjs";
 
-export const metadata = { title: "Sign up, Edgebook" };
+export const metadata = { title: "Sign up, Hardwon" };
 
 export default function SignUpPage() {
   return (

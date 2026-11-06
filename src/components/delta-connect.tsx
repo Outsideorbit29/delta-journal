@@ -14,7 +14,7 @@ export function DeltaConnect({ status, syncedBefore }: { status: DeltaKeyStatus 
       <ol className="list-decimal space-y-3 pl-6 text-base text-ink-2 marker:font-[family-name:var(--font-display)] marker:text-ink">
         <li>On Delta Exchange India, open your account&apos;s API keys page and create a new key.</li>
         <li>
-          Give it the <strong>Read Data</strong> permission only. Edgebook never places orders, so never give it Trading.
+          Give it the <strong>Read Data</strong> permission only. Hardwon never places orders, so never give it Trading.
         </li>
         <li>
           Whitelist our sync server&apos;s addresses on the key (Delta requires a whitelist):

@@ -10,7 +10,7 @@ export function explainSyncError(raw: string): string {
   }
   if (raw === KEY_UNREADABLE) return raw;
   if (/fetch failed|ECONNRESET|ETIMEDOUT|ENOTFOUND|HTTP 5\d\d|rate|429/i.test(raw)) {
-    return "Couldn't reach Delta just now. Edgebook retries every minute.";
+    return "Couldn't reach Delta just now. Hardwon retries every minute.";
   }
   return `Syncing with Delta failed: ${raw}`;
 }

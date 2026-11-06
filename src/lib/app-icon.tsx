@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 
 /**
- * The app icon: the Edgebook mark (a rising line in paper on an ink square), drawn as SVG
+ * The app icon: the Hardwon mark (a rising line in paper on an ink square), drawn as SVG
  * so it needs no font. `padding` shrinks the artwork for maskable icons, which
  * Android may crop to a circle.
  */

@@ -29,7 +29,7 @@ export default async function SettingsPage() {
       <h1 className="text-3xl leading-none">Settings</h1>
 
       <div className="mt-8 border-t-4 border-ink">
-        <Group title="Delta Exchange" intro="A read-only key lets Edgebook sync your trades every minute.">
+        <Group title="Delta Exchange" intro="A read-only key lets Hardwon sync your trades every minute.">
           <DeltaConnect status={key} syncedBefore={lastRun > 0} />
         </Group>
 
@@ -61,7 +61,7 @@ export default async function SettingsPage() {
             </div>
             <div className="grid gap-x-6 py-3 sm:grid-cols-[12rem_minmax(0,1fr)]">
               <dt className="text-muted">Syncing runs</dt>
-              <dd className="text-ink">on the Edgebook server, every minute</dd>
+              <dd className="text-ink">on the Hardwon server, every minute</dd>
             </div>
             <div className="grid gap-x-6 py-3 sm:grid-cols-[12rem_minmax(0,1fr)]">
               <dt className="text-muted">AI features</dt>

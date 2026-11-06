@@ -1,6 +1,6 @@
 // Two users in one database: every read and write path must only ever see or
 // touch its own user's rows. This is the test that guards against one
-// Edgebook user seeing another's trades.
+// Hardwon user seeing another's trades.
 
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Db } from "@/db";
 import type { DeltaFill } from "@/lib/delta/types";
 
-const dir = mkdtempSync(path.join(tmpdir(), "edgebook-isolation-"));
+const dir = mkdtempSync(path.join(tmpdir(), "hardwon-isolation-"));
 process.env.DATABASE_URL = `file:${path.join(dir, "test.db")}`;
 
 // Imported after DATABASE_URL is set, so getDb() opens the temporary database.

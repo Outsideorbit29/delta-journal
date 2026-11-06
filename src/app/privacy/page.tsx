@@ -2,7 +2,7 @@ import Link from "next/link";
 import { LegalPage } from "@/components/legal-page";
 import { LEGAL } from "@/lib/legal";
 
-export const metadata = { title: "Privacy Policy, Edgebook", description: "What Edgebook collects, why, who processes it, and your rights under India’s DPDP Act." };
+export const metadata = { title: "Privacy Policy, Hardwon", description: "What Hardwon collects, why, who processes it, and your rights under India’s DPDP Act." };
 
 const mail = <a href={`mailto:${LEGAL.contactEmail}`}>{LEGAL.contactEmail}</a>;
 
@@ -10,14 +10,14 @@ export default function PrivacyPage() {
   return (
     <LegalPage title="Privacy Policy">
       <p>
-        Edgebook is a trading journal. It reads your trades from Delta Exchange India and shows the habits behind your results. This policy
+        Hardwon is a trading journal. It reads your trades from Delta Exchange India and shows the habits behind your results. This policy
         explains what personal data we hold, why, who helps us process it, and the rights you have under India&apos;s Digital Personal Data
         Protection Act, 2023 (the &quot;DPDP Act&quot;).
       </p>
 
       <h2>Who is responsible for your data</h2>
       <p>
-        Edgebook is run by <strong>{LEGAL.operator}</strong>, the &quot;data fiduciary&quot; for your personal data. For any question,
+        Hardwon is run by <strong>{LEGAL.operator}</strong>, the &quot;data fiduciary&quot; for your personal data. For any question,
         request or complaint about your data, write to {mail}. This address also acts as our grievance officer contact.
       </p>
 
@@ -121,7 +121,7 @@ export default function PrivacyPage() {
       </p>
 
       <h2>Children</h2>
-      <p>Edgebook is for adults. You must be 18 or older to use it.</p>
+      <p>Hardwon is for adults. You must be 18 or older to use it.</p>
 
       <h2>Changes</h2>
       <p>If we change this policy in a way that matters, we will tell you by email or in the app before the change takes effect.</p>
