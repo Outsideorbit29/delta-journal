@@ -71,6 +71,7 @@ the owner's, so they only ever sync into `OWNER_USER_ID`; other users get per-us
 | `npm run claim-legacy -- user_xxx [--from user_old]` | Move all `legacy` rows (or a whole account, with `--from`, e.g. the Clerk development user to the production one) to that Clerk user, who must have signed in once and have no synced data. Carries the founder dates over; a stored Delta key cannot move (sealed to its owner) and is dropped |
 | `npm run db:generate` | New migration after editing `src/db/schema.ts` |
 | `npm run db:migrate` | Apply migrations to `DATABASE_URL` (the hosted app never migrates) |
+| `npm run db:backup` | Copy the whole `DATABASE_URL` database into `data/backups/hardwon-<UTC time>.db.gz`, row counts and integrity checked; prunes backups older than `BACKUP_KEEP_DAYS` (30). Runs daily on the server |
 | `npm run db:copy-to-cloud` | Copy `data/journal.db` into an **empty** Turso DB, checking every table's row count |
 | `npm test` / `npm run typecheck` / `npm run lint` | Vitest / `tsc --noEmit` / ESLint |
 | `npx next typegen` | Regenerate route types (`PageProps`, `RouteContext`) after adding routes |
@@ -99,6 +100,7 @@ Scripts load `.env.local` via `node --env-file-if-exists=.env.local --import tsx
 | `TELEGRAM_CHAT_ID` | PC + server, optional | The owner's chat from before accounts; linked to `OWNER_USER_ID` on the bot's first start |
 | `TELEGRAM_BOT_USERNAME` | Vercel + server (+ PC) | `Hardwon_bot`: the bot's @name for the t.me link in Settings (also the code's default) |
 | `TELEGRAM_SYNC_SECONDS` | optional | Bot sync interval, default 60, minimum 15 |
+| `BACKUP_KEEP_DAYS` | optional | Days of daily backups `db:backup` keeps, default 30 |
 | `AI_GATEWAY_API_KEY` | PC + Vercel | AI Gateway (free tier, see AI section) |
 | `AI_REVIEW_MODEL`, `AI_FAST_MODEL`, `AI_TRANSCRIBE_MODEL` | optional | Model overrides |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | PC + Vercel | Web push signing (generated with `web-push`). Subject is the app URL, not an email |
@@ -119,6 +121,8 @@ src/
   db/index.ts              openDatabase(url) (WAL + busy_timeout for local files; migrations unless VERCEL); getDb()
   db/copy.ts               copyDatabase(from, to) used by db:copy-to-cloud
   db/claim.ts              claimRows(db, from, to): moves one owner's rows to another (claim-legacy)
+  db/backup.ts             backupDatabase(client, file): every table from sqlite_master (no table list to forget),
+                           then indexes; gzipFile, pruneBackups (db:backup)
   lib/demo.ts              The demo account (user `demo`): seeded, deterministic made-up fills/orders run through the real rebuild
   lib/keys/                sealed.ts (seal/open, X25519 + AES-GCM), credentials.ts (save, status, open, mark checked),
                            sync-users.ts (sync one or every user with their stored key)
@@ -163,7 +167,7 @@ src/
                            (shared classes), sync-status (header pill: synced / problem / not connected → Settings),
                            nav-links (desktop links + phone BottomNav)
 public/sw.js               Service worker: shows pushes, opens the tapped notification's URL (no offline cache)
-scripts/                   sync.ts, rebuild.ts, bot.ts, db-migrate.ts, db-copy-to-cloud.ts, claim-legacy.ts, keys-generate.ts, demo-seed.ts
+scripts/                   sync.ts, rebuild.ts, bot.ts, db-migrate.ts, db-backup.ts, db-copy-to-cloud.ts, claim-legacy.ts, keys-generate.ts, demo-seed.ts
 drizzle/                   SQL migrations 0000-0011 + meta (0008 = multi-user, its table rebuilds hand-fixed; 0009 = delta_credentials;
                            0010 = telegram_links; 0011 = rate_limits)
 ```
@@ -434,6 +438,12 @@ plus an Elastic IP would cost more than Lightsail, whose plans include the stati
 
 - `deploy/server/setup.sh`: one-time setup (2 GB swap, Node 24 from NodeSource, `npm ci`,
   `db:migrate`, installs and starts the service). Works on any Ubuntu VM. Safe to re-run.
+- **Daily backups** (since 2026-11-07): the `delta-journal-backup.timer` runs `npm run db:backup` at 21:00 UTC
+  (02:30 IST) into `~/delta-journal/data/backups/` (files mode 600, 30 days kept, about 0.5 MB each). Check with
+  `systemctl list-timers delta-journal-backup.timer` and `journalctl -u delta-journal-backup`; run one now with
+  `sudo systemctl start delta-journal-backup`. They sit on AWS, apart from Turso. **Restore:** `gunzip` a file, then
+  `~/.turso/turso db create <new-name> --from-file <file>.db`, point `DATABASE_URL`/`DATABASE_AUTH_TOKEN` (a new token
+  for the new database) at it on the PC, the server and Vercel. setup.sh installs the timer.
 - `deploy/server/update.sh`: run on the server after pushing code (`git pull`, `npm ci`, `db:migrate`, restart).
   From the PC: `ssh -i ~/.ssh/delta_journal_oracle ubuntu@15.206.227.0 'bash ~/delta-journal/deploy/server/update.sh'`.
 - Logs: `journalctl -u delta-journal-bot -f` (a successful sync logs nothing; check `sync_state` in the database).
@@ -534,7 +544,8 @@ Week plan and progress:
      the PC and the server, bot restarted.
      **Done (2026-11-07):** the first invited user signed up, connected their own Delta key (status `ok`, syncing
      every minute: 59 fills, 27 trades) and linked Telegram, end to end without help.
-     **Left for launch:** Vercel 2FA; check Delta's terms for third-party syncing; daily database backups; lawyer's read; Vercel Pro and payments
+     **Done (2026-11-07):** daily database backups on the server.
+     **Left for launch:** Vercel 2FA; check Delta's terms for third-party syncing; lawyer's read; Vercel Pro and payments
      before charging (Hobby is non-commercial).
   A linked chat keeps working on a new bot once its owner taps Start there. Local `npm run dev` stays on Clerk's
   development instance, so it signs in as a different, empty account: run it against `DATABASE_URL=file:data/dev.db`, never
@@ -543,6 +554,8 @@ Week plan and progress:
 
 ## Changelog
 
+- **2026-11-07**: Daily database backups: `npm run db:backup` (`src/db/backup.ts`, every table from the schema itself)
+  and a systemd timer on the server (02:30 IST, 30 days kept).
 - **2026-11-07**: First real second user: signed up from an invite, connected their own Delta key and Telegram; syncing.
 - **2026-11-07**: UptimeRobot monitors `/api/health` every 5 minutes (email alerts); the Turso CLI on the server is logged in.
 - **2026-11-07**: Outage 04:58–12:50 IST: the Turso token expired (7-day token). Replaced with a non-expiring one on
