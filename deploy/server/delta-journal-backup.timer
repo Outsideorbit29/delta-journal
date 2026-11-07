@@ -1,0 +1,12 @@
+# Daily database backup at 21:00 UTC (02:30 IST, when nobody trades much).
+# Persistent: a run missed while the server was off happens at the next boot.
+[Unit]
+Description=Hardwon: daily database backup
+
+[Timer]
+OnCalendar=*-*-* 21:00:00 UTC
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target

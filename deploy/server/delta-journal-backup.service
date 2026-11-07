@@ -1,0 +1,17 @@
+# One database backup (npm run db:backup), started daily by delta-journal-backup.timer.
+# setup.sh fills in the __PLACEHOLDERS__ and installs it in /etc/systemd/system/.
+[Unit]
+Description=Hardwon: daily database backup
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=__USER__
+WorkingDirectory=__DIR__
+ExecStart=__NPM__ run db:backup
+# Backups hold users' data: readable by the service user only.
+UMask=0077
+Environment=NODE_ENV=production
+NoNewPrivileges=true
+PrivateTmp=true
