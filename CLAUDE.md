@@ -522,7 +522,7 @@ Week plan and progress:
   session (public routes are on purpose), `npm audit` clean, no env vars in client code, Telegram text escaped; on the
   server SSH is key-only, only port 22 listens, unattended upgrades are on, `.env.local` is 600. Open items: a lawyer's
   read of the legal pages, an uptime monitor on `/api/health`, a full CSP,
-  and the server's pending security updates (67 on 2026-11-01).
+  and the server's pending security updates (67 on 2026-11-01; all installed and rebooted onto the new kernel 2026-11-07).
 - **Day 7 (in progress since 2026-11-01): new name, domain, Clerk production, new bot, launch.**
   Done: the redesign is live; `claim-legacy --from` moves an account to a new Clerk id; the Telegram update offset is per bot.
   Decided by the owner: an **English-word name** (Sanskrit names were rejected), sign-in by **email code only** (no Google),
@@ -550,10 +550,12 @@ Week plan and progress:
   A linked chat keeps working on a new bot once its owner taps Start there. Local `npm run dev` stays on Clerk's
   development instance, so it signs in as a different, empty account: run it against `DATABASE_URL=file:data/dev.db`, never
   Turso, or `ensureUser` creates stray `users` rows there.
-- Still open from earlier days: the owner testing Telegram (`/today`) and Settings export on the phone, the server's 67 pending security updates, a lawyer's read of the legal pages, and a full CSP.
+- Still open from earlier days: the owner testing Telegram (`/today`) and Settings export on the phone, a lawyer's read of the legal pages, and a full CSP.
 
 ## Changelog
 
+- **2026-11-07**: Server updated: 35 pending packages installed (security fixes had already come through unattended
+  upgrades) and rebooted onto kernel 7.0.0-1014-aws; bot and backup timer came back on their own.
 - **2026-11-07**: Daily database backups: `npm run db:backup` (`src/db/backup.ts`, every table from the schema itself)
   and a systemd timer on the server (02:30 IST, 30 days kept).
 - **2026-11-07**: First real second user: signed up from an invite, connected their own Delta key and Telegram; syncing.
