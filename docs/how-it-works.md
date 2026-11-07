@@ -62,7 +62,13 @@ queue of un-journaled closed trades, newest first, with Save & next.
   sync problem (plain words from `explainSyncError`, Telegram + push, once per distinct error; "working again" when it
   recovers; seeded from `delta_credentials` so a restart does not repeat known problems), announces new closes
   (`notifyClosedTrades`, only after a sync wrote something, or once after a start, or while over the 10-per-run cap),
-  and sends the weekly review on **Sunday from 20:00 IST** (`telegram.weekly_review_for`; weeks without trades are skipped).
+  sends the weekly review on **Sunday from 20:00 IST** (`telegram.weekly_review_for`; weeks without trades are skipped),
+  and the **evening journaling reminder** (below). After the round it forwards new feedback to the owner (below).
+- **Journaling reminder** (since 2026-11-08, `maybeSendJournalReminder`): once a day from **21:00 IST**
+  (`telegram.reminder_for` = the IST date), if trades closed in the last 24 hours (and after `telegram.notify_since`)
+  are still not journaled, the user's chat gets "N trades … aren't journaled yet" with **Journal them** (`n:go`, sends
+  the `/journal` cards) and **Turn off these reminders** (`n:off`), plus a push to `/journal`. Only users with a linked
+  chat get it, so it can always be turned off where it arrives. `/reminders` toggles it (`telegram.reminders_off` = "1").
 - New closes since the user's starting point (`telegram.notify_since`) get a card in their chat and a push. A user with
   no chat but a subscribed phone gets the push only, and their starting point moves past each pushed trade.
   Taps walk setup → feelings → mistakes → plan → rating, saving each tap and editing the card in place.
@@ -70,7 +76,10 @@ queue of un-journaled closed trades, newest first, with Save & next.
 - Notes: reply to a card, or tap Add note (ForceReply). **Voice notes** are transcribed by AI.
   After a note, AI suggests new answers (`a:y` / `a:n`). AI calls run per user (`botAi(db, userId)`).
 - Commands: `/journal` (last 7 days), `/today`, `/sync` (the user's own key; the owner falls back to the server's
-  key), `/review`, `/disconnect`, `/help`.
+  key), `/review`, `/reminders`, `/feedback <message>`, `/disconnect`, `/help`.
+- **Feedback** (since 2026-11-08, `lib/feedback.ts`): Settings → Feedback or `/feedback <message>` saves a row in
+  `feedback` (up to 2,000 characters, 10/h). Vercel has no Telegram token, so the bot forwards each undelivered row to
+  the owner's chat with the sender's email (`forwardFeedback` in `scripts/bot.ts`) and stamps `delivered_at`. Reply by email.
 - Pushes (with VAPID keys): each new close (tap → `/trades/<id>`), the weekly review (→ `/review`) and sync failures
   (→ `/settings`), only to users with a subscribed device. A push failure never blocks the Telegram message (`notifyPhone`).
 
@@ -131,7 +140,7 @@ tip) as ruled bars, the weakest in the accent, and on the landing page (the demo
   `users.deleteUser`. A sync already running when the account is deleted erases what it wrote (`ACCOUNT_DELETED`).
   The owner's account would be re-filled by the server's own key: remove `OWNER_USER_ID` first if that is ever wanted.
 - **Rate limits** (`LIMITS` in `lib/rate-limit.ts`): AI review 10/day, AI suggestions 60/h, voice transcription 30/h,
-  Delta key saves, Telegram links, test pushes and exports 10/h, bot `/sync` 20/h, 60 bot updates/min per user (more
+  Delta key saves, Telegram links, test pushes, exports and feedback 10/h, bot `/sync` 20/h, 60 bot updates/min per user (more
   are dropped; taps get "Slow down"), 10 replies/h to an unlinked chat. Counted in the database so they hold across
   Vercel instances and the bot.
 - **Monitoring:** the bot writes `bot.heartbeat` (process-wide `app_state`: time, users synced, users failing) after

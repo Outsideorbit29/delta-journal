@@ -117,6 +117,7 @@ Caches/state: `trade_candles`, `telegram_messages` (message → trade, kinds `tr
 `note_prompt` | `suggestion` with `payload`), `app_state` (key/value), `ai_reviews`,
 `push_subscriptions` (endpoint, keys, device label, failure count).
 Errors: `app_errors` (process-wide, no user id: website server errors for the owner's alerts).
+Feedback: `feedback` (per user: message, source `web` | `telegram`, `delivered_at` once the bot forwarded it to the owner).
 Accounts: `users` (Clerk user id, email from Clerk on first visit or backfilled once, `""` if none; `plan` default
 `founder`, `access_until`). Limits: `rate_limits` (subject = user id or `chat:<id>`, action, window start, count).
 Keys: `delta_credentials` (one per user: `key_hint` = last 4 characters, `sealed` key and secret, `status`
@@ -130,7 +131,7 @@ are globally unique, so primary keys stay as they were. Ownership is enforced by
 `user_id` in every query, and an upsert only updates a row the same user owns (`setWhere`), so a
 record can never move between users. `sync_state` has the primary key (user, resource).
 `app_state` has (user, key), with `user_id` `''` for process-wide state (`telegram.update_offset:<bot id>`, one per bot, so a new bot starts from zero; `bot.heartbeat`).
-Per-user state (`telegram.notify_since`, `telegram.weekly_review_for`) sits under the user.
+Per-user state (`telegram.notify_since`, `telegram.weekly_review_for`, `telegram.reminder_for`, `telegram.reminders_off`) sits under the user.
 
 There are no foreign keys. Rebuild deletes `auto` tags only, and only the rebuilt user's rows.
 `OWNED` in `src/db/claim.ts` lists every per-user table; claim, export and account deletion all use it, so **a new
