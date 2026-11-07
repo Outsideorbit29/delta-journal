@@ -143,6 +143,8 @@ src/
   lib/account.ts           exportAccount (JSON, secrets and raw records left out), tradesCsv, deleteAccountData; tested
   lib/rate-limit.ts        LIMITS per action, rateLimit() (fixed window in the database), tooMany(); tested
   lib/health.ts            recordHeartbeat (sync server, each round), readHealth (for /api/health); tested
+  lib/app-errors.ts        errorInfo (scrubbed), recordAppError, errorsToAlert/markAlerted, renderErrorAlert; tested
+  instrumentation.ts       onRequestError → app_errors (website server errors, for the owner's Telegram alerts)
   lib/legal.ts             LEGAL: operator, contact email, effective date (Privacy Policy, Terms, footer)
   lib/isolation.test.ts    Two users in one database: every query, save, rebuild, sync, AI and push path stays inside its user
   lib/push.ts              Web push: save/remove subscriptions, sendPush() (drops 404/410 and 5-failure devices)
@@ -168,8 +170,8 @@ src/
                            nav-links (desktop links + phone BottomNav)
 public/sw.js               Service worker: shows pushes, opens the tapped notification's URL (no offline cache)
 scripts/                   sync.ts, rebuild.ts, bot.ts, db-migrate.ts, db-backup.ts, db-copy-to-cloud.ts, claim-legacy.ts, keys-generate.ts, demo-seed.ts
-drizzle/                   SQL migrations 0000-0011 + meta (0008 = multi-user, its table rebuilds hand-fixed; 0009 = delta_credentials;
-                           0010 = telegram_links; 0011 = rate_limits)
+drizzle/                   SQL migrations 0000-0012 + meta (0008 = multi-user, its table rebuilds hand-fixed; 0009 = delta_credentials;
+                           0010 = telegram_links; 0011 = rate_limits; 0012 = app_errors)
 ```
 
 ## Data model (`src/db/schema.ts`)
@@ -182,6 +184,7 @@ User data (never touched by sync/rebuild): `journal_entries` (keyed by trade id)
 Caches/state: `trade_candles`, `telegram_messages` (message → trade, kinds `trade` |
 `note_prompt` | `suggestion` with `payload`), `app_state` (key/value), `ai_reviews`,
 `push_subscriptions` (endpoint, keys, device label, failure count).
+Errors: `app_errors` (process-wide, no user id: website server errors for the owner's alerts).
 Accounts: `users` (Clerk user id, email from Clerk on first visit or backfilled once, `""` if none; `plan` default
 `founder`, `access_until`). Limits: `rate_limits` (subject = user id or `chat:<id>`, action, window start, count).
 Keys: `delta_credentials` (one per user: `key_hint` = last 4 characters, `sealed` key and secret, `status`
@@ -189,7 +192,7 @@ Keys: `delta_credentials` (one per user: `key_hint` = last 4 characters, `sealed
 Telegram: `telegram_links` (one per user: unique `chat_id`, `chat_name`, `linked_at`, and a pending one-time
 `code_hash` (SHA-256) with `code_expires_at`).
 
-**Every table except `users`, `trade_candles` and `rate_limits` has `user_id`** (default `legacy`; `telegram_links` and
+**Every table except `users`, `trade_candles`, `rate_limits` and `app_errors` has `user_id`** (default `legacy`; `telegram_links` and
 `delta_credentials` are keyed by it). Delta ids
 are globally unique, so primary keys stay as they were. Ownership is enforced by filtering on
 `user_id` in every query, and an upsert only updates a row the same user owns (`setWhere`), so a
@@ -338,6 +341,12 @@ tip) as ruled bars, the weakest in the accent, and on the landing page (the demo
   every round. `GET /api/health` (public, counts only) returns 200 while it is under 5 minutes old, else 503.
   **UptimeRobot** (free, the owner's account, signed in with GitHub) checks `https://hardwon.in/api/health` every
   5 minutes and emails the owner when it fails (set up 2026-11-07).
+- **Website error alerts** (since 2026-11-07): `src/instrumentation.ts` (`onRequestError`) records every server error
+  (pages, actions, API routes, proxy) in `app_errors`, one row per distinct error (route + message with numbers and ids
+  ignored), with a count. Messages lose everything from `params:` on (failed queries list their parameters), paths lose
+  their query string, and no user id is kept. Each round the bot Telegrams the owner about new errors, and again at most
+  hourly while one keeps happening (`lib/app-errors.ts`); rows unseen for 30 days are pruned. If the database itself is
+  down nothing can be recorded: UptimeRobot covers that. Full stack traces stay in Vercel → Logs.
 - **Security headers** (`next.config.ts`, every path): `X-Frame-Options: DENY` + `frame-ancestors 'none'`, `nosniff`,
   `strict-origin-when-cross-origin`, a `Permissions-Policy` denying camera/mic/location/payment/USB. Vercel already
   sends HSTS. No full CSP yet (Clerk's scripts and Next's inline scripts need a nonce setup).
@@ -574,6 +583,8 @@ Week plan and progress:
 
 ## Changelog
 
+- **2026-11-07**: Website error alerts: server errors are recorded in `app_errors` (migration 0012) by
+  `src/instrumentation.ts`, and the bot Telegrams the owner (new errors at once, repeats at most hourly).
 - **2026-11-07**: Cross-margin funding and liquidation fees (no `product_id`) now reach their trade through
   `meta_data.fill_uuid`; found when the second user's wallet ledger was $0.37 off their trades. The demo re-seeds daily.
 - **2026-11-07**: Researched Delta's API rate limits (per user, ample) and Terms of Use (silent on third-party apps;
