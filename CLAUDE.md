@@ -499,7 +499,20 @@ Done (all pushed): 1 sync · 2 trades + auto tags · 3 dashboard and charts · 4
   worker on the fixed-IP server (users whitelist our IPs); one shared Telegram bot with account
   linking; invite-gated sign-up for the first 10; legal pages (DPDP Act), data export and deletion.
   Payments come after the beta (an Indian seller: Stripe if it onboards, otherwise Razorpay for UPI).
-- **To verify:** Delta's terms for third-party apps syncing other users' accounts, and whether its rate limits are per IP or per key.
+- **Delta's terms and limits (researched 2026-11-07, not legal advice):**
+  - Rate limits are fine: authenticated requests are throttled **per user ID**, not per IP (docs.delta.exchange): 20,000
+    weight per 5 minutes; fills, order history and wallet transactions cost 10 per page, open orders 3. One sync is about
+    35-65 weight (order history is read unwindowed, 200 per page), so a minute-by-minute sync uses roughly 1-2% of a
+    user's quota, and many users behind our one IP do not share a quota. Public calls (candles) are throttled per IP.
+    A trader with thousands of orders costs 10 per 200 orders per sync: window the order history if that ever matters.
+  - The Terms of Use (delta.exchange/terms-of-use, Excelium Technologies Pvt Ltd; trademarks owned by Chainlabs DMCC;
+    Indian law, DIAC arbitration) say **nothing about API keys or third-party apps**, but some clauses could be read
+    against Hardwon: 20.6.1 (data, including API data, is "for your own personal use"; commercial use needs Delta's
+    prior written consent), 3.1.11 (not "use the Services to provide services to third parties"), 3.1.17 (not
+    "disclose the user authentication"), 20.7.5 (no commercial use of Delta's logo). Delta itself markets free APIs,
+    and third-party tools (Tradetron, OpenAlgo, StockSharp, TradingView bots) already take users' keys.
+  - So: **ask Delta for written consent before charging** (support / API team), keep "Independent, not affiliated with
+    Delta Exchange" on the site, use the name only to describe compatibility and never Delta's logo.
 
 Week plan and progress:
 - **Day 1 (done and live, 2026-10-31): Clerk accounts and `user_id` everywhere**, isolation tests, `claim-legacy`.
@@ -545,7 +558,8 @@ Week plan and progress:
      **Done (2026-11-07):** the first invited user signed up, connected their own Delta key (status `ok`, syncing
      every minute: 59 fills, 27 trades) and linked Telegram, end to end without help.
      **Done (2026-11-07):** daily database backups on the server; Vercel 2FA turned on by the owner.
-     **Left for launch:** check Delta's terms for third-party syncing; lawyer's read; Vercel Pro and payments
+     **Researched (2026-11-07):** Delta's terms and rate limits (see "Delta's terms and limits" above).
+     **Left for launch:** Delta's written consent for a paid product; lawyer's read; Vercel Pro and payments
      before charging (Hobby is non-commercial).
   A linked chat keeps working on a new bot once its owner taps Start there. Local `npm run dev` stays on Clerk's
   development instance, so it signs in as a different, empty account: run it against `DATABASE_URL=file:data/dev.db`, never
@@ -554,6 +568,8 @@ Week plan and progress:
 
 ## Changelog
 
+- **2026-11-07**: Researched Delta's API rate limits (per user, ample) and Terms of Use (silent on third-party apps;
+  commercial use of API data needs written consent): recorded under Status and roadmap.
 - **2026-11-07**: The owner turned on two-factor authentication for the Vercel account.
 - **2026-11-07**: Server updated: 35 pending packages installed (security fixes had already come through unattended
   upgrades) and rebooted onto kernel 7.0.0-1014-aws; bot and backup timer came back on their own.
