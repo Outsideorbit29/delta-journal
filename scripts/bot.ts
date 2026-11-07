@@ -12,6 +12,7 @@ import { AI_MODELS, aiConfigured } from "@/lib/ai/models";
 import { generateReview } from "@/lib/ai/review";
 import { suggestFromNote } from "@/lib/ai/suggest";
 import { DeltaClient } from "@/lib/delta/client";
+import { errorsToAlert, markAlerted, pruneAppErrors, renderErrorAlert } from "@/lib/app-errors";
 import { recordHeartbeat } from "@/lib/health";
 import { sealPrivateKey } from "@/lib/keys/credentials";
 import { hasStoredKey, syncStoredKeys, syncWithStoredKey, type UserSyncResult } from "@/lib/keys/sync-users";
@@ -187,8 +188,21 @@ async function syncLoop(db: Db, owner: string, context: (userId: string, chatId:
     await recordHeartbeat(db, { at: Date.now(), users: results.length, failing: results.filter((r) => r.error).length }).catch((err) =>
       log("Could not record the heartbeat:", message(err)),
     );
+    await alertOwnerOfErrors(db, owner, context).catch((err) => log("Could not check website errors:", message(err)));
     await sleep(SYNC_EVERY_MS);
   }
+}
+
+/** Tells the owner on Telegram about new server errors on the website (recorded by src/instrumentation.ts). */
+async function alertOwnerOfErrors(db: Db, owner: string, context: (userId: string, chatId: string | null) => BotContext) {
+  await pruneAppErrors(db);
+  const rows = await errorsToAlert(db);
+  if (!rows.length) return;
+  const chatId = await chatForUser(db, owner);
+  if (!chatId) return; // kept until the owner links a chat
+  await context(owner, chatId).tg.sendMessage(chatId, renderErrorAlert(rows));
+  await markAlerted(db, rows.map((r) => r.key));
+  log(`Told the owner about ${rows.length} website error(s).`);
 }
 
 /** Whether the user turned on phone notifications on any device. */
