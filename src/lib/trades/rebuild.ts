@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { effectiveRisk } from "@/lib/journal/entry";
 import { schema, type Db } from "@/db";
-import { analyzeTrades } from "./analyze";
+import { analyzeTrades, walletFillIds } from "./analyze";
 import { reconstructTrades } from "./reconstruct";
 
 const BATCH = 100;
@@ -27,7 +27,8 @@ export async function rebuildTrades(db: Db, userId: string): Promise<RebuildSumm
   const plannedStops = new Map(journal.map((j) => [j.tradeId, j.plannedStop]));
 
   const orderInputs = orders.map((o) => ({ ...o, editedTs: editedAt(o.raw) }));
-  const analyzed = analyzeTrades(reconstructTrades(fills), orderInputs, wallet);
+  const walletInputs = wallet.map((w) => ({ ...w, fillIds: walletFillIds(w.raw) }));
+  const analyzed = analyzeTrades(reconstructTrades(fills), orderInputs, walletInputs);
 
   const tradeRows: (typeof schema.trades.$inferInsert)[] = analyzed.map((t) => ({
     ...effectiveRisk({ ...t, stopOrderRisk: t.riskAmount }, plannedStops.get(t.id) ?? null),

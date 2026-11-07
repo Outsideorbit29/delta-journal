@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { journalConfig } from "@/lib/config";
-import { analyzeTrades, type OrderInput, type WalletInput } from "./analyze";
+import { analyzeTrades, walletFillIds, type OrderInput, type WalletInput } from "./analyze";
 import type { ReconstructedTrade } from "./reconstruct";
 
 const MIN = 60_000;
@@ -72,6 +72,24 @@ describe("analyzeTrades", () => {
     expect(first.netPnl).toBeCloseTo(-10 - 1 - 3 - 0.2);
     expect(second.funding).toBe(0);
     expect(second.liquidationFees).toBe(0);
+  });
+
+  it("gives a cross-margin charge with no product to the trade holding the fill it names", () => {
+    // Seen live: a cross-margin liquidation fee had product_id null and meta_data.fill_uuid naming the liquidation fill.
+    const wallet: WalletInput[] = [
+      { type: "liquidation_fee", amount: -0.37, balance: 1.5, assetSymbol: "USD", productId: null, fillIds: ["b-out"], ts: T0 + 30 * MIN + 670 },
+    ];
+    const [a, b] = analyzeTrades([trade("a", 0, 30, 1), { ...trade("b", 5, 30, -5), productId: 27 }], [], wallet);
+    expect(a.liquidationFees).toBe(0);
+    expect(b.liquidationFees).toBeCloseTo(0.37);
+    expect(b.netPnl).toBeCloseTo(-5.37);
+  });
+
+  it("reads the fills a wallet record names", () => {
+    expect(walletFillIds({ meta_data: { fill_uuid: ["f1", "f2"] } })).toEqual(["f1", "f2"]);
+    expect(walletFillIds({ meta_data: { fill_uuid: "f1" } })).toEqual(["f1"]);
+    expect(walletFillIds({ meta_data: {} })).toEqual([]);
+    expect(walletFillIds(null)).toEqual([]);
   });
 
   it("matches fee-credit payments to the trade with the nearest fill", () => {

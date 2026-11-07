@@ -25,7 +25,15 @@ export interface WalletInput {
   balance: number | null;
   assetSymbol: string;
   productId: number | null;
+  /** Fills the charge names (`meta_data.fill_uuid`). Cross-margin charges carry these but no product. */
+  fillIds?: string[];
   ts: number;
+}
+
+/** The fill ids a wallet record's `meta_data.fill_uuid` names, if any. */
+export function walletFillIds(raw: unknown): string[] {
+  const ids = (raw as { meta_data?: { fill_uuid?: unknown } } | null)?.meta_data?.fill_uuid;
+  return (Array.isArray(ids) ? ids : ids == null ? [] : [ids]).map(String);
 }
 
 export interface AutoTag {
@@ -119,9 +127,10 @@ interface Charges {
 }
 
 /**
- * Gives each wallet charge to exactly one trade. Funding and liquidation fees
- * carry a product: they belong to the trade on that product that closed just
- * before (settlement at close), otherwise to the one open at the time.
+ * Gives each wallet charge to exactly one trade. A funding or liquidation fee
+ * that names its fill goes to the trade holding that fill (cross-margin charges
+ * have no product). Otherwise it goes by product: to the trade on that product
+ * that closed just before (settlement at close), else to the one open at the time.
  * Fee-credit payments carry no product, so they go to the trade with the
  * nearest fill.
  */
@@ -134,11 +143,13 @@ function assignWalletCharges(trades: ReconstructedTrade[], wallet: WalletInput[]
   };
   const byProduct = groupBy(trades, (t) => t.productId);
   const legs = trades.flatMap((t) => t.legs.map((l) => ({ tradeId: t.id, ts: l.ts }))).sort((a, b) => a.ts - b.ts);
+  const tradeByFill = new Map(trades.flatMap((t) => t.legs.map((l) => [l.fillId, t] as const)));
 
   for (const w of wallet) {
     if (w.type === "funding" || w.type === "liquidation_fee") {
       const candidates = byProduct.get(w.productId ?? -1) ?? [];
       const target =
+        w.fillIds?.map((id) => tradeByFill.get(id)).find((t) => t !== undefined) ??
         candidates.find((t) => t.closedTs !== null && t.closedTs <= w.ts && w.ts - t.closedTs <= SETTLE_GRACE_MS) ??
         candidates.find((t) => t.openedTs <= w.ts && (t.closedTs === null || w.ts <= t.closedTs));
       if (target) add(target.id, w.type === "funding" ? "funding" : "liquidationFees", w.type === "funding" ? w.amount : -w.amount);
