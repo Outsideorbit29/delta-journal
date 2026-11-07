@@ -332,6 +332,26 @@ export const telegramLinks = sqliteTable("telegram_links", {
 
 // Fixed-window rate limits (src/lib/rate-limit.ts). `subject` is a user id, or
 // "chat:<id>" for a Telegram chat that is not linked to anyone.
+/**
+ * Server errors on the website (from Next's onRequestError), one row per distinct error, so the
+ * sync server can tell the owner on Telegram. Process-wide like rate_limits: no user data is kept
+ * (no user id, no query strings, database parameters cut from messages).
+ */
+export const appErrors = sqliteTable("app_errors", {
+  key: text("key").primaryKey(),
+  message: text("message").notNull(),
+  routePath: text("route_path").notNull(),
+  routeType: text("route_type").notNull(),
+  method: text("method").notNull(),
+  path: text("path").notNull(),
+  count: integer("count").notNull(),
+  firstSeen: integer("first_seen").notNull(),
+  lastSeen: integer("last_seen").notNull(),
+  /** When the owner was last told, and the count at that time. */
+  alertedAt: integer("alerted_at"),
+  alertedCount: integer("alerted_count").notNull().default(0),
+});
+
 export const rateLimits = sqliteTable(
   "rate_limits",
   {
