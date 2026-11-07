@@ -20,6 +20,8 @@ export const LIMITS = {
   "telegram.link": { limit: 10, windowMs: HOUR },
   "push.test": { limit: 10, windowMs: HOUR },
   "account.export": { limit: 10, windowMs: HOUR },
+  /** Feedback to the owner (Settings and /feedback). */
+  "feedback.send": { limit: 10, windowMs: HOUR },
   /** /sync from Telegram (the server syncs everyone each minute anyway). */
   "bot.sync": { limit: 20, windowMs: HOUR },
   /** Any message or button tap to the bot from a linked chat. */

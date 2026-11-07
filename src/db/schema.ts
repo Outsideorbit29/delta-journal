@@ -330,8 +330,18 @@ export const telegramLinks = sqliteTable("telegram_links", {
   codeExpiresAt: integer("code_expires_at"),
 });
 
-// Fixed-window rate limits (src/lib/rate-limit.ts). `subject` is a user id, or
-// "chat:<id>" for a Telegram chat that is not linked to anyone.
+// What users tell the owner, from Settings → Feedback or /feedback in Telegram
+// (src/lib/feedback.ts). The sync server forwards each message to the owner's
+// Telegram once and stamps delivered_at.
+export const feedback = sqliteTable("feedback", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: ownerId(),
+  message: text("message").notNull(),
+  source: text("source", { enum: ["web", "telegram"] }).notNull(),
+  createdAt: integer("created_at").notNull(),
+  deliveredAt: integer("delivered_at"),
+});
+
 /**
  * Server errors on the website (from Next's onRequestError), one row per distinct error, so the
  * sync server can tell the owner on Telegram. Process-wide like rate_limits: no user data is kept
@@ -352,6 +362,8 @@ export const appErrors = sqliteTable("app_errors", {
   alertedCount: integer("alerted_count").notNull().default(0),
 });
 
+// Fixed-window rate limits (src/lib/rate-limit.ts). `subject` is a user id, or
+// "chat:<id>" for a Telegram chat that is not linked to anyone.
 export const rateLimits = sqliteTable(
   "rate_limits",
   {

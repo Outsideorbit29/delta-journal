@@ -2,12 +2,14 @@ import { connection } from "next/server";
 import { AccountData } from "@/components/account-data";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { DeltaConnect } from "@/components/delta-connect";
+import { FeedbackForm } from "@/components/feedback-form";
 import { PushSettings } from "@/components/push-settings";
 import { TelegramConnect } from "@/components/telegram-connect";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getDb } from "@/db";
 import { DELETE_CONFIRMATION } from "@/lib/account";
 import { aiConfigured } from "@/lib/ai/models";
+import { FEEDBACK_MAX } from "@/lib/feedback";
 import { formatDateTime } from "@/lib/format";
 import { getDeltaKeyStatus } from "@/lib/keys/credentials";
 import { vapidPublicKey } from "@/lib/push";
@@ -48,6 +50,10 @@ export default async function SettingsPage() {
 
         <Group title="Appearance" intro="Light paper or dark. Kept in this browser.">
           <ThemeToggle />
+        </Group>
+
+        <Group title="Feedback" intro="Found a bug, or wish Hardwon did something? It goes straight to the founder, who reads every message.">
+          <FeedbackForm max={FEEDBACK_MAX} />
         </Group>
 
         <Group title="Status">

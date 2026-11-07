@@ -38,7 +38,8 @@ export default function PrivacyPage() {
         </li>
         <li>
           <strong>What you write:</strong> journal answers, notes and ratings. Voice notes you send on Telegram are turned into text; we keep
-          the text, not the audio.
+          the text, not the audio. Feedback you send us (from Settings or /feedback) is kept with your account and forwarded to the
+          founder&apos;s Telegram, with your email, so we can reply.
         </li>
         <li>
           <strong>Telegram, if you connect it:</strong> your chat id, your Telegram username or first name, and the messages you send our bot.

@@ -22,6 +22,7 @@ export const OWNED = [
   schema.pushSubscriptions,
   schema.deltaCredentials,
   schema.telegramLinks,
+  schema.feedback,
 ] as const;
 
 export type ClaimResult = Record<string, number>;

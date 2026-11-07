@@ -29,6 +29,7 @@ const { handleUpdate } = await import("@/lib/telegram/bot");
 const { deleteAccountData, exportAccount, tradesCsv } = await import("@/lib/account");
 const { OWNED } = await import("@/db/claim");
 const { rateLimit } = await import("@/lib/rate-limit");
+const { saveFeedback } = await import("@/lib/feedback");
 type BotContext = import("@/lib/telegram/bot").BotContext;
 
 const A = "user_A";
@@ -189,6 +190,8 @@ describe("each user only sees their own data", () => {
   });
 
   it("exports only the user's own rows, without secrets", async () => {
+    await saveFeedback(db, A, "feedback from A", "web", T0);
+    await saveFeedback(db, B, "feedback from B", "telegram", T0);
     const a = await exportAccount(db, A, T0);
     const b = await exportAccount(db, B, T0);
     const rows = (x: typeof a) => Object.values(x.tables).flat();
@@ -196,6 +199,7 @@ describe("each user only sees their own data", () => {
     expect(rows(a).every((r) => r.userId === A)).toBe(true);
     expect(rows(b).every((r) => r.userId === B)).toBe(true);
     expect(Object.keys(a.tables).sort()).toEqual(OWNED.map((t) => getTableName(t)).sort());
+    expect(a.tables.feedback.map((r) => r.message)).toEqual(["feedback from A"]);
 
     const json = JSON.stringify(b);
     expect(b.tables.delta_credentials).toEqual([expect.objectContaining({ keyHint: "keyB" })]);
@@ -218,7 +222,7 @@ describe("each user only sees their own data", () => {
     const deleted = await deleteAccountData(db, A);
     expect(deleted.users).toBe(1);
     expect(deleted.trades).toBeGreaterThan(0);
-    expect(deleted.rate_limits).toBe(1);
+    expect(deleted.rate_limits).toBe(2); // push.test here, feedback.send in the export test
 
     const left = await exportAccount(db, A, T0);
     expect(left.account).toBeNull();
