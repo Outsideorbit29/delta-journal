@@ -3,13 +3,15 @@ import { CostBreakdown } from "@/components/charts/cost-breakdown";
 import { EquityChart } from "@/components/charts/equity-chart";
 import { PnlCalendar } from "@/components/charts/pnl-calendar";
 import { FilterBar } from "@/components/filter-bar";
-import { ScoreCard } from "@/components/score-card";
+import { ScoreCard, type ScoreAction } from "@/components/score-card";
+import { TodayStrip } from "@/components/today-strip";
 import { TagChip } from "@/components/tag-chip";
 import { getDb } from "@/db";
 import { listReviews } from "@/lib/ai/review";
 import { formatDateTime, formatMoney, formatPercent, pnlClass } from "@/lib/format";
 import { biggestLeaks, TAG_HINTS, whatWorks } from "@/lib/insights";
-import { behaviourScore } from "@/lib/score";
+import { behaviourScore, weakest, type BehaviourScore } from "@/lib/score";
+import { summarySince, todaySummary, type TodaySummary } from "@/lib/today";
 import { journaledTradeIds, listSymbols, listTrades } from "@/lib/queries";
 import { filterHref, RANGES, rangeStart, type readFilters } from "@/lib/range";
 import { computeStats, dailyPnl, equityCurve, groupStats, tagPerformance, type GroupStats, type TagPerformance } from "@/lib/stats";
@@ -34,12 +36,14 @@ export async function DashboardView({
   greeting?: string;
 }) {
   const path = demo ? "/demo" : "/";
-  const [trades, symbols, journaled, [latestReview]] = await Promise.all([
+  const [trades, symbols, journaled, [latestReview], recentTrades] = await Promise.all([
     listTrades(userId, { symbol: filters.symbol, tag: filters.tag, sinceTs: rangeStart(filters.range) }),
     listSymbols(userId),
     journaledTradeIds(userId),
     getDb().then((db) => listReviews(db, userId, 1)),
+    demo ? Promise.resolve([]) : listTrades(userId, { sinceTs: summarySince() }),
   ]);
+  const summary = demo ? null : todaySummary(recentTrades, journaled);
   const journaledHere = trades.filter((t) => t.status === "closed" && journaled.has(t.id)).length;
 
   const stats = computeStats(trades);
@@ -65,6 +69,8 @@ export async function DashboardView({
           {!demo && mismatches > 0 && <p className="face-label text-sm text-warn">{mismatches} trades don&apos;t match Delta&apos;s P&L</p>}
         </div>
       </div>
+
+      {summary && summary.recent.trades > 0 && <TodayStrip summary={summary} />}
 
       {stats.trades === 0 ? (
         <section className="opens max-w-2xl">
@@ -99,7 +105,7 @@ export async function DashboardView({
           <section className={`grid gap-x-8 gap-y-12 ${score ? "lg:grid-cols-12" : ""}`}>
             {score && (
               <div className="min-w-0 lg:col-span-7">
-                <ScoreCard score={score} />
+                <ScoreCard score={score} action={summary ? scoreAction(score, summary, (tag) => filterHref("/trades", filters, { tag })) : undefined} />
               </div>
             )}
             <div className={`min-w-0 ${score ? "lg:col-span-5" : ""}`}>
@@ -161,6 +167,18 @@ export async function DashboardView({
       )}
     </main>
   );
+}
+
+/** The next step for the weakest habit: journal what is waiting, or look at the trades that have the habit. */
+function scoreAction(score: BehaviourScore, summary: TodaySummary, tradesWith: (tag: string) => string): ScoreAction | undefined {
+  const focus = weakest(score);
+  if (focus.key === "journal") {
+    if (!summary.toJournal) return undefined;
+    const n = summary.toJournal;
+    return { message: `Journal your ${n} ${n === 1 ? "trade" : "trades"} from the last week to start lifting it.`, href: "/journal", label: "Journal now" };
+  }
+  if (!focus.tag) return undefined;
+  return { message: focus.tip, href: tradesWith(focus.tag), label: "See these trades" };
 }
 
 /** The signature: the costliest habits set like a market table, each linking to its trades. */

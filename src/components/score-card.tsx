@@ -1,10 +1,19 @@
+import Link from "next/link";
+import { buttonSecondary } from "@/components/ui";
 import { weakest, type BehaviourScore } from "@/lib/score";
+
+/** What to do about the weakest habit: a sentence and a link, in place of the generic tip. */
+export interface ScoreAction {
+  message: string;
+  href: string;
+  label: string;
+}
 
 /**
  * The behaviour score: the overall number, one bar per dimension, and the one habit
  * to work on. The weakest dimension carries the accent; the rest stay in ink.
  */
-export function ScoreCard({ score, compact = false }: { score: BehaviourScore; compact?: boolean }) {
+export function ScoreCard({ score, compact = false, action }: { score: BehaviourScore; compact?: boolean; action?: ScoreAction }) {
   const focus = weakest(score);
   return (
     <section className="opens" aria-labelledby="score-head">
@@ -45,9 +54,16 @@ export function ScoreCard({ score, compact = false }: { score: BehaviourScore; c
       </ul>
 
       {!compact && (
-        <p className="mt-6 bg-paper-2 border-t border-rule-2 px-5 py-4 text-base text-ink-2">
-          <strong className="face-label font-medium text-ink">Work on {focus.label.toLowerCase()}.</strong> {focus.tip}
-        </p>
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 bg-paper-2 border-t border-accent px-5 py-4">
+          <p className="min-w-0 flex-1 basis-64 text-base text-ink-2">
+            <strong className="face-label font-medium text-ink">{focus.label} is your weakest habit.</strong> {action?.message ?? focus.tip}
+          </p>
+          {action && (
+            <Link href={action.href} className={buttonSecondary}>
+              {action.label}
+            </Link>
+          )}
+        </div>
       )}
     </section>
   );

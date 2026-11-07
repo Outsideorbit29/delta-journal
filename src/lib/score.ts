@@ -15,6 +15,8 @@ export interface ScoreDimension {
   score: number;
   /** What to work on when this dimension is low. */
   tip: string;
+  /** The auto tag behind the habit, to list the trades that have it (none for journaling). */
+  tag?: string;
 }
 
 export interface BehaviourScore {
@@ -33,6 +35,7 @@ type Dimension = {
   key: string;
   label: string;
   tip: string;
+  tag?: string;
   /** Which trades this dimension applies to (default: all). */
   applies?: (tags: Set<string>) => boolean;
   good: (tags: Set<string>, id: string) => boolean;
@@ -46,12 +49,14 @@ function dimensions(journaled?: Set<string>): Dimension[] {
       key: "risk",
       label: "Risk control",
       tip: "Place a stop-loss as soon as you enter.",
+      tag: "no_stop",
       good: (t) => !has(t, "no_stop", "late_stop"),
     },
     {
       key: "stops",
       label: "Stop discipline",
       tip: "Never move a stop further away while the trade is losing.",
+      tag: "moved_stop",
       applies: (t) => !t.has("no_stop"),
       good: (t) => !t.has("moved_stop"),
     },
@@ -59,18 +64,21 @@ function dimensions(journaled?: Set<string>): Dimension[] {
       key: "sizing",
       label: "Position sizing",
       tip: "Keep size and leverage close to your usual.",
+      tag: "oversized",
       good: (t) => !has(t, "oversized", "heavy_margin", "high_leverage"),
     },
     {
       key: "emotions",
       label: "Emotional control",
       tip: "After a loss, take a break instead of sizing up or adding to a loser.",
+      tag: "sized_up_after_loss",
       good: (t) => !has(t, "sized_up_after_loss", "added_to_loser", "liquidated"),
     },
     {
       key: "patience",
       label: "Patience",
       tip: "Fewer, longer trades: scalps and bursts of trades mostly feed fees.",
+      tag: "hold:scalp",
       good: (t) => !has(t, "overtrading", "hold:scalp"),
     },
   ];
@@ -109,7 +117,7 @@ function scoreOf(trades: ScoredTrade[], journaled?: Set<string>) {
     const applicable = tagSets.filter((t) => d.applies?.(t.tags) ?? true);
     if (!applicable.length) continue;
     const good = applicable.filter((t) => d.good(t.tags, t.id)).length;
-    dims.push({ key: d.key, label: d.label, tip: d.tip, score: Math.round((100 * good) / applicable.length) });
+    dims.push({ key: d.key, label: d.label, tip: d.tip, tag: d.tag, score: Math.round((100 * good) / applicable.length) });
   }
   const overall = Math.round(dims.reduce((sum, d) => sum + d.score, 0) / dims.length);
   return { overall, label: labelFor(overall), dimensions: dims };
