@@ -66,7 +66,7 @@ the owner's, so they only ever sync into `OWNER_USER_ID`; other users get per-us
 | `npm run bot` | Telegram bot + Delta sync every 60 s (+ weekly AI review), acting for `OWNER_USER_ID`. Runs on the server, not the PC. |
 | `npm run sync` | One sync of the owner's account (`OWNER_USER_ID`); prints rows written, and rebuilds trades only if something changed |
 | `npm run rebuild` | Recompute trades and auto tags from stored data for every user (after changing `src/lib/config.ts`) |
-| `npm run demo:seed` | Replace the public demo account's made-up trades with a fresh set ending yesterday (dates go stale; re-run now and then) |
+| `npm run demo:seed` | Replace the public demo account's made-up trades with a fresh set ending yesterday (same figures, dates moved). Runs daily on the server |
 | `npm run keys:generate` | Create the key pair that locks users' Delta keys and write it into `.env.local` (refuses to replace an existing pair) |
 | `npm run claim-legacy -- user_xxx [--from user_old]` | Move all `legacy` rows (or a whole account, with `--from`, e.g. the Clerk development user to the production one) to that Clerk user, who must have signed in once and have no synced data. Carries the founder dates over; a stored Delta key cannot move (sealed to its owner) and is dropped |
 | `npm run db:generate` | New migration after editing `src/db/schema.ts` |
@@ -223,7 +223,9 @@ fees). **Verified: matches Delta on all 135 trades to the cent.**
 ### Charges, stops, tags (`analyze.ts`)
 - Net P&L = gross − fees − liquidation fees + funding. **Summed over all trades it equals the
   wallet ledger's trading lines exactly** (deposits − withdrawals + net = balance).
-- Funding and liquidation fees are booked a few ms *after* the closing fill: they go to the trade
+- Funding and liquidation fees are booked a few ms *after* the closing fill. A charge that names its fill
+  (`meta_data.fill_uuid`, which equals our fill id) goes to the trade holding that fill: **cross-margin charges have
+  `product_id` null** (seen on a second user's liquidation fee, 2026-11-07). Otherwise it goes by product to the trade
   that closed within 5 s before, else the one open. Fee-credit payments have no product: they go to the nearest fill.
 - Stop = bracket stop on the entry order, else first `stop_loss_order` on the exit side from
   60 s before entry to close. **Delta keeps only the final stop price**; an edited order has
@@ -287,7 +289,9 @@ queue of un-journaled closed trades, newest first, with Save & next.
 - `/demo` is public and read-only: `DashboardView` for the user `demo` with `demo` set (no sync line, no journal or AI links,
   tag links stay on `/demo`). Its data is made up (`lib/demo.ts`): scalps lose to fees, stopped swings win, moved stops cost
   the most, trailed stops pay; about -$158 over 90 trades. Fill ids are `demo-…` and order ids negative, so they never clash
-  with Delta's; Clerk ids start with `user_`, so no account can be `demo`. Re-seed with `npm run demo:seed`.
+  with Delta's; Clerk ids start with `user_`, so no account can be `demo`. The server re-seeds it **daily at 03:00 IST**
+  (`delta-journal-demo.timer`, about 1,500 row writes); the figures are seeded and identical each time, only the dates
+  move, so the landing screenshots stay right. The demo is empty for a few seconds during the re-seed.
 
 ### Behaviour score (`lib/score.ts`, `components/score-card.tsx`)
 Each dimension is the share of closed trades **without** a habit, from the auto tags: Risk control (no `no_stop`/`late_stop`),
@@ -444,6 +448,8 @@ plus an Elastic IP would cost more than Lightsail, whose plans include the stati
   `sudo systemctl start delta-journal-backup`. They sit on AWS, apart from Turso. **Restore:** `gunzip` a file, then
   `~/.turso/turso db create <new-name> --from-file <file>.db`, point `DATABASE_URL`/`DATABASE_AUTH_TOKEN` (a new token
   for the new database) at it on the PC, the server and Vercel. setup.sh installs the timer.
+- **Daily demo refresh:** `delta-journal-demo.timer` runs `npm run demo:seed` at 21:30 UTC (03:00 IST); setup.sh installs it.
+  Logs: `journalctl -u delta-journal-demo`.
 - `deploy/server/update.sh`: run on the server after pushing code (`git pull`, `npm ci`, `db:migrate`, restart).
   From the PC: `ssh -i ~/.ssh/delta_journal_oracle ubuntu@15.206.227.0 'bash ~/delta-journal/deploy/server/update.sh'`.
 - Logs: `journalctl -u delta-journal-bot -f` (a successful sync logs nothing; check `sync_state` in the database).
@@ -568,6 +574,8 @@ Week plan and progress:
 
 ## Changelog
 
+- **2026-11-07**: Cross-margin funding and liquidation fees (no `product_id`) now reach their trade through
+  `meta_data.fill_uuid`; found when the second user's wallet ledger was $0.37 off their trades. The demo re-seeds daily.
 - **2026-11-07**: Researched Delta's API rate limits (per user, ample) and Terms of Use (silent on third-party apps;
   commercial use of API data needs written consent): recorded under Status and roadmap.
 - **2026-11-07**: The owner turned on two-factor authentication for the Vercel account.
