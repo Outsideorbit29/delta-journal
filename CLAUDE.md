@@ -544,8 +544,8 @@ Week plan and progress:
      the PC and the server, bot restarted.
      **Done (2026-11-07):** the first invited user signed up, connected their own Delta key (status `ok`, syncing
      every minute: 59 fills, 27 trades) and linked Telegram, end to end without help.
-     **Done (2026-11-07):** daily database backups on the server.
-     **Left for launch:** Vercel 2FA; check Delta's terms for third-party syncing; lawyer's read; Vercel Pro and payments
+     **Done (2026-11-07):** daily database backups on the server; Vercel 2FA turned on by the owner.
+     **Left for launch:** check Delta's terms for third-party syncing; lawyer's read; Vercel Pro and payments
      before charging (Hobby is non-commercial).
   A linked chat keeps working on a new bot once its owner taps Start there. Local `npm run dev` stays on Clerk's
   development instance, so it signs in as a different, empty account: run it against `DATABASE_URL=file:data/dev.db`, never
@@ -554,6 +554,7 @@ Week plan and progress:
 
 ## Changelog
 
+- **2026-11-07**: The owner turned on two-factor authentication for the Vercel account.
 - **2026-11-07**: Server updated: 35 pending packages installed (security fixes had already come through unattended
   upgrades) and rebooted onto kernel 7.0.0-1014-aws; bot and backup timer came back on their own.
 - **2026-11-07**: Daily database backups: `npm run db:backup` (`src/db/backup.ts`, every table from the schema itself)
