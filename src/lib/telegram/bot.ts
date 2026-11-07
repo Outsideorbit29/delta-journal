@@ -9,6 +9,7 @@ import { EMPTY_ENTRY, loadJournalEntry, saveJournalEntry } from "@/lib/journal/s
 import { formatMoney, formatPercent } from "@/lib/format";
 import { istDate } from "@/lib/stats";
 import { rateLimit, tooMany, type LimitedAction } from "@/lib/rate-limit";
+import { saveFeedback } from "@/lib/feedback";
 import { explainSyncError } from "@/lib/sync-errors";
 import type { TelegramClient, TgCallbackQuery, TgMessage, TgUpdate } from "./api";
 import { STATE_NOTIFY_SINCE, unlinkTelegram, redeemLinkCode, userForChat } from "./links";
@@ -42,6 +43,8 @@ export const COMMANDS = [
   { command: "today", description: "Today's P&L (IST)" },
   { command: "sync", description: "Sync with Delta now" },
   { command: "review", description: "AI coaching review of the last 7 days" },
+  { command: "reminders", description: "Turn the evening journaling reminder on or off" },
+  { command: "feedback", description: "Send a message to the founder" },
   { command: "disconnect", description: "Disconnect this chat from Hardwon" },
   { command: "help", description: "What this bot does" },
 ];
@@ -54,6 +57,8 @@ const HELP = [
   "/today: today's P&L",
   "/sync: sync with Delta now",
   "/review: AI coaching review of the last 7 days (also sent on Sunday evenings)",
+  "/reminders: turn the evening reminder about un-journaled trades on or off",
+  "/feedback <message>: tell the founder about a bug or an idea",
   "/disconnect: stop messages here (your journal stays in Hardwon)",
 ].join("\n");
 
@@ -76,6 +81,13 @@ const STATE_WEEKLY_REVIEW = "telegram.weekly_review_for";
 const IST_OFFSET_MS = 330 * 60_000;
 /** The automatic review goes out on Sunday from this hour (IST). */
 const WEEKLY_REVIEW_HOUR = 20;
+
+const STATE_REMINDER = "telegram.reminder_for";
+const STATE_REMINDERS_OFF = "telegram.reminders_off";
+/** The daily journaling reminder goes out from this hour (IST), about the last 24 hours' trades. */
+export const REMINDER_HOUR = 21;
+const REMINDER_GO = "n:go";
+const REMINDER_OFF = "n:off";
 
 // --- entry points --------------------------------------------------------------
 
@@ -248,7 +260,29 @@ async function handleMessage(ctx: BotContext, msg: TgMessage) {
   if (command === "/sync") return syncCommand(ctx);
   if (command === "/review") return reviewCommand(ctx);
   if (command === "/disconnect") return disconnectCommand(ctx);
+  if (command === "/reminders") return remindersCommand(ctx);
+  if (command === "/feedback") return feedbackCommand(ctx, text.slice(text.split(/\s+/)[0].length));
   await ctx.tg.sendMessage(chatId, HELP);
+}
+
+async function feedbackCommand(ctx: BotContext, text: string) {
+  if (!text.trim()) {
+    await ctx.tg.sendMessage(ctx.chatId!, "Write your message after the command, for example:\n/feedback the calendar shows the wrong day");
+    return;
+  }
+  const result = await saveFeedback(ctx.db, ctx.userId, text, "telegram", ctx.now?.() ?? Date.now());
+  await ctx.tg.sendMessage(ctx.chatId!, escapeHtml(result.message));
+}
+
+async function remindersCommand(ctx: BotContext) {
+  const off = (await getState(ctx.db, STATE_REMINDERS_OFF, ctx.userId)) === "1";
+  await setState(ctx.db, STATE_REMINDERS_OFF, off ? "0" : "1", ctx.userId);
+  await ctx.tg.sendMessage(
+    ctx.chatId!,
+    off
+      ? `Evening reminders are on. At ${REMINDER_HOUR}:00 IST I'll tell you if any of the day's trades still need journaling.`
+      : "Evening reminders are off. Send /reminders to turn them back on.",
+  );
 }
 
 async function disconnectCommand(ctx: BotContext) {
@@ -405,6 +439,56 @@ export async function maybeSendWeeklyReview(ctx: BotContext): Promise<boolean> {
   return sent;
 }
 
+/**
+ * Once a day from 21:00 IST (REMINDER_HOUR): if trades closed in the last 24 hours (since the user's
+ * starting point) are still not journaled, says how many, with a button that sends their cards and
+ * one that turns the reminder off. Only for users with a linked chat, so it can always be turned off
+ * where it arrives. Safe to call every minute.
+ */
+export async function maybeSendJournalReminder(ctx: BotContext): Promise<number> {
+  if (!ctx.chatId) return 0;
+  const now = ctx.now?.() ?? Date.now();
+  if (new Date(now + IST_OFFSET_MS).getUTCHours() < REMINDER_HOUR) return 0;
+  const day = istDate(now);
+  if ((await getState(ctx.db, STATE_REMINDER, ctx.userId)) === day) return 0;
+  if ((await getState(ctx.db, STATE_REMINDERS_OFF, ctx.userId)) === "1") return 0;
+  // Marked first, so a failure is not retried every minute.
+  await setState(ctx.db, STATE_REMINDER, day, ctx.userId);
+
+  const since = Math.max(now - DAY_MS, Number(await getState(ctx.db, STATE_NOTIFY_SINCE, ctx.userId)) || 0);
+  const journaled = ctx.db.select({ id: schema.journalEntries.tradeId }).from(schema.journalEntries).where(eq(schema.journalEntries.userId, ctx.userId));
+  const due = await ctx.db
+    .select({ id: schema.trades.id })
+    .from(schema.trades)
+    .where(
+      and(
+        eq(schema.trades.userId, ctx.userId),
+        eq(schema.trades.status, "closed"),
+        gte(schema.trades.closedTs, since),
+        notInArray(schema.trades.id, journaled),
+      ),
+    );
+  if (!due.length) return 0;
+
+  const what = due.length === 1 ? "1 trade from the last 24 hours isn't" : `${due.length} trades from the last 24 hours aren't`;
+  await ctx.tg.sendMessage(ctx.chatId, `📝 <b>${what} journaled yet.</b>\nA minute now, while you remember why you took them, is what makes your habit insights right.`, {
+    inline_keyboard: [[{ text: "Journal them", callback_data: REMINDER_GO }], [{ text: "Turn off these reminders", callback_data: REMINDER_OFF }]],
+  });
+  await notifyPhone(ctx, { title: `${what} journaled yet`, body: "Tap to journal them while they're fresh.", url: "/journal", tag: "journal-reminder" });
+  return due.length;
+}
+
+async function handleReminderTap(ctx: BotContext, cq: TgCallbackQuery) {
+  if (cq.data === REMINDER_OFF) {
+    await setState(ctx.db, STATE_REMINDERS_OFF, "1", ctx.userId);
+    await ctx.tg.editMessage(ctx.chatId!, cq.message!.message_id, "Evening reminders are off. Send /reminders to turn them back on.");
+    await ctx.tg.answerCallback(cq.id, "Reminders off");
+    return;
+  }
+  await ctx.tg.answerCallback(cq.id);
+  await journalCommand(ctx);
+}
+
 /** Phone notifications are a bonus: a failure must never break the bot's own work. */
 export async function notifyPhone(ctx: BotContext, message: PushMessage): Promise<void> {
   if (!ctx.push) return;
@@ -478,6 +562,7 @@ async function handleCallback(ctx: BotContext, cq: TgCallbackQuery) {
     return;
   }
   if (cq.data === "a:y" || cq.data === "a:n") return handleSuggestionTap(ctx, cq, cq.data === "a:y");
+  if (cq.data === REMINDER_GO || cq.data === REMINDER_OFF) return handleReminderTap(ctx, cq);
   const tradeId = await tradeForMessage(ctx, msg.message_id);
   const cb = parseCallback(cq.data);
   if (!tradeId || !cb) {

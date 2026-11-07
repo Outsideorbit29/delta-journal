@@ -13,6 +13,7 @@ import { generateReview } from "@/lib/ai/review";
 import { suggestFromNote } from "@/lib/ai/suggest";
 import { DeltaClient } from "@/lib/delta/client";
 import { errorsToAlert, markAlerted, pruneAppErrors, renderErrorAlert } from "@/lib/app-errors";
+import { markFeedbackDelivered, renderFeedback, undeliveredFeedback } from "@/lib/feedback";
 import { recordHeartbeat } from "@/lib/health";
 import { sealPrivateKey } from "@/lib/keys/credentials";
 import { hasStoredKey, syncStoredKeys, syncWithStoredKey, type UserSyncResult } from "@/lib/keys/sync-users";
@@ -24,6 +25,7 @@ import {
   COMMANDS,
   MAX_CARDS_PER_RUN,
   getState,
+  maybeSendJournalReminder,
   maybeSendWeeklyReview,
   notifyClosedTrades,
   notifySyncProblem,
@@ -180,6 +182,8 @@ async function syncLoop(db: Db, owner: string, context: (userId: string, chatId:
           if (sent < MAX_CARDS_PER_RUN) unchecked.delete(r.userId);
         }
         if (await maybeSendWeeklyReview(ctx)) log(`Sent the weekly review to ${r.userId}.`);
+        const toJournal = await maybeSendJournalReminder(ctx);
+        if (toJournal) log(`Reminded ${r.userId} about ${toJournal} trade(s) to journal.`);
       } catch (err) {
         log(`Notifying ${r.userId} failed:`, message(err));
       }
@@ -189,6 +193,7 @@ async function syncLoop(db: Db, owner: string, context: (userId: string, chatId:
       log("Could not record the heartbeat:", message(err)),
     );
     await alertOwnerOfErrors(db, owner, context).catch((err) => log("Could not check website errors:", message(err)));
+    await forwardFeedback(db, owner, context).catch((err) => log("Could not forward feedback:", message(err)));
     await sleep(SYNC_EVERY_MS);
   }
 }
@@ -203,6 +208,20 @@ async function alertOwnerOfErrors(db: Db, owner: string, context: (userId: strin
   await context(owner, chatId).tg.sendMessage(chatId, renderErrorAlert(rows));
   await markAlerted(db, rows.map((r) => r.key));
   log(`Told the owner about ${rows.length} website error(s).`);
+}
+
+/** Sends the owner each new piece of user feedback on Telegram, once (from Settings → Feedback or /feedback). */
+async function forwardFeedback(db: Db, owner: string, context: (userId: string, chatId: string | null) => BotContext) {
+  const rows = await undeliveredFeedback(db);
+  if (!rows.length) return;
+  const chatId = await chatForUser(db, owner);
+  if (!chatId) return; // kept until the owner links a chat
+  const tg = context(owner, chatId).tg;
+  for (const row of rows) {
+    await tg.sendMessage(chatId, renderFeedback(row));
+    await markFeedbackDelivered(db, [row.id]);
+  }
+  log(`Forwarded ${rows.length} feedback message(s) to the owner.`);
 }
 
 /** Whether the user turned on phone notifications on any device. */

@@ -8,10 +8,12 @@ import type { ReplyMarkup, TelegramClient, TgMessage, TgUpdate } from "./api";
 import {
   getState,
   handleUpdate,
+  maybeSendJournalReminder,
   maybeSendWeeklyReview,
   notifyClosedTrades,
   notifySyncProblem,
   routeUpdate,
+  setState,
   type BotAi,
   type BotContext,
   type SharedBot,
@@ -474,5 +476,58 @@ describe("one bot shared by every user", () => {
     expect(tg.sent[0].text).toContain("Disconnected");
     await routeUpdate(shared(tg), message("/today", BOB_CHAT));
     expect(tg.sent.at(-1)!.text).toContain("Connect Telegram");
+  });
+});
+
+describe("evening journaling reminder and feedback", () => {
+  const user = "u_rem";
+  const HOUR = 3_600_000;
+  const c = (tg: FakeTelegram, chatId: string | null = CHAT): BotContext => ({ ...ctx(tg, chatId), userId: user });
+
+  it("reminds once a day from 21:00 IST about trades still to journal, and can be turned off and on", async () => {
+    const day = Date.UTC(2026, 10, 2); // 05:30 IST
+    await setState(db, STATE_NOTIFY_SINCE, String(day - 7 * 24 * HOUR), user);
+    await insertTrade("rem1", day + HOUR, -2, user);
+    await insertTrade("rem2", day + 2 * HOUR, 3, user);
+    const tg = new FakeTelegram();
+
+    now = day + 15 * HOUR; // 20:30 IST
+    expect(await maybeSendJournalReminder(c(tg))).toBe(0);
+    now = day + 15.5 * HOUR; // 21:00 IST
+    expect(await maybeSendJournalReminder(c(tg))).toBe(2);
+    expect(await maybeSendJournalReminder(c(tg))).toBe(0);
+    expect(tg.sent).toHaveLength(1);
+    expect(tg.sent[0].text).toContain("2 trades from the last 24 hours aren't journaled yet.");
+
+    // "Journal them" sends the cards.
+    const reminder = tg.sent[0].messageId;
+    await handleUpdate(c(tg), tap(reminder, "n:go"));
+    expect(tg.sent.slice(1).map((s) => s.text.split("\n")[0])).toHaveLength(2);
+
+    await handleUpdate(c(tg), tap(reminder, "n:off"));
+    expect(tg.edits.at(-1)!.text).toContain("Evening reminders are off");
+    now += 24 * HOUR;
+    await insertTrade("rem3", now - HOUR, -1, user);
+    expect(await maybeSendJournalReminder(c(tg))).toBe(0);
+
+    await handleUpdate(c(tg), say("/reminders"));
+    expect(tg.sent.at(-1)!.text).toContain("Evening reminders are on");
+    expect(await maybeSendJournalReminder(c(tg))).toBe(1); // only the last 24 hours
+    expect(tg.sent.at(-1)!.text).toContain("1 trade from the last 24 hours isn't journaled yet.");
+  });
+
+  it("never reminds a user without a Telegram chat", async () => {
+    now += 24 * HOUR;
+    expect(await maybeSendJournalReminder(c(new FakeTelegram(), null))).toBe(0);
+  });
+
+  it("takes feedback with /feedback", async () => {
+    const tg = new FakeTelegram();
+    await handleUpdate(c(tg), say("/feedback"));
+    expect(tg.sent[0].text).toContain("Write your message after the command");
+    await handleUpdate(c(tg), say("/feedback@Hardwon_bot the calendar is off by a day"));
+    const rows = await db.select().from(schema.feedback).where(eq(schema.feedback.userId, user));
+    expect(rows).toMatchObject([{ message: "the calendar is off by a day", source: "telegram", deliveredAt: null }]);
+    expect(tg.sent[1].text).toContain("Thanks");
   });
 });
