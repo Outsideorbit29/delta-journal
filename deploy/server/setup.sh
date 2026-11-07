@@ -41,12 +41,12 @@ npm run db:migrate
 echo "== Service"
 sed -e "s|__USER__|$(id -un)|g" -e "s|__DIR__|$REPO_DIR|g" -e "s|__NPM__|$(command -v npm)|g" \
   deploy/server/delta-journal-bot.service | sudo tee /etc/systemd/system/$SERVICE.service >/dev/null
-for unit in delta-journal-backup.service delta-journal-backup.timer; do
+for unit in delta-journal-backup.service delta-journal-backup.timer delta-journal-demo.service delta-journal-demo.timer; do
   sed -e "s|__USER__|$(id -un)|g" -e "s|__DIR__|$REPO_DIR|g" -e "s|__NPM__|$(command -v npm)|g" \
     deploy/server/$unit | sudo tee /etc/systemd/system/$unit >/dev/null
 done
 sudo systemctl daemon-reload
-sudo systemctl enable --now delta-journal-backup.timer
+sudo systemctl enable --now delta-journal-backup.timer delta-journal-demo.timer
 sudo systemctl enable --now $SERVICE
 sudo systemctl restart $SERVICE
 sleep 5

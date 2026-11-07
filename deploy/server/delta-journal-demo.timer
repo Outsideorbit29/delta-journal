@@ -1,0 +1,11 @@
+# Daily demo refresh at 21:30 UTC (03:00 IST), after the backup. The demo is empty for a
+# few seconds while it re-seeds, so it runs when nobody is looking.
+[Unit]
+Description=Hardwon: refresh the public demo daily
+
+[Timer]
+OnCalendar=*-*-* 21:30:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

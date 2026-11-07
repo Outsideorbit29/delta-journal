@@ -1,0 +1,16 @@
+# Re-seeds the public demo account (npm run demo:seed) so its made-up trades end
+# yesterday, started daily by delta-journal-demo.timer.
+# setup.sh fills in the __PLACEHOLDERS__ and installs it in /etc/systemd/system/.
+[Unit]
+Description=Hardwon: refresh the public demo
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=__USER__
+WorkingDirectory=__DIR__
+ExecStart=__NPM__ run demo:seed
+Environment=NODE_ENV=production
+NoNewPrivileges=true
+PrivateTmp=true
