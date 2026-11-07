@@ -583,6 +583,8 @@ Week plan and progress:
 
 ## Changelog
 
+- **2026-11-08**: `/privacy` mentions the website error log (page and message, no personal details, 30 days);
+  the legal pages' effective date is now 8 November 2026.
 - **2026-11-07**: Website error alerts: server errors are recorded in `app_errors` (migration 0012) by
   `src/instrumentation.ts`, and the bot Telegrams the owner (new errors at once, repeats at most hourly).
 - **2026-11-07**: Cross-margin funding and liquidation fees (no `product_id`) now reach their trade through

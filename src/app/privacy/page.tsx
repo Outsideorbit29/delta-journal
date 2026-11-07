@@ -49,6 +49,8 @@ export default function PrivacyPage() {
         </li>
         <li>
           <strong>Technical data:</strong> our hosting providers keep short-lived request logs (such as IP address and browser) for security.
+          We also keep a record of website errors (the page and the error message, without your personal details) for up to
+          30 days, to fix problems.
         </li>
       </ul>
 
