@@ -457,6 +457,11 @@ plus an Elastic IP would cost more than Lightsail, whose plans include the stati
 - **Switching the Telegram bot token:** private chat ids stay the same across bots, but message ids restart, and
   `telegram_messages` is keyed by (chat, message). Delete the old bot's rows (and reset `telegram.notify_since`) before the new
   bot runs for long, or a tap on a new card can resolve to an old card's trade.
+- **Turso tokens must be created with expiry "Never".** The first token had a 7-day expiry and took the whole
+  site and the bot down on 2026-11-07 (every query: HTTP 401; `/api/health` says `database: unreachable`). To replace
+  one: app.turso.tech → `deltajournal` → Create Token (Never, Read & Write), then update `.env.local` on the PC and the
+  server (restart the bot) and Vercel's `DATABASE_AUTH_TOKEN`, then `npx vercel deploy --prod`. The Turso CLI is
+  installed on the server (`~/.turso/turso`, not logged in); it has no native Windows build.
 - `.env.local` points at Turso, and opening the database runs migrations: a local `npm run dev` or
   script with a new migration **migrates the live database**. Test against `DATABASE_URL=file:data/dev.db`
   (a copy of `data/journal.db`) until the rollout.
@@ -535,6 +540,8 @@ Week plan and progress:
 
 ## Changelog
 
+- **2026-11-07**: Outage 04:58–12:50 IST: the Turso token expired (7-day token). Replaced with a non-expiring one on
+  the PC, the server and Vercel (redeployed); health back to ok.
 - **2026-11-07**: The owner's data moved to their Clerk **production** account `user_3LkR63D4DdWaDtygu9qXjfOdJIy` (after a
   Turso backup); `OWNER_USER_ID` updated on the PC and the server; the old bot's Telegram message records cleared.
 - **2026-11-07**: **hardwon.in is live**: nameservers on Vercel, the old vercel.app address redirects in production,
