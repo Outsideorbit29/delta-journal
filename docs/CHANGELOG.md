@@ -2,6 +2,8 @@
 
 Newest first. Add a line with every change to the project (standing rule in CLAUDE.md).
 
+- **2026-11-08**: The dashboard opens with a Today strip (today, last 7 days, trades to journal with a Journal button), and
+  the behaviour score's weakest habit now carries a next step ("Journal now" or "See these trades").
 - **2026-11-08**: Evening journaling reminder (21:00 IST, Telegram + push, `/reminders` or a button turns it off) and
   feedback (Settings → Feedback or `/feedback`, table `feedback`, migration 0013) forwarded to the owner's Telegram by the bot.
   `/privacy` mentions feedback.

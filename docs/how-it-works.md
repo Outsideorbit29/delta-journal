@@ -109,6 +109,14 @@ Emotional control (no `sized_up_after_loss`/`added_to_loser`/`liquidated`), Pati
 Journaling (journaled). Overall = average; 80+ Strong, 60+ Solid, 40+ Needs work, else Leaking. Trend = the last ≤20 trades
 vs the ≤20 before. Needs 5 closed trades. It measures process, not P&L. Shown on the dashboard (with the weakest dimension's
 tip) as ruled bars, the weakest in the accent, and on the landing page (the demo trader). Owner: 53 Needs work on 2026-11-01 (journaling 1%).
+Under the bars, "X is your weakest habit" comes with a next step (`scoreAction` in `dashboard-view.tsx`): for journaling,
+"Journal your N trades from the last week" → `/journal`; for the others, its tip and "See these trades" → `/trades?tag=<the
+dimension's tag>`. The demo shows the tip alone.
+
+## Today strip (`lib/today.ts`, `components/today-strip.tsx`, since 2026-11-08)
+The signed-in dashboard opens with today's net P&L (IST day), the last 7 days', and how many trades closed in the last 7 days
+are not journaled, with the page's one filled button, **Journal N trades** → `/journal` (the same 7-day window as Telegram's
+`/journal`). It ignores the page's filters, is hidden when nothing closed in 7 days, and never shows on the demo.
 
 ## Per-user Delta keys (`lib/keys/`, `/settings`)
 - On Settings → Delta Exchange a user creates a **Read Data** key on Delta, whitelists our server's IPv4 and IPv6
