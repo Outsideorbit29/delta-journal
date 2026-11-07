@@ -532,8 +532,9 @@ Week plan and progress:
      only), `claim-legacy -- user_3LkR63D4DdWaDtygu9qXjfOdJIy --from user_3LT1ntUygNbHxmyfsYO9QBzM95P` (325 fills, 140 trades,
      journal, Telegram link, push device, founder dates), the old bot's `telegram_messages` deleted, `OWNER_USER_ID` updated on
      the PC and the server, bot restarted.
-     **Left for launch:** a second real person joins, is invited and connects their own Delta key end to end;
-     Vercel 2FA; check Delta's terms for third-party syncing; daily database backups; lawyer's read; Vercel Pro and payments
+     **Done (2026-11-07):** the first invited user signed up, connected their own Delta key (status `ok`, syncing
+     every minute: 59 fills, 27 trades) and linked Telegram, end to end without help.
+     **Left for launch:** Vercel 2FA; check Delta's terms for third-party syncing; daily database backups; lawyer's read; Vercel Pro and payments
      before charging (Hobby is non-commercial).
   A linked chat keeps working on a new bot once its owner taps Start there. Local `npm run dev` stays on Clerk's
   development instance, so it signs in as a different, empty account: run it against `DATABASE_URL=file:data/dev.db`, never
@@ -542,6 +543,7 @@ Week plan and progress:
 
 ## Changelog
 
+- **2026-11-07**: First real second user: signed up from an invite, connected their own Delta key and Telegram; syncing.
 - **2026-11-07**: UptimeRobot monitors `/api/health` every 5 minutes (email alerts); the Turso CLI on the server is logged in.
 - **2026-11-07**: Outage 04:58–12:50 IST: the Turso token expired (7-day token). Replaced with a non-expiring one on
   the PC, the server and Vercel (redeployed); health back to ok.
