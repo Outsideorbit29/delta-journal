@@ -327,8 +327,9 @@ tip) as ruled bars, the weakest in the accent, and on the landing page (the demo
   are dropped; taps get "Slow down"), 10 replies/h to an unlinked chat. Counted in the database so they hold across
   Vercel instances and the bot.
 - **Monitoring:** the bot writes `bot.heartbeat` (process-wide `app_state`: time, users synced, users failing) after
-  every round. `GET /api/health` (public, counts only) returns 200 while it is under 5 minutes old, else 503. Point a
-  free uptime monitor (UptimeRobot, Better Stack…) at `https://hardwon.in/api/health`.
+  every round. `GET /api/health` (public, counts only) returns 200 while it is under 5 minutes old, else 503.
+  **UptimeRobot** (free, the owner's account, signed in with GitHub) checks `https://hardwon.in/api/health` every
+  5 minutes and emails the owner when it fails (set up 2026-11-07).
 - **Security headers** (`next.config.ts`, every path): `X-Frame-Options: DENY` + `frame-ancestors 'none'`, `nosniff`,
   `strict-origin-when-cross-origin`, a `Permissions-Policy` denying camera/mic/location/payment/USB. Vercel already
   sends HSTS. No full CSP yet (Clerk's scripts and Next's inline scripts need a nonce setup).
@@ -461,7 +462,9 @@ plus an Elastic IP would cost more than Lightsail, whose plans include the stati
   site and the bot down on 2026-11-07 (every query: HTTP 401; `/api/health` says `database: unreachable`). To replace
   one: app.turso.tech → `deltajournal` → Create Token (Never, Read & Write), then update `.env.local` on the PC and the
   server (restart the bot) and Vercel's `DATABASE_AUTH_TOKEN`, then `npx vercel deploy --prod`. The Turso CLI is
-  installed on the server (`~/.turso/turso`, not logged in); it has no native Windows build.
+  installed on the server (`~/.turso/turso`), **logged in as `outsideorbit29`** (account-wide token in its config;
+  `turso auth logout` removes it), so `ssh … '~/.turso/turso db tokens create deltajournal'` makes a token. It has no
+  native Windows build.
 - `.env.local` points at Turso, and opening the database runs migrations: a local `npm run dev` or
   script with a new migration **migrates the live database**. Test against `DATABASE_URL=file:data/dev.db`
   (a copy of `data/journal.db`) until the rollout.
@@ -529,17 +532,17 @@ Week plan and progress:
      only), `claim-legacy -- user_3LkR63D4DdWaDtygu9qXjfOdJIy --from user_3LT1ntUygNbHxmyfsYO9QBzM95P` (325 fills, 140 trades,
      journal, Telegram link, push device, founder dates), the old bot's `telegram_messages` deleted, `OWNER_USER_ID` updated on
      the PC and the server, bot restarted.
-     **Left for launch:** a second real person joins, is invited and connects their own Delta key end to end; uptime monitor;
+     **Left for launch:** a second real person joins, is invited and connects their own Delta key end to end;
      Vercel 2FA; check Delta's terms for third-party syncing; daily database backups; lawyer's read; Vercel Pro and payments
      before charging (Hobby is non-commercial).
   A linked chat keeps working on a new bot once its owner taps Start there. Local `npm run dev` stays on Clerk's
   development instance, so it signs in as a different, empty account: run it against `DATABASE_URL=file:data/dev.db`, never
   Turso, or `ensureUser` creates stray `users` rows there.
-- Still open from earlier days: the owner testing Telegram (`/today`) and Settings export on the phone, an uptime monitor on
-  `/api/health`, the server's 67 pending security updates, a lawyer's read of the legal pages, and a full CSP.
+- Still open from earlier days: the owner testing Telegram (`/today`) and Settings export on the phone, the server's 67 pending security updates, a lawyer's read of the legal pages, and a full CSP.
 
 ## Changelog
 
+- **2026-11-07**: UptimeRobot monitors `/api/health` every 5 minutes (email alerts); the Turso CLI on the server is logged in.
 - **2026-11-07**: Outage 04:58–12:50 IST: the Turso token expired (7-day token). Replaced with a non-expiring one on
   the PC, the server and Vercel (redeployed); health back to ok.
 - **2026-11-07**: The owner's data moved to their Clerk **production** account `user_3LkR63D4DdWaDtygu9qXjfOdJIy` (after a
