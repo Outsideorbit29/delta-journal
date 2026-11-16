@@ -90,7 +90,8 @@ export class DhanClient {
 
   /**
    * Swaps the token for a new one valid 24 more hours (only tokens made on Dhan Web, and only before they
-   * expire; the old one stops working). Returns the new token, or null when Dhan's reply carries none.
+   * expire; the old one stops working at once). Dhan replies { token, expiryTime, createTime } (tried 2026-11-16).
+   * Returns the new token, or null when the reply carries none.
    */
   async renewToken(): Promise<string | null> {
     const body = await this.get<Record<string, unknown> | null>("/RenewToken");

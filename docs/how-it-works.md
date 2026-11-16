@@ -142,8 +142,9 @@ are not journaled, with the page's one filled button, **Journal N trades** → `
     from 2020 in 90-day windows; `sync_state` resource `dhan.history` (lastTs = how far it has read).
   - **today's trade book** `/trades` every round, **insert-only**: it has no charges, and must never overwrite the
     history's copy (which would rewrite and rebuild every minute).
-  - The token is **renewed** (`/RenewToken`) once under 4 hours remain; the new token is sealed and stored before
-    anything else (Dhan expires the old one). Expired or rejected (DH-901): status `error` with `DHAN_EXPIRED`, told to
+  - The token is **renewed** (`GET /RenewToken`) once under 4 hours remain; the new token is sealed and stored before
+    anything else. Tried on a real token on 2026-11-16: the reply is `{ token, expiryTime, createTime }`, the new token
+    works and the old one stops at once. Expired or rejected (DH-901): status `error` with `DHAN_EXPIRED`, told to
     the user once; an expired token is not sent to Dhan again.
 - Mapping (`toDhanFillRow`): quantities are units (contract value 1), the commission is the sum of Dhan's charges
   (brokerage, STT, exchange, SEBI, stamp duty, GST), times are IST. **Shares are matched on the ISIN** (base-36 of its
