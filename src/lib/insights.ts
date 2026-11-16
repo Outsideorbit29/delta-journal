@@ -35,6 +35,26 @@ export const TAG_HINTS: Record<string, string> = {
   "product:delivery": "Delivery (CNC) trades, held overnight or longer.",
 };
 
+/** What to do about a leak, one plain line (habits without one show no fix). */
+export const LEAK_FIXES: Record<string, string> = {
+  moved_stop: "Set the stop once. If it is wrong, close the trade instead.",
+  "hold:scalp": "Costs eat quick trades. Hold for a planned target, or skip the trade.",
+  no_stop: "Place the stop with the entry, as a bracket order.",
+  late_stop: "Place the stop in the same minute as the entry.",
+  oversized: "Keep size near your usual; size up only by plan, never by feel.",
+  heavy_margin: "Leave most of the wallet free; one trade should never be able to sink it.",
+  high_leverage: "Lower the leverage: the same move then costs far less.",
+  after_loss: "After a loss, wait 30 minutes before the next trade.",
+  sized_up_after_loss: "Never size up to win a loss back. Same size, or stop for the day.",
+  loss_streak: "After three losses in a row, stop for the day.",
+  overtrading: "Cap your trades per hour; most of the extra ones lose.",
+  added_to_loser: "Never add to a losing position; add only to winners, by plan.",
+  liquidated: "Use a stop well before the liquidation price.",
+  expiry_day: "Expiry-day options decay fast. Trade them only with a plan, or not at all.",
+  "nse:open": "Let the first 30 minutes settle before entering.",
+  won_before_charges: "Small targets lose to brokerage, STT and GST. Aim for moves several times your charges.",
+};
+
 /** A habit: a warning tag from the data, or scalping. Journal tags would only repeat these. */
 const isHabit = (tag: string) =>
   !isJournalTag(tag) && (isWarningTag(tag) || tag === "hold:scalp" || tag === "expiry_day" || tag === "nse:open");

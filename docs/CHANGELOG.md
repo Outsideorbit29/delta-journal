@@ -2,6 +2,9 @@
 
 Newest first. Add a line with every change to the project (standing rule in CLAUDE.md).
 
+- **2026-11-16**: Design polish: each leak gets a bar against the biggest, a one-line fix (`LEAK_FIXES`) and "See N trades";
+  symbols are one dropdown; phone trades are grouped by day with the day's net; the phone Journal tab shows how many
+  trades from the last 7 days are not journaled (`countToJournal`). Dhan price charts: not possible on Dhan's free plan.
 - **2026-11-16**: Vercel Web Analytics (`@vercel/analytics`, cookieless page views; trade ids and query strings removed in
   `beforeSend`). Needs Analytics switched on in the Vercel project. /privacy names it.
 - **2026-11-16**: Content Security Policy, report-only, with reports filed as website errors (`/api/csp-report`). A local

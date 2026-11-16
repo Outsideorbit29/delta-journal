@@ -26,10 +26,10 @@ export function NavLinks() {
 }
 
 /** Phone navigation: a tab bar fixed to the bottom of the screen, plus a spacer so content clears it. */
-export function BottomNav() {
+export function BottomNav({ toJournal = 0 }: { toJournal?: number }) {
   return (
-    <Suspense fallback={<TabBar pathname={null} />}>
-      <Current render={(p) => <TabBar pathname={p} />} />
+    <Suspense fallback={<TabBar pathname={null} toJournal={toJournal} />}>
+      <Current render={(p) => <TabBar pathname={p} toJournal={toJournal} />} />
     </Suspense>
   );
 }
@@ -60,7 +60,7 @@ function TopLinks({ pathname }: { pathname: string | null }) {
   );
 }
 
-function TabBar({ pathname }: { pathname: string | null }) {
+function TabBar({ pathname, toJournal }: { pathname: string | null; toJournal: number }) {
   return (
     <>
       <div className="h-[calc(4rem+env(safe-area-inset-bottom))] md:hidden" aria-hidden="true" />
@@ -80,7 +80,15 @@ function TabBar({ pathname }: { pathname: string | null }) {
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="square" aria-hidden="true">
                     <path d={l.icon} />
                   </svg>
-                  {l.short}
+                  <span>
+                    {l.short}
+                    {l.href === "/journal" && toJournal > 0 && (
+                      <span className="ml-1 inline-block min-w-4 bg-warn px-1 text-center text-[0.7rem] leading-4 text-paper">
+                        {toJournal > 99 ? "99+" : toJournal}
+                        <span className="sr-only"> to journal</span>
+                      </span>
+                    )}
+                  </span>
                 </Link>
               </li>
             );

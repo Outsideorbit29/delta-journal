@@ -11,7 +11,7 @@ import type { Currency } from "@/db/schema";
 import { chooseAccount, listAccounts } from "@/lib/accounts";
 import { listReviews } from "@/lib/ai/review";
 import { formatDateTime, formatMoney, formatPercent, pnlClass } from "@/lib/format";
-import { biggestLeaks, TAG_HINTS, whatWorks } from "@/lib/insights";
+import { biggestLeaks, LEAK_FIXES, TAG_HINTS, whatWorks } from "@/lib/insights";
 import { behaviourScore, weakest, type BehaviourScore } from "@/lib/score";
 import { summarySince, todaySummary, type TodaySummary } from "@/lib/today";
 import { journaledTradeIds, listSegments, listSymbols, listTrades } from "@/lib/queries";
@@ -200,7 +200,7 @@ function Insights({ leaks, works, href, currency }: { leaks: TagPerformance[]; w
           <h2 className="text-2xl">Your biggest leaks</h2>
           <ul className="mt-4 divide-y divide-rule border-y border-rule-2">
             {leaks.map((r) => (
-              <InsightRow key={r.tag} row={r} href={href(r.tag)} currency={currency} />
+              <InsightRow key={r.tag} row={r} href={href(r.tag)} currency={currency} worst={Math.abs(leaks[0].netPnl)} />
             ))}
           </ul>
         </div>
@@ -219,10 +219,27 @@ function Insights({ leaks, works, href, currency }: { leaks: TagPerformance[]; w
   );
 }
 
-function InsightRow({ row, href, currency, small = false }: { row: TagPerformance; href: string; currency: Currency; small?: boolean }) {
+/**
+ * One habit and what it cost. A leak (`worst` given) also gets a bar against the biggest leak and the one thing to do
+ * about it; the whole row opens the trades with that habit.
+ */
+function InsightRow({
+  row,
+  href,
+  currency,
+  small = false,
+  worst,
+}: {
+  row: TagPerformance;
+  href: string;
+  currency: Currency;
+  small?: boolean;
+  worst?: number;
+}) {
+  const fix = worst !== undefined ? LEAK_FIXES[row.tag] : undefined;
   return (
     <li>
-      <Link href={href} className="group grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-6 py-4 no-underline">
+      <Link href={href} className="group grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-6 gap-y-2 py-4 no-underline">
         <span className="min-w-0">
           <span className={`face-label block text-ink underline decoration-transparent decoration-1 underline-offset-4 group-hover:decoration-accent ${small ? "text-lg" : "text-xl"}`}>
             {tagLabel(row.tag)}
@@ -235,6 +252,19 @@ function InsightRow({ row, href, currency, small = false }: { row: TagPerformanc
             {row.trades} trades, {formatPercent(row.winRate)} won
           </span>
         </span>
+        {worst !== undefined && worst > 0 && (
+          <span className="col-span-2 block h-2 bg-paper-3" aria-hidden="true">
+            <span className="block h-2 bg-[var(--viz-loss)]" style={{ width: `${Math.max(4, Math.round((Math.abs(row.netPnl) / worst) * 100))}%` }} />
+          </span>
+        )}
+        {fix && (
+          <span className="col-span-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-base text-ink-2">
+            <span>{fix}</span>
+            <span className="face-label text-sm text-ink underline decoration-rule-2 underline-offset-4 group-hover:decoration-accent">
+              See {row.trades} trades
+            </span>
+          </span>
+        )}
       </Link>
     </li>
   );

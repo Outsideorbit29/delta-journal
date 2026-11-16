@@ -127,6 +127,11 @@ describe("each user only sees their own data", () => {
     expect(await queries.listSymbols(A)).toEqual(["XAUTUSD"]);
     expect((await queries.getSyncStatus(A)).map((s) => s.lastError)).toEqual([null]);
     expect((await queries.listUnjournaled(A)).map((t) => t.id)).toEqual(["a1"]);
+    // The Journal tab's count: only A's own unjournaled trade (B's, closed at the same time, is not counted).
+    expect(await queries.countToJournal(A, 7, T0 + 3_600_000)).toBe(1);
+    const [accountA] = await listAccounts(db, A);
+    expect(await queries.countJournaled(A, accountA.id)).toBe(0);
+    expect(await queries.listSegments(A, accountA.id)).toEqual([]);
     const bTag = (await queries.listTrades(B))[0].tags[0].tag;
     expect((await queries.listTrades(A, { tag: bTag })).every((t) => t.id.startsWith("a"))).toBe(true);
   });

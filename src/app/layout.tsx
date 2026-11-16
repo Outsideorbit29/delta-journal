@@ -4,6 +4,7 @@ import { Bricolage_Grotesque, Source_Serif_4 } from "next/font/google";
 import Link from "next/link";
 import { Suspense } from "react";
 import { Analytics } from "@/components/analytics";
+import { BottomNavWithCount } from "@/components/bottom-nav-count";
 import { HideOnLogin } from "@/components/hide-on-login";
 import { SiteMenu } from "@/components/site-menu";
 import { Logo } from "@/components/logo";
@@ -127,7 +128,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <HideOnLogin>
             <Suspense fallback={null}>
               <Show when="signed-in">
-                <BottomNav />
+                {/* The tab bar appears at once; the Journal count streams in. */}
+                <Suspense fallback={<BottomNav />}>
+                  <BottomNavWithCount />
+                </Suspense>
               </Show>
             </Suspense>
           </HideOnLogin>

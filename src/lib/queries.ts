@@ -162,6 +162,24 @@ export async function listUnjournaled(userId: string, accountId?: string): Promi
   return attachTags(userId, rows);
 }
 
+/** Closed trades from the last `days` days (any account) that are not journaled yet: the Journal tab's count. */
+export async function countToJournal(userId: string, days = 7, now = Date.now()): Promise<number> {
+  const db = await getDb();
+  const journaled = db.select({ id: schema.journalEntries.tradeId }).from(schema.journalEntries).where(eq(schema.journalEntries.userId, userId));
+  const [row] = await db
+    .select({ n: count() })
+    .from(schema.trades)
+    .where(
+      and(
+        eq(schema.trades.userId, userId),
+        eq(schema.trades.status, "closed"),
+        gte(schema.trades.closedTs, now - days * 86_400_000),
+        notInArray(schema.trades.id, journaled),
+      ),
+    );
+  return row?.n ?? 0;
+}
+
 /** How many of one account's closed trades are journaled. */
 export async function countJournaled(userId: string, accountId: string): Promise<number> {
   const db = await getDb();

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SymbolSelect } from "@/components/symbol-select";
 import type { Account } from "@/lib/accounts";
 import { filterHref, RANGES, SEGMENTS, type Filters, type SegmentKey } from "@/lib/range";
 import { tagLabel } from "@/lib/tags";
@@ -46,16 +47,15 @@ export function FilterBar({
           </Chip>
         ))}
       </div>
-      <div className={row} role="group" aria-label="Symbol">
-        <Chip href={filterHref(path, filters, { symbol: undefined })} active={!filters.symbol}>
-          All symbols
-        </Chip>
-        {shownSymbols(symbols, filters.symbol).map((s) => (
-          <Chip key={s} href={filterHref(path, filters, { symbol: s })} active={filters.symbol === s}>
-            {s}
-          </Chip>
-        ))}
-      </div>
+      {symbols.length > 1 && (
+        <SymbolSelect
+          value={filters.symbol ?? ""}
+          options={[
+            { value: "", label: "All symbols", href: filterHref(path, filters, { symbol: undefined }) },
+            ...symbols.map((s) => ({ value: s, label: s, href: filterHref(path, filters, { symbol: s }) })),
+          ]}
+        />
+      )}
       {filters.tag && (
         <Link href={filterHref(path, filters, { tag: undefined })} className="face-label link text-sm" aria-label={`Remove the tag filter ${tagLabel(filters.tag)}`}>
           Tag: {tagLabel(filters.tag)}, clear
@@ -85,13 +85,6 @@ export function AccountPicker({
       ))}
     </div>
   );
-}
-
-/** The most traded symbols (the list comes most traded first), plus the chosen one if it is further down. */
-const MAX_SYMBOLS = 8;
-function shownSymbols(symbols: string[], chosen: string | undefined): string[] {
-  const top = symbols.slice(0, MAX_SYMBOLS);
-  return chosen && !top.includes(chosen) && symbols.includes(chosen) ? [...top, chosen] : top;
 }
 
 // Each group is one segmented row: squares sharing hairlines, the chosen one in ink.

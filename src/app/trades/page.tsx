@@ -8,7 +8,7 @@ import { formatDateTime, formatDuration, formatMoney, formatPercent, formatPrice
 import { journaledTradeIds, listSegments, listSymbols, listTrades, type TradeWithTags } from "@/lib/queries";
 import { filterHref, rangeStart, readFilters, type Filters } from "@/lib/range";
 import { requireUserId } from "@/lib/session";
-import { computeStats } from "@/lib/stats";
+import { computeStats, istDate } from "@/lib/stats";
 import { topTags } from "@/lib/tags";
 
 export default async function TradesPage({ searchParams }: PageProps<"/trades">) {
@@ -48,10 +48,21 @@ export default async function TradesPage({ searchParams }: PageProps<"/trades">)
         </section>
       )}
 
-      {/* Phones: one ruled row per trade. */}
+      {/* Phones: one ruled row per trade, grouped under each day (IST) with that day's net result. */}
       {trades.length > 0 && (
-        <ul className="divide-y divide-rule border-y border-ink md:hidden">
-          {trades.map((t) => (
+        <div className="border-t border-ink md:hidden">
+          {byDay(trades).map((day) => (
+            <section key={day.date} aria-label={day.label}>
+              <h2 className="face-label -mx-(--gutter) flex justify-between gap-3 bg-paper-2 px-(--gutter) py-1.5 text-sm text-muted">
+                <span>{day.label}</span>
+                <span>
+                  {day.closed ? <span className={pnlClass(day.netPnl)}>{formatMoney(day.netPnl, { sign: true, currency })}</span> : null}
+                  {day.closed ? " · " : ""}
+                  {day.trades.length} {day.trades.length === 1 ? "trade" : "trades"}
+                </span>
+              </h2>
+        <ul className="divide-y divide-rule border-b border-rule">
+          {day.trades.map((t) => (
             <li key={t.id}>
               <Link href={href(t)} className="block py-4 no-underline active:bg-paper-2">
                 <div className="flex items-baseline justify-between gap-3">
@@ -71,6 +82,9 @@ export default async function TradesPage({ searchParams }: PageProps<"/trades">)
             </li>
           ))}
         </ul>
+            </section>
+          ))}
+        </div>
       )}
 
       {/* Larger screens: the full table, opened by the heavy rule. */}
@@ -147,4 +161,22 @@ function Tags({ trade, filters, n, linked }: { trade: TradeWithTags; filters: Fi
       {more > 0 && <span className="face-label text-sm text-muted">and {more} more</span>}
     </div>
   );
+}
+
+const dayLabel = new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", weekday: "short", day: "numeric", month: "short", year: "numeric" });
+
+/** Trades grouped by the IST day they opened, newest day first, with each day's closed net result. */
+function byDay(trades: TradeWithTags[]) {
+  const days = new Map<string, { date: string; label: string; trades: TradeWithTags[]; netPnl: number; closed: number }>();
+  for (const t of trades) {
+    const date = istDate(t.openedTs);
+    const day = days.get(date) ?? { date, label: dayLabel.format(t.openedTs), trades: [], netPnl: 0, closed: 0 };
+    day.trades.push(t);
+    if (t.status === "closed") {
+      day.netPnl += t.netPnl;
+      day.closed++;
+    }
+    days.set(date, day);
+  }
+  return [...days.values()];
 }
