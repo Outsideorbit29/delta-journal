@@ -158,6 +158,17 @@ are not journaled, with the page's one filled button, **Journal N trades** → `
   review per account that traded (`generateReviews`), titled with the account when there are several.
 - Checked on the owner's account: 80 Dhan trades → 41 round trips, no warnings, all 10 open positions equal Dhan's holdings.
 
+## Indian-market insights (Phase 4, since 2026-11-16)
+- Trades carry `product_type` (intraday, delivery, margin) and `expiry_date` (migration 0017), read from Dhan's raw record
+  at every rebuild (`dhanFillMeta`), so no fill needs rewriting.
+- Rupee accounts get, instead of crypto sessions and the weekend: the part of the NSE day (`nse:open` before 09:45,
+  `nse:morning` to 12:00, `nse:midday` to 15:00, `nse:close`; `indianSessions` in `config.ts`), `product:intraday` /
+  `product:delivery`, `expiry_day` (opened on the contract's expiry date) and `won_before_charges` (a warning: positive
+  before charges, negative after). `expiry_day` and `nse:open` count as habits for the biggest leaks.
+- The behaviour score leaves Risk control and Stop discipline out for rupee accounts (no stops are visible), instead of
+  scoring them perfect. The segment filter (Options, Futures, Intraday stocks, Delivery stocks; `?segment=`) shows
+  for accounts with two or more. The cost breakdown says "Charges (brokerage, STT, GST…)".
+
 ## Accounts in the website
 - The dashboard and trades page show **one account at a time** (`?account=`, default the oldest); account chips appear in
   the filter bar once a user has two. `formatMoney(n, { currency })` writes `$` or `₹` with Indian grouping; each trade

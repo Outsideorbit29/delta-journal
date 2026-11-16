@@ -16,6 +16,8 @@ function trade(id: string, closeHours: number, netPnl: number, extra: Partial<Tr
     id,
     userId: "u1",
     accountId: "acc_a",
+    productType: null,
+    expiryDate: null,
     productId: 1,
     symbol: "XAUTUSD",
     contractType: "perpetual_futures",

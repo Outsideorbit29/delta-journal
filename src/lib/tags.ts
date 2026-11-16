@@ -11,6 +11,14 @@ const LABELS: Record<string, string> = {
   "hold:intraday": "Intraday",
   "hold:swing": "Swing",
   weekend: "Weekend",
+  "nse:open": "Opening 30 min",
+  "nse:morning": "Morning",
+  "nse:midday": "Midday",
+  "nse:close": "Last 30 min",
+  "product:intraday": "Intraday (MIS)",
+  "product:delivery": "Delivery (CNC)",
+  expiry_day: "Expiry day",
+  won_before_charges: "Won before charges",
   after_loss: "After a loss",
   sized_up_after_loss: "Sized up after loss",
   loss_streak: "On a losing streak",
@@ -45,6 +53,7 @@ const WARNING = new Set([
   "late_stop",
   "moved_stop",
   "liquidated",
+  "won_before_charges",
 ]);
 
 // Tags written from your journal: setup:*, emotion:*, mistake:*, plan:*.

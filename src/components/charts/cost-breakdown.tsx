@@ -9,7 +9,8 @@ import type { Stats } from "@/lib/stats";
 export function CostBreakdown({ stats, currency = "USD" }: { stats: Stats; currency?: Currency }) {
   const rows = [
     { label: "Trading P&L before costs", value: stats.grossPnl },
-    { label: "Fees", value: -stats.fees },
+    // Indian brokers (rupee accounts) charge brokerage plus statutory charges: STT, GST, exchange and SEBI fees, stamp duty.
+    { label: currency === "INR" ? "Charges (brokerage, STT, GST…)" : "Fees", value: -stats.fees },
     { label: "Liquidation fees", value: -stats.liquidationFees },
     { label: "Funding", value: stats.funding },
     { label: "Net P&L", value: stats.netPnl, total: true },

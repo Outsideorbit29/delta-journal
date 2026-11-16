@@ -4,6 +4,7 @@
 import { and, asc, count, desc, eq, gte, inArray, notInArray, type SQL } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import type { Currency } from "@/db/schema";
+import { segmentOf, type SegmentKey } from "@/lib/range";
 
 export type Trade = typeof schema.trades.$inferSelect;
 export type TradeTag = typeof schema.tradeTags.$inferSelect;
@@ -13,6 +14,8 @@ export type TradeWithTags = Trade & { tags: TradeTag[]; currency: Currency };
 export interface TradeFilter {
   /** Only this trading account's trades. */
   accountId?: string;
+  /** Indian accounts: options, futures, intraday or delivery stocks. */
+  segment?: SegmentKey;
   symbol?: string;
   tag?: string;
   /** Only trades opened at or after this time (ms). */
@@ -23,6 +26,10 @@ export async function listTrades(userId: string, filter: TradeFilter = {}): Prom
   const db = await getDb();
   const where: SQL[] = [eq(schema.trades.userId, userId)];
   if (filter.accountId) where.push(eq(schema.trades.accountId, filter.accountId));
+  if (filter.segment === "options" || filter.segment === "futures") where.push(eq(schema.trades.contractType, filter.segment));
+  if (filter.segment === "intraday" || filter.segment === "delivery") {
+    where.push(eq(schema.trades.contractType, "equity"), eq(schema.trades.productType, filter.segment));
+  }
   if (filter.symbol) where.push(eq(schema.trades.symbol, filter.symbol));
   if (filter.sinceTs !== undefined) where.push(gte(schema.trades.openedTs, filter.sinceTs));
   if (filter.tag) {
@@ -74,6 +81,18 @@ export async function getTrade(userId: string, id: string) {
 export async function getSyncStatus(userId: string) {
   const db = await getDb();
   return db.select().from(schema.syncState).where(eq(schema.syncState.userId, userId));
+}
+
+/** The segments an account has trades in, in the filter's order (empty for Delta). */
+export async function listSegments(userId: string, accountId?: string): Promise<SegmentKey[]> {
+  if (!accountId) return [];
+  const db = await getDb();
+  const rows = await db
+    .selectDistinct({ contractType: schema.trades.contractType, productType: schema.trades.productType })
+    .from(schema.trades)
+    .where(and(eq(schema.trades.userId, userId), eq(schema.trades.accountId, accountId)));
+  const found = new Set(rows.map(segmentOf).filter((s) => s !== null));
+  return (["options", "futures", "intraday", "delivery"] as const).filter((s) => found.has(s));
 }
 
 /** The symbols traded, most traded first (an options trader has one per contract, so the order matters). */

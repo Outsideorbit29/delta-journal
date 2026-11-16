@@ -12,6 +12,14 @@ export const journalConfig = {
     { tag: "session:late", fromUtcHour: 21, toUtcHour: 24 },
   ],
 
+  /** Indian exchanges (NSE/BSE, 09:15-15:30 IST): the part of the day a trade was opened in, by IST minute of the day. */
+  indianSessions: [
+    { tag: "nse:open", fromMinute: 0, toMinute: 9 * 60 + 45 },
+    { tag: "nse:morning", fromMinute: 9 * 60 + 45, toMinute: 12 * 60 },
+    { tag: "nse:midday", fromMinute: 12 * 60, toMinute: 15 * 60 },
+    { tag: "nse:close", fromMinute: 15 * 60, toMinute: 24 * 60 },
+  ],
+
   /** Hold type: below scalp is a scalp, below intraday is intraday, else swing. */
   scalpMaxMinutes: 15,
   intradayMaxHours: 24,

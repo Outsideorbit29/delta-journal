@@ -27,10 +27,17 @@ export const TAG_HINTS: Record<string, string> = {
   "hold:swing": "Held for hours or days.",
   win_streak: "Taken during a run of wins.",
   target_hit: "Closed at the planned target.",
+  expiry_day: "Options or futures traded on their expiry day.",
+  "nse:open": "Opened in the first 30 minutes after 9:15.",
+  "nse:close": "Opened in the last 30 minutes before 15:30.",
+  won_before_charges: "Trades that made money until brokerage, STT and GST were paid.",
+  "product:intraday": "Intraday (MIS) trades, squared off the same day.",
+  "product:delivery": "Delivery (CNC) trades, held overnight or longer.",
 };
 
 /** A habit: a warning tag from the data, or scalping. Journal tags would only repeat these. */
-const isHabit = (tag: string) => !isJournalTag(tag) && (isWarningTag(tag) || tag === "hold:scalp");
+const isHabit = (tag: string) =>
+  !isJournalTag(tag) && (isWarningTag(tag) || tag === "hold:scalp" || tag === "expiry_day" || tag === "nse:open");
 
 /** The habits that lost the most money, worst first. */
 export function biggestLeaks(trades: Trades, n = 3): TagPerformance[] {
@@ -42,7 +49,7 @@ export function biggestLeaks(trades: Trades, n = 3): TagPerformance[] {
 /** Patterns that made money, best first. Sessions and weekdays are left out: they are not habits you can repeat. */
 export function whatWorks(trades: Trades, n = 2): TagPerformance[] {
   return tagPerformance(trades)
-    .filter((r) => !isJournalTag(r.tag) && !r.tag.startsWith("session:") && r.tag !== "weekend" && r.trades >= MIN_TRADES && r.netPnl > 0)
+    .filter((r) => !isJournalTag(r.tag) && !r.tag.startsWith("session:") && !r.tag.startsWith("nse:") && r.tag !== "weekend" && r.trades >= MIN_TRADES && r.netPnl > 0)
     .reverse()
     .slice(0, n);
 }

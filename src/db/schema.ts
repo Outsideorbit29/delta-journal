@@ -174,6 +174,10 @@ export const trades = sqliteTable(
     exitQty: integer("exit_qty").notNull(),
     maxQty: integer("max_qty").notNull(),
     contractValue: real("contract_value").notNull(),
+    /** Indian brokers: "intraday", "delivery" or "margin" (null for Delta). */
+    productType: text("product_type"),
+    /** Options and futures from Indian brokers: the contract's expiry date (YYYY-MM-DD, IST). */
+    expiryDate: text("expiry_date"),
     avgEntry: real("avg_entry").notNull(),
     avgExit: real("avg_exit"),
     maxNotional: real("max_notional").notNull(),

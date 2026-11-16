@@ -110,6 +110,7 @@ Users can connect several accounts, kept apart (USD and INR are never summed), a
     and build it like Dhan (`lib/groww/`, `broker_credentials` with broker `groww`, account currency INR).
   - Also known: positions (`/v1/positions/user`) have `realised_pnl`; holdings (`/v1/holdings/user`) for checking open
     positions; non-trading rate limit 20/s, 500/min. Static IP for reads: not stated.
-- **Phase 4:** Indian-market tags (NSE sessions, expiry day, intraday vs delivery), segment filter, charts for Indian
-  trades. (Per-account AI review was done on 2026-11-16.)
+- **Phase 4, done 2026-11-16:** NSE time-of-day, expiry-day, intraday/delivery and "won before charges" tags, the
+  segment filter, and a score without stop dimensions for brokers that share no stops. Charts for Indian trades: see
+  the Dhan data plan note in docs/how-it-works.md.
 - Before a public launch: apply to Dhan's partner programme (consent sign-in instead of pasting a personal token).

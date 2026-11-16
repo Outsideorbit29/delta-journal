@@ -173,3 +173,16 @@ describe("syncing Dhan accounts", () => {
     expect(new DhanApiError("x", 401, "DH-901").isAuth).toBe(true);
   });
 });
+
+describe("Dhan product types and expiries", () => {
+  it("are read from the raw record", async () => {
+    const { dhanFillMeta } = await import("@/lib/dhan/ingest");
+    const { segmentOf } = await import("@/lib/range");
+    expect(dhanFillMeta({ productType: "INTRADAY", drvExpiryDate: "2026-11-20" })).toEqual({ productType: "intraday", expiryDate: "2026-11-20" });
+    expect(dhanFillMeta({ productType: "CNC", drvExpiryDate: "0001-01-01" })).toEqual({ productType: "delivery", expiryDate: null });
+    expect(dhanFillMeta({ productType: null })).toEqual({ productType: null, expiryDate: null });
+    expect(segmentOf({ contractType: "options", productType: "intraday" })).toBe("options");
+    expect(segmentOf({ contractType: "equity", productType: "delivery" })).toBe("delivery");
+    expect(segmentOf({ contractType: "perpetual_futures", productType: null })).toBeNull();
+  });
+});

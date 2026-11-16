@@ -7,6 +7,9 @@ export interface FillInput {
   id: string;
   /** The trading account; positions in different accounts never mix. */
   accountId: string;
+  /** Indian brokers: "intraday", "delivery" or "margin", and a derivative's expiry (YYYY-MM-DD). */
+  productType?: string | null;
+  expiryDate?: string | null;
   orderId: string;
   productId: number;
   symbol: string;
@@ -44,6 +47,8 @@ export interface TradeLeg {
 export interface ReconstructedTrade {
   id: string;
   accountId: string;
+  productType: string | null;
+  expiryDate: string | null;
   productId: number;
   symbol: string;
   contractType: string;
@@ -149,6 +154,8 @@ export function reconstructTrades(fills: FillInput[]): ReconstructedTrade[] {
           trade: {
             id: openedByFlip ? `${fill.id}-flip` : fill.id,
             accountId: fill.accountId,
+            productType: fill.productType ?? null,
+            expiryDate: fill.expiryDate ?? null,
             productId: fill.productId,
             symbol: fill.symbol,
             contractType: fill.contractType,

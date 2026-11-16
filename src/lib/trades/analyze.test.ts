@@ -13,6 +13,8 @@ function trade(id: string, openMin: number, closeMin: number | null, grossPnl: n
   return {
     id,
     accountId: "acc_a",
+    productType: null,
+    expiryDate: null,
     productId: 1,
     symbol: "XAUTUSD",
     contractType: "perpetual_futures",
@@ -213,5 +215,31 @@ describe("several trading accounts", () => {
     expect(y.tags.find((g) => g.tag === "after_loss")?.detail).toBe("5 min after a -$20.00 loss");
     // Sizes are only compared within an account: y is 4.5x the Delta loss, not compared with the Dhan one.
     expect(y.tags.find((g) => g.tag === "sized_up_after_loss")?.detail).toBe("4.5x the size of that loss");
+  });
+});
+
+describe("Indian market tags", () => {
+  const accounts = new Map([["acc_d", { broker: "dhan" as const, currency: "INR" as const }]]);
+  // Thursday 2026-11-19, 09:20 IST (03:50 UTC): the first minutes of the NSE day.
+  const at = (ist: string) => Date.parse(`2026-11-19T${ist}:00+05:30`);
+  const indian = (id: string, open: string, close: string, gross: number, extra: Partial<ReconstructedTrade> = {}) =>
+    trade(id, (at(open) - T0) / MIN, (at(close) - T0) / MIN, gross, { accountId: "acc_d", leverage: null, ...extra });
+
+  it("tags the part of the NSE day, the product, expiry day and trades that charges turned into losses", () => {
+    const [open, close] = analyzeTrades(
+      [
+        indian("o", "09:20", "09:40", 50, { contractType: "options", productType: "intraday", expiryDate: "2026-11-19", fees: 80 }),
+        indian("c", "15:05", "15:20", 10, { contractType: "equity", productType: "delivery", expiryDate: null }),
+      ],
+      [],
+      [],
+      journalConfig,
+      accounts,
+    );
+    expect(tagsOf(open)).toEqual(expect.arrayContaining(["nse:open", "product:intraday", "expiry_day", "won_before_charges"]));
+    expect(open.tags.find((g) => g.tag === "won_before_charges")?.detail).toBe("₹50.00 before charges of ₹80.00");
+    expect(tagsOf(close)).toEqual(expect.arrayContaining(["nse:close", "product:delivery"]));
+    expect(tagsOf(close)).not.toContain("expiry_day");
+    expect(tagsOf(close)).not.toContain("won_before_charges");
   });
 });

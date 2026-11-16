@@ -120,6 +120,13 @@
       "when": 1794812788956,
       "tag": "0016_review_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1794814271994,
+      "tag": "0017_trade_product",
+      "breakpoints": true
     }
   ]
 }

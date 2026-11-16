@@ -14,7 +14,7 @@ import { formatDateTime, formatMoney, formatPercent, pnlClass } from "@/lib/form
 import { biggestLeaks, TAG_HINTS, whatWorks } from "@/lib/insights";
 import { behaviourScore, weakest, type BehaviourScore } from "@/lib/score";
 import { summarySince, todaySummary, type TodaySummary } from "@/lib/today";
-import { journaledTradeIds, listSymbols, listTrades } from "@/lib/queries";
+import { journaledTradeIds, listSegments, listSymbols, listTrades } from "@/lib/queries";
 import { filterHref, RANGES, rangeStart, type readFilters } from "@/lib/range";
 import { computeStats, dailyPnl, equityCurve, groupStats, tagPerformance, type GroupStats, type TagPerformance } from "@/lib/stats";
 import { tagLabel } from "@/lib/tags";
@@ -44,12 +44,13 @@ export async function DashboardView({
   const account = chooseAccount(accounts, filters.account);
   const accountId = account?.id;
   const currency: Currency = account?.currency ?? "USD";
-  const [trades, symbols, journaled, [latestReview], recentTrades] = await Promise.all([
-    listTrades(userId, { accountId, symbol: filters.symbol, tag: filters.tag, sinceTs: rangeStart(filters.range) }),
+  const [trades, symbols, journaled, [latestReview], recentTrades, segments] = await Promise.all([
+    listTrades(userId, { accountId, segment: filters.segment, symbol: filters.symbol, tag: filters.tag, sinceTs: rangeStart(filters.range) }),
     listSymbols(userId, accountId),
     journaledTradeIds(userId),
     listReviews(db, userId, 1, accountId ?? "none"),
     demo ? Promise.resolve([]) : listTrades(userId, { accountId, sinceTs: summarySince() }),
+    listSegments(userId, accountId),
   ]);
   const summary = demo ? null : todaySummary(recentTrades, journaled);
   const journaledHere = trades.filter((t) => t.status === "closed" && journaled.has(t.id)).length;
@@ -73,7 +74,7 @@ export async function DashboardView({
           <h1 className="text-3xl leading-none">{demo ? "The demo trader's dashboard" : "Dashboard"}</h1>
         )}
         <div className="space-y-2">
-          <FilterBar path={path} filters={filters} symbols={symbols} accounts={accounts} account={account} />
+          <FilterBar path={path} filters={filters} symbols={symbols} accounts={accounts} account={account} segments={segments} />
           {!demo && mismatches > 0 && <p className="face-label text-sm text-warn">{mismatches} trades don&apos;t match Delta&apos;s P&L</p>}
         </div>
       </div>

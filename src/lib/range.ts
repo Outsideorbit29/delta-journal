@@ -21,17 +21,36 @@ export function rangeStart(key: RangeKey, now = Date.now()): number | undefined 
   return days ? now - days * DAY : undefined;
 }
 
+/** Kinds of trade in an Indian account, for the segment filter. */
+export const SEGMENTS = [
+  { key: "options", label: "Options" },
+  { key: "futures", label: "Futures" },
+  { key: "intraday", label: "Intraday stocks" },
+  { key: "delivery", label: "Delivery stocks" },
+] as const;
+export type SegmentKey = (typeof SEGMENTS)[number]["key"];
+
+/** Which segment a trade is in, or null (Delta trades, or stocks without a product type). */
+export function segmentOf(t: { contractType: string; productType: string | null }): SegmentKey | null {
+  if (t.contractType === "options" || t.contractType === "futures") return t.contractType;
+  if (t.contractType === "equity" && (t.productType === "intraday" || t.productType === "delivery")) return t.productType;
+  return null;
+}
+
 export interface Filters {
   /** The trading account shown (an id from `accounts`); unset means the user's first. */
   account?: string;
   range: RangeKey;
+  /** Indian accounts: options, futures, intraday or delivery stocks. */
+  segment?: SegmentKey;
   symbol?: string;
   tag?: string;
 }
 
 export function readFilters(params: Record<string, string | string[] | undefined>): Filters {
   const one = (v: string | string[] | undefined) => (typeof v === "string" && v ? v : undefined);
-  return { account: one(params.account), range: parseRange(params.range), symbol: one(params.symbol), tag: one(params.tag) };
+  const segment = SEGMENTS.find((s) => s.key === params.segment)?.key;
+  return { account: one(params.account), range: parseRange(params.range), segment, symbol: one(params.symbol), tag: one(params.tag) };
 }
 
 /** URL for `path` with the current filters, overridden by `next` (undefined clears one). */
@@ -39,6 +58,7 @@ export function filterHref(path: string, current: Filters, next: Partial<Filters
   const merged = { ...current, ...next };
   const q = new URLSearchParams();
   if (merged.account) q.set("account", merged.account);
+  if (merged.segment) q.set("segment", merged.segment);
   if (merged.range && merged.range !== "all") q.set("range", merged.range);
   if (merged.symbol) q.set("symbol", merged.symbol);
   if (merged.tag) q.set("tag", merged.tag);

@@ -2,6 +2,11 @@
 
 Newest first. Add a line with every change to the project (standing rule in CLAUDE.md).
 
+- **2026-11-16**: Indian-market insights (Phase 4): NSE session, intraday/delivery, expiry-day and "won before charges"
+  tags for rupee accounts; a segment filter (options, futures, intraday, delivery); the score skips stop dimensions where
+  the broker shares no stops; "Charges" in the cost breakdown. `trades.product_type`/`expiry_date` (migration 0017).
+  On the owner's Dhan trades: morning (9:45-12:00) 10 trades, 0 won, -₹6,057; midday +₹1,804; expiry day -₹1,005.
+- **2026-11-16**: The landing page, site description and onboarding name Dhan next to Delta; onboarding offers both.
 - **2026-11-16**: Groww parked as a future update; what its API can do (today's trades only, no charges, TOTP sign-in)
   and how to resume are in docs/roadmap.md.
 - **2026-11-16**: Journal and AI review per account: the journal queue and the review page get the account chips (Dhan

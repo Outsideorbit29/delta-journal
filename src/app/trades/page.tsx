@@ -5,7 +5,7 @@ import { getDb } from "@/db";
 import { chooseAccount, listAccounts } from "@/lib/accounts";
 import { TagChip } from "@/components/tag-chip";
 import { formatDateTime, formatDuration, formatMoney, formatPercent, formatPrice, formatR, pnlClass } from "@/lib/format";
-import { journaledTradeIds, listSymbols, listTrades, type TradeWithTags } from "@/lib/queries";
+import { journaledTradeIds, listSegments, listSymbols, listTrades, type TradeWithTags } from "@/lib/queries";
 import { filterHref, rangeStart, readFilters, type Filters } from "@/lib/range";
 import { requireUserId } from "@/lib/session";
 import { computeStats } from "@/lib/stats";
@@ -19,10 +19,11 @@ export default async function TradesPage({ searchParams }: PageProps<"/trades">)
   const account = chooseAccount(accounts, filters.account);
   const accountId = account?.id;
   const currency = account?.currency ?? "USD";
-  const [trades, symbols, journaled] = await Promise.all([
-    listTrades(userId, { accountId, symbol: filters.symbol, tag: filters.tag, sinceTs: rangeStart(filters.range) }),
+  const [trades, symbols, journaled, segments] = await Promise.all([
+    listTrades(userId, { accountId, segment: filters.segment, symbol: filters.symbol, tag: filters.tag, sinceTs: rangeStart(filters.range) }),
     listSymbols(userId, accountId),
     journaledTradeIds(userId),
+    listSegments(userId, accountId),
   ]);
   const stats = computeStats(trades);
   const href = (t: TradeWithTags) => `/trades/${encodeURIComponent(t.id)}`;
@@ -37,7 +38,7 @@ export default async function TradesPage({ searchParams }: PageProps<"/trades">)
             <span className={pnlClass(stats.netPnl)}>{formatMoney(stats.netPnl, { sign: true, currency })}</span>
           </p>
         </div>
-        <FilterBar path="/trades" filters={filters} symbols={symbols} accounts={accounts} account={account} />
+        <FilterBar path="/trades" filters={filters} symbols={symbols} accounts={accounts} account={account} segments={segments} />
       </div>
 
       {trades.length === 0 && (

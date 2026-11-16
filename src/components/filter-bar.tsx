@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Account } from "@/lib/accounts";
-import { filterHref, RANGES, type Filters } from "@/lib/range";
+import { filterHref, RANGES, SEGMENTS, type Filters, type SegmentKey } from "@/lib/range";
 import { tagLabel } from "@/lib/tags";
 
 /**
@@ -13,16 +13,31 @@ export function FilterBar({
   symbols,
   accounts = [],
   account = null,
+  segments = [],
 }: {
   path: string;
   filters: Filters;
   symbols: string[];
   accounts?: Pick<Account, "id" | "label">[];
   account?: Pick<Account, "id"> | null;
+  /** The segments this account has (Indian accounts); the filter shows when there are two or more. */
+  segments?: SegmentKey[];
 }) {
   return (
     <nav aria-label="Filters" className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5">
-      <AccountPicker accounts={accounts} account={account} href={(id) => filterHref(path, filters, { account: id, symbol: undefined, tag: undefined })} />
+      <AccountPicker accounts={accounts} account={account} href={(id) => filterHref(path, filters, { account: id, segment: undefined, symbol: undefined, tag: undefined })} />
+      {segments.length > 1 && (
+        <div className={row} role="group" aria-label="Segment">
+          <Chip href={filterHref(path, filters, { segment: undefined, symbol: undefined })} active={!filters.segment}>
+            Everything
+          </Chip>
+          {SEGMENTS.filter((s) => segments.includes(s.key)).map((s) => (
+            <Chip key={s.key} href={filterHref(path, filters, { segment: s.key, symbol: undefined })} active={filters.segment === s.key}>
+              {s.label}
+            </Chip>
+          ))}
+        </div>
+      )}
       {/* On phones each group is one row that scrolls sideways instead of wrapping. */}
       <div className={row} role="group" aria-label="Date range">
         {RANGES.map((r) => (

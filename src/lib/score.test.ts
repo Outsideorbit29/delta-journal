@@ -35,3 +35,13 @@ describe("behaviourScore", () => {
     expect(s.trend).toBeGreaterThan(50);
   });
 });
+
+describe("accounts whose broker shares no stops", () => {
+  it("leave stop dimensions out instead of scoring them perfect", () => {
+    const rupee = Array.from({ length: 6 }, (_, i) => ({ id: `r${i}`, status: "closed", closedTs: i, tags: [{ tag: "oversized" }], currency: "INR" }));
+    const score = behaviourScore(rupee)!;
+    expect(score.dimensions.map((d) => d.key)).not.toContain("risk");
+    expect(score.dimensions.map((d) => d.key)).not.toContain("stops");
+    expect(score.dimensions.find((d) => d.key === "sizing")?.score).toBe(0);
+  });
+});

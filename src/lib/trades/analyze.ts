@@ -245,8 +245,20 @@ function addBehaviourTags(trades: AnalyzedTrade[], c: JournalConfig, account: Ac
     const utcHour = new Date(t.openedTs).getUTCHours();
     const session = crypto ? c.sessions.find((s) => utcHour >= s.fromUtcHour && utcHour < s.toUtcHour) : undefined;
     if (session) tag(session.tag);
-    const istDay = new Date(t.openedTs + IST_OFFSET_MS).getUTCDay();
+    const ist = new Date(t.openedTs + IST_OFFSET_MS);
+    const istDay = ist.getUTCDay();
     if (crypto && (istDay === 0 || istDay === 6)) tag("weekend");
+    if (!crypto) {
+      // Indian exchanges: the part of the trading day, the product, and expiry day.
+      const minute = ist.getUTCHours() * 60 + ist.getUTCMinutes();
+      const part = c.indianSessions.find((s) => minute >= s.fromMinute && minute < s.toMinute);
+      if (part) tag(part.tag);
+      if (t.productType === "intraday" || t.productType === "delivery") tag(`product:${t.productType}`);
+      if (t.expiryDate && ist.toISOString().slice(0, 10) === t.expiryDate) tag("expiry_day");
+      if (t.closedTs !== null && t.grossPnl > 0 && t.netPnl < 0) {
+        tag("won_before_charges", `${money(t.grossPnl)} before charges of ${money(t.fees)}`);
+      }
+    }
     if (t.holdSeconds !== null) {
       if (t.holdSeconds < c.scalpMaxMinutes * 60) tag("hold:scalp");
       else if (t.holdSeconds < c.intradayMaxHours * 3600) tag("hold:intraday");

@@ -7,6 +7,8 @@ interface ScoredTrade {
   status: string;
   closedTs: number | null;
   tags: { tag: string }[];
+  /** Rupee accounts are Indian brokers, which share no stop orders: their stops are unknown, not perfect. */
+  currency?: string;
 }
 
 export interface ScoreDimension {
@@ -36,8 +38,8 @@ type Dimension = {
   label: string;
   tip: string;
   tag?: string;
-  /** Which trades this dimension applies to (default: all). */
-  applies?: (tags: Set<string>) => boolean;
+  /** Which trades this dimension applies to (default: all). `stopsKnown` is false where the broker shares no stops. */
+  applies?: (tags: Set<string>, stopsKnown: boolean) => boolean;
   good: (tags: Set<string>, id: string) => boolean;
 };
 
@@ -50,6 +52,7 @@ function dimensions(journaled?: Set<string>): Dimension[] {
       label: "Risk control",
       tip: "Place a stop-loss as soon as you enter.",
       tag: "no_stop",
+      applies: (_, stopsKnown) => stopsKnown,
       good: (t) => !has(t, "no_stop", "late_stop"),
     },
     {
@@ -57,7 +60,7 @@ function dimensions(journaled?: Set<string>): Dimension[] {
       label: "Stop discipline",
       tip: "Never move a stop further away while the trade is losing.",
       tag: "moved_stop",
-      applies: (t) => !t.has("no_stop"),
+      applies: (t, stopsKnown) => stopsKnown && !t.has("no_stop"),
       good: (t) => !t.has("moved_stop"),
     },
     {
@@ -111,10 +114,10 @@ export function behaviourScore(trades: ScoredTrade[], journaled?: Set<string>): 
 }
 
 function scoreOf(trades: ScoredTrade[], journaled?: Set<string>) {
-  const tagSets = trades.map((t) => ({ id: t.id, tags: new Set(t.tags.map((g) => g.tag)) }));
+  const tagSets = trades.map((t) => ({ id: t.id, tags: new Set(t.tags.map((g) => g.tag)), stopsKnown: t.currency !== "INR" }));
   const dims: ScoreDimension[] = [];
   for (const d of dimensions(journaled)) {
-    const applicable = tagSets.filter((t) => d.applies?.(t.tags) ?? true);
+    const applicable = tagSets.filter((t) => d.applies?.(t.tags, t.stopsKnown) ?? true);
     if (!applicable.length) continue;
     const good = applicable.filter((t) => d.good(t.tags, t.id)).length;
     dims.push({ key: d.key, label: d.label, tip: d.tip, tag: d.tag, score: Math.round((100 * good) / applicable.length) });

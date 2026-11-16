@@ -87,3 +87,17 @@ export function toDhanFillRow(t: DhanTrade): FillRow {
     raw: t,
   };
 }
+
+const PRODUCT_TYPES: Record<string, string> = { INTRADAY: "intraday", CNC: "delivery", MARGIN: "margin", MTF: "margin", CO: "intraday", BO: "intraday" };
+
+/**
+ * The product type and contract expiry of a stored Dhan fill, read from its raw record at rebuild time (so fills
+ * stored before these were used need no rewrite). Null when Dhan left them out.
+ */
+export function dhanFillMeta(raw: unknown): { productType: string | null; expiryDate: string | null } {
+  const t = (raw ?? {}) as Partial<DhanTrade>;
+  const productType = PRODUCT_TYPES[String(t.productType ?? "").toUpperCase()] ?? null;
+  const expiry = /^(\d{4}-\d{2}-\d{2})/.exec(String(t.drvExpiryDate ?? ""))?.[1] ?? null;
+  // Dhan writes "0001-01-01" (or nothing) for instruments without an expiry.
+  return { productType, expiryDate: expiry && !expiry.startsWith("0001") ? expiry : null };
+}
