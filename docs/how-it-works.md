@@ -14,7 +14,8 @@ Moved out of CLAUDE.md (2026-11-08) so it loads only when needed. Keep it curren
 - The first-ever sync starts at 2018-01-01. Without `start_time`, fills and wallet endpoints only return about 90 days.
 
 ## Trades (`reconstruct.ts`)
-A trade runs from position 0 → back to 0 per product. Average-cost basis exactly as Delta
+A trade runs from position 0 → back to 0 per product within one trading account (`lib/accounts.ts`; `syncAll` gets the
+user's Delta account with `ensureAccount`, which reads before it writes, and `writeChanged` stamps it on every row). Average-cost basis exactly as Delta
 does it (adds re-average, exits do not). A fill that crosses zero is split into a close and a
 `-flip` open with the fee prorated. Every fill is checked against Delta's
 `meta_data.new_position.size`. P&L is checked against `new_position.realized_pnl` (gross, before

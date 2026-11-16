@@ -2,6 +2,10 @@
 
 Newest first. Add a line with every change to the project (standing rule in CLAUDE.md).
 
+- **2026-11-16**: Trading accounts (Phase 1a of Groww and Dhan): table `accounts` and `account_id` on fills, orders, wallet
+  and trades (migration 0014, which gives each user with data one Delta account). Positions are matched per account.
+  Rebuilt trades, legs and tags were checked identical to before for every user, including after an old-code rebuild
+  in the cutover window. No visible change.
 - **2026-11-16**: The proxy now runs for missing file-like paths too. Bots POSTing `/favicon.ico` had made 237 Clerk
   "auth() was called but Clerk can't detect usage of clerkMiddleware()" server errors (and an owner alert every few
   hours) since 2026-11-07; they now get a plain 404.

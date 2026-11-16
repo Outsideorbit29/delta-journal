@@ -108,6 +108,11 @@ so the value is never shown.
 
 ## Data model (`src/db/schema.ts`)
 
+Trading accounts: `accounts` (random `acc_…` id, `broker` `delta` | `dhan` | `groww`, `label`, `currency` `USD` | `INR`;
+unique per (user, broker) for now; since 2026-11-16, migration 0014). `fills`, `orders`, `wallet_transactions` and `trades`
+carry `account_id`: positions are matched per account, and money is only ever summed within one account. `""` marks a row
+written by code from before accounts; `rebuildTrades` first hands those to the user's Delta account (`adoptUnassigned`).
+
 Raw (upserted by Delta ids, `raw` keeps the full API record): `fills`, `orders`,
 `wallet_transactions`, `sync_state`.
 Derived (rebuilt from raw; trade id = id of the opening fill, or `<fillId>-flip`, so it is
