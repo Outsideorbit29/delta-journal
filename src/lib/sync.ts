@@ -1,6 +1,7 @@
 import { and, eq, getTableColumns, inArray, sql, type SQL } from "drizzle-orm";
 import type { SQLiteTable } from "drizzle-orm/sqlite-core";
 import { getDb, schema, type Db } from "@/db";
+import { ensureAccount } from "@/lib/accounts";
 import type { DeltaClient } from "@/lib/delta/client";
 import { toFillRow, toOrderRow, toWalletRow } from "@/lib/delta/ingest";
 import type { DeltaFill, DeltaOrder, DeltaWalletTransaction } from "@/lib/delta/types";
@@ -27,10 +28,11 @@ export interface SyncSummary {
 export async function syncAll(userId: string, client: DeltaClient): Promise<SyncSummary> {
   const db = await getDb();
   const now = Date.now();
+  const owner: RowOwner = { userId, accountId: (await ensureAccount(db, userId, "delta", now)).id };
 
   const fills = await syncResource(db, userId, "fills", now, async (since) => {
     const rows = await client.getAll<DeltaFill>("/v2/fills", window(since, now));
-    const written = await writeChanged(db, userId, schema.fills, rows.map(toFillRow), (r) => r.id);
+    const written = await writeChanged(db, owner, schema.fills, rows.map(toFillRow), (r) => r.id);
     return { timestamps: rows.map((r) => Date.parse(r.created_at)), written };
   });
 
@@ -41,13 +43,13 @@ export async function syncAll(userId: string, client: DeltaClient): Promise<Sync
     const history = await client.getAll<DeltaOrder>("/v2/orders/history");
     // Resting orders (such as the stop on an open position) are not in history yet.
     const open = await client.getAll<DeltaOrder>("/v2/orders", { states: "open,pending" });
-    const written = await writeChanged(db, userId, schema.orders, [...history, ...open].map(toOrderRow), (r) => r.id!);
+    const written = await writeChanged(db, owner, schema.orders, [...history, ...open].map(toOrderRow), (r) => r.id!);
     return { timestamps: history.map((r) => Date.parse(r.created_at)), written };
   });
 
   const walletTransactions = await syncResource(db, userId, "wallet", now, async (since) => {
     const rows = await client.getAll<DeltaWalletTransaction>("/v2/wallet/transactions", window(since, now));
-    const written = await writeChanged(db, userId, schema.walletTransactions, rows.map(toWalletRow), (r) => r.uuid);
+    const written = await writeChanged(db, owner, schema.walletTransactions, rows.map(toWalletRow), (r) => r.uuid);
     return { timestamps: rows.map((r) => Date.parse(r.created_at)), written };
   });
 
@@ -94,15 +96,21 @@ async function syncResource(
 
 type RawTable = typeof schema.fills | typeof schema.orders | typeof schema.walletTransactions;
 
+/** Whose rows these are: the user, and the trading account they came from. */
+export interface RowOwner {
+  userId: string;
+  accountId: string;
+}
+
 /**
  * Writes only the rows that are new or whose Delta record (`raw`) changed, and
  * returns how many that was. Re-reading an overlap window then costs reads,
- * not writes. Rows are stored as `userId`'s; a row that already belongs to
+ * not writes. Rows are stored as `owner`'s; a row that already belongs to
  * another user is never overwritten.
  */
 export async function writeChanged<T extends RawTable>(
   db: Db,
-  userId: string,
+  { userId, accountId }: RowOwner,
   table: T,
   rows: (T["$inferInsert"] & { raw: unknown })[],
   idOf: (row: T["$inferInsert"]) => string | number,
@@ -110,7 +118,7 @@ export async function writeChanged<T extends RawTable>(
   const idColumn = "id" in table ? table.id : table.uuid;
   // The same record can appear twice (e.g. an order in both history and open
   // orders); one statement may not update a row twice, so keep the last.
-  const unique = [...new Map(rows.map((r) => [idOf(r), { ...r, userId }])).values()];
+  const unique = [...new Map(rows.map((r) => [idOf(r), { ...r, userId, accountId }])).values()];
 
   const stored = new Map<string | number, string>();
   for (let i = 0; i < unique.length; i += 200) {

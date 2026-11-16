@@ -8,6 +8,7 @@ function fill(side: "buy" | "sell", size: number, price: number, extra: Partial<
   seq++;
   return {
     id: `f${seq}`,
+    accountId: "acc_a",
     orderId: `o${seq}`,
     productId: 1,
     symbol: "XAUTUSD",

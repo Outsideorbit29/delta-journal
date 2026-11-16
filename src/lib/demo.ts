@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { schema, type Db } from "@/db";
+import { ensureAccount } from "@/lib/accounts";
 import { toFillRow, toOrderRow, toWalletRow } from "@/lib/delta/ingest";
 import type { DeltaFill, DeltaOrder, DeltaWalletTransaction } from "@/lib/delta/types";
 import { saveJournalEntry } from "@/lib/journal/save";
@@ -216,9 +217,10 @@ export async function seedDemo(db: Db, now = Date.now()) {
       await tx.delete(table).where(eq(table.userId, DEMO_USER));
     }
   });
-  await writeChanged(db, DEMO_USER, schema.fills, data.fills.map(toFillRow), (r) => r.id);
-  await writeChanged(db, DEMO_USER, schema.orders, data.orders.map(toOrderRow), (r) => r.id!);
-  await writeChanged(db, DEMO_USER, schema.walletTransactions, data.wallet.map(toWalletRow), (r) => r.uuid);
+  const owner = { userId: DEMO_USER, accountId: (await ensureAccount(db, DEMO_USER, "delta", now)).id };
+  await writeChanged(db, owner, schema.fills, data.fills.map(toFillRow), (r) => r.id);
+  await writeChanged(db, owner, schema.orders, data.orders.map(toOrderRow), (r) => r.id!);
+  await writeChanged(db, owner, schema.walletTransactions, data.wallet.map(toWalletRow), (r) => r.uuid);
   const summary = await rebuildTrades(db, DEMO_USER);
   for (const [tradeId, answers] of Object.entries(data.journal)) await saveJournalEntry(db, DEMO_USER, tradeId, answers);
   return { ...summary, journaled: Object.keys(data.journal).length };

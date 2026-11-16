@@ -12,6 +12,7 @@ function trade(id: string, openMin: number, closeMin: number | null, grossPnl: n
   const closedTs = closeMin === null ? null : T0 + closeMin * MIN;
   return {
     id,
+    accountId: "acc_a",
     productId: 1,
     symbol: "XAUTUSD",
     contractType: "perpetual_futures",

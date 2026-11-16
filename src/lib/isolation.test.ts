@@ -18,6 +18,7 @@ const { getDb, schema } = await import("@/db");
 const queries = await import("@/lib/queries");
 const { rebuildTrades } = await import("@/lib/trades/rebuild");
 const { writeChanged } = await import("@/lib/sync");
+const { adoptUnassigned, ensureAccount, listAccounts } = await import("@/lib/accounts");
 const { toFillRow } = await import("@/lib/delta/ingest");
 const { saveJournalEntry, loadJournalEntry } = await import("@/lib/journal/save");
 const { buildReviewInput, listReviews } = await import("@/lib/ai/review");
@@ -59,8 +60,10 @@ function fill(id: string, side: "buy" | "sell", ts: number, price: number): Delt
 beforeAll(async () => {
   db = await getDb();
   // Same symbol, same times, different accounts: A wins, B loses.
-  await writeChanged(db, A, schema.fills, [fill("a1", "buy", T0, 4000), fill("a2", "sell", T0 + 60_000, 4010)].map(toFillRow), (r) => r.id);
-  await writeChanged(db, B, schema.fills, [fill("b1", "buy", T0, 4000), fill("b2", "sell", T0 + 60_000, 3990)].map(toFillRow), (r) => r.id);
+  const ownerA = { userId: A, accountId: (await ensureAccount(db, A, "delta")).id };
+  const ownerB = { userId: B, accountId: (await ensureAccount(db, B, "delta")).id };
+  await writeChanged(db, ownerA, schema.fills, [fill("a1", "buy", T0, 4000), fill("a2", "sell", T0 + 60_000, 4010)].map(toFillRow), (r) => r.id);
+  await writeChanged(db, ownerB, schema.fills, [fill("b1", "buy", T0, 4000), fill("b2", "sell", T0 + 60_000, 3990)].map(toFillRow), (r) => r.id);
   await rebuildTrades(db, A);
   await rebuildTrades(db, B);
   await db.insert(schema.syncState).values([
@@ -94,6 +97,23 @@ describe("each user only sees their own data", () => {
     expect(b.map((t) => t.id)).toEqual(["b1"]);
     expect(a[0].netPnl).toBeGreaterThan(0);
     expect(b[0].netPnl).toBeLessThan(0);
+  });
+
+  it("keeps each user's trading accounts, and their trades, apart", async () => {
+    const [accountA] = await listAccounts(db, A);
+    const [accountB] = await listAccounts(db, B);
+    expect((await listAccounts(db, A)).map((x) => x.id)).toEqual([accountA.id]);
+    expect(accountA.id).not.toBe(accountB.id);
+    expect((await queries.listTrades(A))[0].accountId).toBe(accountA.id);
+    expect((await queries.listTrades(B))[0].accountId).toBe(accountB.id);
+    // Asking again never makes a second Delta account.
+    expect((await ensureAccount(db, A, "delta")).id).toBe(accountA.id);
+    // A row of B's from before accounts existed goes to B's account, and adopting touches nothing of A's.
+    await db.update(schema.fills).set({ accountId: "" }).where(eq(schema.fills.id, "b2"));
+    expect(await adoptUnassigned(db, A)).toBe(0);
+    expect(await adoptUnassigned(db, B)).toBe(1);
+    const [b2] = await db.select().from(schema.fills).where(eq(schema.fills.id, "b2"));
+    expect(b2.accountId).toBe(accountB.id);
   });
 
   it("will not open another user's trade by id", async () => {
@@ -133,7 +153,7 @@ describe("each user only sees their own data", () => {
   it("a sync can never overwrite or take over another user's rows", async () => {
     // A's sync somehow returns a record with B's fill id.
     const stolen = { ...fill("b2", "sell", T0 + 60_000, 1), product_symbol: "XAUTUSD" };
-    await writeChanged(db, A, schema.fills, [toFillRow(stolen)], (r) => r.id);
+    await writeChanged(db, { userId: A, accountId: (await ensureAccount(db, A, "delta")).id }, schema.fills, [toFillRow(stolen)], (r) => r.id);
     const [row] = await db.select().from(schema.fills).where(eq(schema.fills.id, "b2"));
     expect(row.userId).toBe(B);
     expect(row.price).toBe(3990);

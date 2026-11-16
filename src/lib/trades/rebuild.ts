@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { adoptUnassigned } from "@/lib/accounts";
 import { effectiveRisk } from "@/lib/journal/entry";
 import { schema, type Db } from "@/db";
 import { analyzeTrades, walletFillIds } from "./analyze";
@@ -15,6 +16,8 @@ export interface RebuildSummary {
 
 /** Recomputes one user's trades, their fill legs and auto tags from that user's raw synced data. */
 export async function rebuildTrades(db: Db, userId: string): Promise<RebuildSummary> {
+  // Rows from before accounts existed join the Delta account first, so no trade is left without one.
+  await adoptUnassigned(db, userId);
   const [fills, orders, wallet, journal] = await Promise.all([
     db.select().from(schema.fills).where(eq(schema.fills.userId, userId)),
     db.select().from(schema.orders).where(eq(schema.orders.userId, userId)),
@@ -35,6 +38,7 @@ export async function rebuildTrades(db: Db, userId: string): Promise<RebuildSumm
     stopOrderRisk: t.riskAmount,
     id: t.id,
     userId,
+    accountId: t.accountId,
     productId: t.productId,
     symbol: t.symbol,
     contractType: t.contractType,

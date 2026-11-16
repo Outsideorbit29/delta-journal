@@ -5,6 +5,8 @@
 
 export interface FillInput {
   id: string;
+  /** The trading account; positions in different accounts never mix. */
+  accountId: string;
   orderId: string;
   productId: number;
   symbol: string;
@@ -41,6 +43,7 @@ export interface TradeLeg {
 
 export interface ReconstructedTrade {
   id: string;
+  accountId: string;
   productId: number;
   symbol: string;
   contractType: string;
@@ -90,7 +93,8 @@ export function closePnl(direction: 1 | -1, contracts: number, entry: number, ex
 
 export function reconstructTrades(fills: FillInput[]): ReconstructedTrade[] {
   const sorted = [...fills].sort((a, b) => a.ts - b.ts || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
-  const open = new Map<number, OpenPosition>();
+  // One position per instrument in each account.
+  const open = new Map<string, OpenPosition>();
   const trades: ReconstructedTrade[] = [];
 
   for (const fill of sorted) {
@@ -98,7 +102,8 @@ export function reconstructTrades(fills: FillInput[]): ReconstructedTrade[] {
     if (remaining === 0) continue;
     const feePerContract = fill.commission / fill.size;
     const creditPerContract = fill.creditsUsed / fill.size;
-    let pos = open.get(fill.productId);
+    const key = `${fill.accountId}|${fill.productId}`;
+    let pos = open.get(key);
 
     // 1. Reduce or close the existing position.
     if (pos && sign(remaining) !== sign(pos.qty)) {
@@ -126,7 +131,7 @@ export function reconstructTrades(fills: FillInput[]): ReconstructedTrade[] {
         // Delta's figure covers the position that this fill closed, unless the
         // same fill went on to open a new one.
         t.deltaRealizedPnl = t.closedByFlip ? null : fill.realizedPnlAfter;
-        open.delete(fill.productId);
+        open.delete(key);
         pos = undefined;
       }
     }
@@ -143,6 +148,7 @@ export function reconstructTrades(fills: FillInput[]): ReconstructedTrade[] {
           exitCost: 0,
           trade: {
             id: openedByFlip ? `${fill.id}-flip` : fill.id,
+            accountId: fill.accountId,
             productId: fill.productId,
             symbol: fill.symbol,
             contractType: fill.contractType,
@@ -169,7 +175,7 @@ export function reconstructTrades(fills: FillInput[]): ReconstructedTrade[] {
             warnings: [],
           },
         };
-        open.set(fill.productId, pos);
+        open.set(key, pos);
         trades.push(pos.trade);
       }
       const t = pos.trade;
@@ -190,9 +196,9 @@ export function reconstructTrades(fills: FillInput[]): ReconstructedTrade[] {
     }
 
     // 3. Check our running position against the size Delta reported.
-    const ours = open.get(fill.productId)?.qty ?? 0;
+    const ours = open.get(key)?.qty ?? 0;
     if (fill.positionSizeAfter !== null && fill.positionSizeAfter !== ours) {
-      const t = open.get(fill.productId)?.trade ?? trades[trades.length - 1];
+      const t = open.get(key)?.trade ?? trades[trades.length - 1];
       t.warnings.push(`After fill ${fill.id} Delta reports position ${fill.positionSizeAfter}, rebuilt position is ${ours}`);
     }
   }
