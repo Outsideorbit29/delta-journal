@@ -6,6 +6,10 @@ Newest first. Add a line with every change to the project (standing rule in CLAU
   different trade numbers ("5037393" and "0"), and fill ids used that number. Fills are now numbered by their place in
   their order, the trade book stays out of orders the history holds, and the history replaces leftover copies. One live
   trade was affected (NIFTY 17 NOV 25150 CALL, 16 Nov). An order filled in parts is now kept whole from the history too.
+- **2026-11-16**: Motion (from the Motion Lab, owner picked A1, A2, A3, A4, B5): figures count up (net P&L, Today strip,
+  landing tiles), the 4px section rules draw in and chart lines trace themselves as they scroll in (CSS scroll timelines,
+  no script), a pinned leak story on the landing page, and a ticker tape of the demo's trades. All still under reduced
+  motion. design.md → Motion rewritten (it was "still").
 - **2026-11-16**: Design polish: each leak gets a bar against the biggest, a one-line fix (`LEAK_FIXES`) and "See N trades";
   symbols are one dropdown; phone trades are grouped by day with the day's net; the phone Journal tab shows how many
   trades from the last 7 days are not journaled (`countToJournal`). Dhan price charts: not possible on Dhan's free plan.

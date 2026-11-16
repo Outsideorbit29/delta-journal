@@ -35,7 +35,15 @@ The spacing scale, the type scale, the easings and the durations are the scaffol
 - Secondary: 1px ink outline, same height. Inputs: square, 1px `--color-rule-2` edge that turns ink on focus.
 
 ## Motion
-- Character: still. State only (colour steps, a 1px press); no reveal on scroll; the pinned run on `/` crossfades its visual. Under reduced motion everything ends at once.
+- Character: quiet and purposeful (changed 2026-11-16 from "still"). Motion only where it carries meaning, each move once or tied to scroll, never looping in the app:
+  - **Figures count up** (`components/motion/count-up.tsx`): net P&L, the Today strip and the landing tiles count to their value once, ~0.9 s, ease-out, when first in view. The final value is always in the markup.
+  - **Opening rules draw in**: the 4px `.opens` rule draws from the left as its section enters (CSS scroll timeline).
+  - **Chart lines trace themselves** as the chart scrolls in (`.chart-timeline` + `.draw-line`); areas and end dots fade in after. The landing sparkline reveals left to right.
+  - **The landing's leak story** (`landing/leak-story.tsx`) pins on wide screens: each leak lights, its bar grows, its fix appears.
+  - **The landing's ticker tape** of demo trades runs slowly, pausing under the pointer or focus.
+  - Otherwise state only (colour steps, a 1px press); the pinned run on `/` crossfades its visual.
+- Scroll-linked moves use CSS scroll timelines (`animation-timeline`), no script; browsers without them show the finished state. No hover tricks that need a mouse, no 3D, no smooth-scroll hijacking.
+- Under reduced motion everything is still and finished at once: no counting, rules and lines drawn, the story a plain list, the tape scrollable by hand. Phones get the same moves except the pinned story, which is a plain list below 60rem.
 
 ## Exports
 `src/app/tokens.css` is a Tailwind v4 `@theme` block, so every token is a utility (`bg-paper`, `text-ink`, `border-rule-2`, `text-gain`).

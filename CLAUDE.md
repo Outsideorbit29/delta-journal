@@ -182,7 +182,8 @@ Details in docs/how-it-works.md; these break things silently if forgotten:
   Heads: the condensed display face; big numbers `.figure-display`; labels, controls, nav and table heads `.face-label`
   (sentence case, never uppercase); reading text in the serif. Dark mode is re-derived in `globals.css`, chosen by the
   device or by Settings → Appearance (`data-mode` on `<html>`, set before paint by a script in `layout.tsx`). Use
-  `components/ui.ts` (`buttonPrimary`, `buttonSecondary`, `input`, `well`, `link`), one filled primary per screen. Phones
+  `components/ui.ts` (`buttonPrimary`, `buttonSecondary`, `input`, `well`, `link`), one filled primary per screen. Motion is limited to the moves in design.md → Motion (count-up figures,
+  drawn rules and chart lines, the landing's leak story and ticker tape), all still under reduced motion. Phones
   get the bottom tab bar and ruled lists; check every page at 375px. Before shipping UI, run Hallmark's
   `sloplint` (see "Gotchas" for the Windows flag). Clerk's forms take the tokens through `appearance` in `layout.tsx`.
 - Next 16 with Cache Components: pages reading data call `await connection()` and need a
