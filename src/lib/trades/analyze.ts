@@ -2,12 +2,14 @@
 // the stop-loss behind it, how it was exited, the account size at entry, and
 // the automatic behaviour tags.
 
+import type { Broker, Currency } from "@/db/schema";
 import { journalConfig, type JournalConfig } from "@/lib/config";
 import { riskAtStop } from "@/lib/journal/entry";
 import type { ReconstructedTrade } from "./reconstruct";
 
 export interface OrderInput {
   id: number;
+  accountId: string;
   productId: number;
   side: string;
   stopOrderType: string | null;
@@ -20,6 +22,7 @@ export interface OrderInput {
 }
 
 export interface WalletInput {
+  accountId: string;
   type: string;
   amount: number;
   balance: number | null;
@@ -70,12 +73,44 @@ const IST_OFFSET_MS = 330 * MINUTE;
 // closing fill, and fee-credit payments right after the fill they paid for.
 const SETTLE_GRACE_MS = 5_000;
 
+/** What analysis needs to know about an account. Accounts not listed are taken to be Delta (USD). */
+export interface AccountInfo {
+  broker: Broker;
+  currency: Currency;
+}
+
+const DELTA: AccountInfo = { broker: "delta", currency: "USD" };
+
+/**
+ * Analyzes each trading account on its own: charges, stops and wallet only come from the same account, and
+ * behaviour tags compare a trade only with trades in the same account (sizes in USD and INR do not compare).
+ */
 export function analyzeTrades(
   trades: ReconstructedTrade[],
   orders: OrderInput[],
   wallet: WalletInput[],
   config: JournalConfig = journalConfig,
+  accounts: ReadonlyMap<string, AccountInfo> = new Map(),
 ): AnalyzedTrade[] {
+  const byAccount = groupBy(trades, (t) => t.accountId);
+  const ordersOf = groupBy(orders, (o) => o.accountId);
+  const walletOf = groupBy(wallet, (w) => w.accountId);
+  return [...byAccount]
+    .flatMap(([accountId, list]) =>
+      analyzeAccount(list, ordersOf.get(accountId) ?? [], walletOf.get(accountId) ?? [], config, accounts.get(accountId) ?? DELTA),
+    )
+    .sort((a, b) => a.openedTs - b.openedTs);
+}
+
+function analyzeAccount(
+  trades: ReconstructedTrade[],
+  orders: OrderInput[],
+  wallet: WalletInput[],
+  config: JournalConfig,
+  account: AccountInfo,
+): AnalyzedTrade[] {
+  // Only Delta gives us the orders behind a trade (stops, targets); elsewhere stops and exit reasons are unknown.
+  const knowsOrders = account.broker === "delta";
   const ordersById = new Map(orders.map((o) => [String(o.id), o]));
   const stopsByProduct = groupBy(
     orders.filter((o) => o.stopOrderType === "stop_loss_order" && o.stopPrice !== null).sort((a, b) => a.ts - b.ts),
@@ -106,7 +141,7 @@ export function analyzeTrades(
         reduceCount: t.legs.filter((l) => l.kind === "reduce").length,
         walletBalanceAtOpen,
         marginUsed,
-        exitReason: exitReasonOf(t, ordersById),
+        exitReason: knowsOrders ? exitReasonOf(t, ordersById) : null,
         stopPrice: stop?.price ?? null,
         stopPlacedAfterSec: stop ? Math.max(0, Math.round((stop.ts - t.openedTs) / 1000)) : null,
         stopMovedAfterSec: stop?.editedTs ? Math.max(0, Math.round((stop.editedTs - t.openedTs) / 1000)) : null,
@@ -116,7 +151,7 @@ export function analyzeTrades(
       };
     });
 
-  addBehaviourTags(analyzed, config);
+  addBehaviourTags(analyzed, config, account, knowsOrders);
   return analyzed;
 }
 
@@ -197,7 +232,10 @@ function exitReasonOf(t: ReconstructedTrade, ordersById: Map<string, OrderInput>
   return "manual";
 }
 
-function addBehaviourTags(trades: AnalyzedTrade[], c: JournalConfig) {
+function addBehaviourTags(trades: AnalyzedTrade[], c: JournalConfig, account: AccountInfo, knowsOrders: boolean) {
+  // The sessions and the weekend are crypto ones (24/7 markets); Indian exchanges get their own later.
+  const crypto = account.broker === "delta";
+  const money = (n: number) => formatAmount(n, account.currency);
   const closed = trades.filter((t) => t.closedTs !== null).sort((a, b) => a.closedTs! - b.closedTs!);
 
   trades.forEach((t, i) => {
@@ -205,10 +243,10 @@ function addBehaviourTags(trades: AnalyzedTrade[], c: JournalConfig) {
 
     // When and how long.
     const utcHour = new Date(t.openedTs).getUTCHours();
-    const session = c.sessions.find((s) => utcHour >= s.fromUtcHour && utcHour < s.toUtcHour);
+    const session = crypto ? c.sessions.find((s) => utcHour >= s.fromUtcHour && utcHour < s.toUtcHour) : undefined;
     if (session) tag(session.tag);
     const istDay = new Date(t.openedTs + IST_OFFSET_MS).getUTCDay();
-    if (istDay === 0 || istDay === 6) tag("weekend");
+    if (crypto && (istDay === 0 || istDay === 6)) tag("weekend");
     if (t.holdSeconds !== null) {
       if (t.holdSeconds < c.scalpMaxMinutes * 60) tag("hold:scalp");
       else if (t.holdSeconds < c.intradayMaxHours * 3600) tag("hold:intraday");
@@ -222,7 +260,7 @@ function addBehaviourTags(trades: AnalyzedTrade[], c: JournalConfig) {
       const gapMin = (t.openedTs - last.closedTs!) / MINUTE;
       if (gapMin <= c.afterLossMinutes) {
         tag("after_loss", `${Math.round(gapMin)} min after a ${money(last.netPnl)} loss`);
-        if (t.maxNotional >= last.maxNotional * c.sizedUpFactor) {
+        if (last.contractType === t.contractType && t.maxNotional >= last.maxNotional * c.sizedUpFactor) {
           tag("sized_up_after_loss", `${(t.maxNotional / last.maxNotional).toFixed(1)}x the size of that loss`);
         }
       }
@@ -238,7 +276,12 @@ function addBehaviourTags(trades: AnalyzedTrade[], c: JournalConfig) {
     }
 
     // Size and risk.
-    const history = trades.slice(Math.max(0, i - c.oversizedLookback), i).map((p) => p.maxNotional);
+    // Sizes only compare within one kind of instrument (an option's premium is not a share purchase).
+    const history = trades
+      .slice(0, i)
+      .filter((p) => p.contractType === t.contractType)
+      .slice(-c.oversizedLookback)
+      .map((p) => p.maxNotional);
     if (history.length >= c.oversizedMinHistory) {
       const typical = median(history);
       if (typical > 0 && t.maxNotional >= typical * c.oversizedFactor) {
@@ -260,7 +303,7 @@ function addBehaviourTags(trades: AnalyzedTrade[], c: JournalConfig) {
     if (t.reduceCount > 0) tag("scaled_out");
     if (t.openedByFlip) tag("flipped");
 
-    if (t.stopPrice === null) tag("no_stop");
+    if (knowsOrders && t.stopPrice === null) tag("no_stop");
     else if (t.stopPlacedAfterSec! > c.lateStopMinutes * 60) tag("late_stop", `stop placed ${Math.round(t.stopPlacedAfterSec! / 60)} min after entry`);
     if (t.stopPrice !== null && t.stopMovedAfterSec !== null) {
       const when = `${Math.round(t.stopMovedAfterSec / 60)} min after entry`;
@@ -329,4 +372,9 @@ function median(values: number[]): number {
   return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 }
 
-const money = (n: number) => `${n < 0 ? "-" : ""}$${Math.abs(n).toFixed(2)}`;
+/** A short amount for tag details ("-$4.75", "-₹1,250.00"), stored with the tag. */
+function formatAmount(n: number, currency: Currency): string {
+  const sign = n < 0 ? "-" : "";
+  if (currency === "INR") return `${sign}₹${Math.abs(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${sign}$${Math.abs(n).toFixed(2)}`;
+}

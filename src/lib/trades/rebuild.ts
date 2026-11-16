@@ -1,5 +1,6 @@
 import { and, eq } from "drizzle-orm";
-import { adoptUnassigned } from "@/lib/accounts";
+import { adoptUnassigned, listAccounts } from "@/lib/accounts";
+import { journalConfig } from "@/lib/config";
 import { effectiveRisk } from "@/lib/journal/entry";
 import { schema, type Db } from "@/db";
 import { analyzeTrades, walletFillIds } from "./analyze";
@@ -18,7 +19,8 @@ export interface RebuildSummary {
 export async function rebuildTrades(db: Db, userId: string): Promise<RebuildSummary> {
   // Rows from before accounts existed join the Delta account first, so no trade is left without one.
   await adoptUnassigned(db, userId);
-  const [fills, orders, wallet, journal] = await Promise.all([
+  const [accounts, fills, orders, wallet, journal] = await Promise.all([
+    listAccounts(db, userId),
     db.select().from(schema.fills).where(eq(schema.fills.userId, userId)),
     db.select().from(schema.orders).where(eq(schema.orders.userId, userId)),
     db.select().from(schema.walletTransactions).where(eq(schema.walletTransactions.userId, userId)),
@@ -31,7 +33,8 @@ export async function rebuildTrades(db: Db, userId: string): Promise<RebuildSumm
 
   const orderInputs = orders.map((o) => ({ ...o, editedTs: editedAt(o.raw) }));
   const walletInputs = wallet.map((w) => ({ ...w, fillIds: walletFillIds(w.raw) }));
-  const analyzed = analyzeTrades(reconstructTrades(fills), orderInputs, walletInputs);
+  const accountInfo = new Map(accounts.map((a) => [a.id, { broker: a.broker, currency: a.currency }]));
+  const analyzed = analyzeTrades(reconstructTrades(fills), orderInputs, walletInputs, journalConfig, accountInfo);
 
   const tradeRows: (typeof schema.trades.$inferInsert)[] = analyzed.map((t) => ({
     ...effectiveRisk({ ...t, stopOrderRisk: t.riskAmount }, plannedStops.get(t.id) ?? null),

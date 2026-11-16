@@ -51,9 +51,9 @@ const tagsOf = (t: { tags: { tag: string }[] }) => t.tags.map((g) => g.tag);
 describe("analyzeTrades", () => {
   it("adds funding paid while the trade was open and nets it with fees", () => {
     const wallet: WalletInput[] = [
-      { type: "funding", amount: -0.1, balance: 100, assetSymbol: "USD", productId: 1, ts: T0 + 5 * MIN },
-      { type: "funding", amount: -0.5, balance: 100, assetSymbol: "USD", productId: 1, ts: T0 + 90 * MIN },
-      { type: "funding", amount: -0.7, balance: 100, assetSymbol: "USD", productId: 2, ts: T0 + 5 * MIN },
+      { accountId: "acc_a", type: "funding", amount: -0.1, balance: 100, assetSymbol: "USD", productId: 1, ts: T0 + 5 * MIN },
+      { accountId: "acc_a", type: "funding", amount: -0.5, balance: 100, assetSymbol: "USD", productId: 1, ts: T0 + 90 * MIN },
+      { accountId: "acc_a", type: "funding", amount: -0.7, balance: 100, assetSymbol: "USD", productId: 2, ts: T0 + 5 * MIN },
     ];
     const [t] = analyzeTrades([trade("a", 0, 60, 5, { fees: 1 })], [], wallet);
     expect(t.funding).toBeCloseTo(-0.1);
@@ -63,8 +63,8 @@ describe("analyzeTrades", () => {
   it("gives funding and liquidation fees booked just after the close to the closed trade", () => {
     const close = T0 + 60 * MIN;
     const wallet: WalletInput[] = [
-      { type: "funding", amount: -0.2, balance: 100, assetSymbol: "USD", productId: 1, ts: close + 13 },
-      { type: "liquidation_fee", amount: -3, balance: 97, assetSymbol: "USD", productId: 1, ts: close + 20 },
+      { accountId: "acc_a", type: "funding", amount: -0.2, balance: 100, assetSymbol: "USD", productId: 1, ts: close + 13 },
+      { accountId: "acc_a", type: "liquidation_fee", amount: -3, balance: 97, assetSymbol: "USD", productId: 1, ts: close + 20 },
     ];
     // The next trade opens on the same product before those records land.
     const [first, second] = analyzeTrades([trade("a", 0, 60, -10, { fees: 1 }), { ...trade("b", 60, 90, 0), openedTs: close + 5 }], [], wallet);
@@ -78,7 +78,7 @@ describe("analyzeTrades", () => {
   it("gives a cross-margin charge with no product to the trade holding the fill it names", () => {
     // Seen live: a cross-margin liquidation fee had product_id null and meta_data.fill_uuid naming the liquidation fill.
     const wallet: WalletInput[] = [
-      { type: "liquidation_fee", amount: -0.37, balance: 1.5, assetSymbol: "USD", productId: null, fillIds: ["b-out"], ts: T0 + 30 * MIN + 670 },
+      { accountId: "acc_a", type: "liquidation_fee", amount: -0.37, balance: 1.5, assetSymbol: "USD", productId: null, fillIds: ["b-out"], ts: T0 + 30 * MIN + 670 },
     ];
     const [a, b] = analyzeTrades([trade("a", 0, 30, 1), { ...trade("b", 5, 30, -5), productId: 27 }], [], wallet);
     expect(a.liquidationFees).toBe(0);
@@ -94,7 +94,7 @@ describe("analyzeTrades", () => {
   });
 
   it("matches fee-credit payments to the trade with the nearest fill", () => {
-    const wallet: WalletInput[] = [{ type: "trading_fee_credits_paid", amount: -0.4, balance: 5, assetSymbol: "TFC_USD", productId: null, ts: T0 + 30 * MIN + 50 }];
+    const wallet: WalletInput[] = [{ accountId: "acc_a", type: "trading_fee_credits_paid", amount: -0.4, balance: 5, assetSymbol: "TFC_USD", productId: null, ts: T0 + 30 * MIN + 50 }];
     const [a, b] = analyzeTrades([trade("a", 0, 10, 1), trade("b", 20, 30, 1)], [], wallet);
     expect(a.feeCredits).toBe(0);
     expect(b.feeCredits).toBeCloseTo(0.4);
@@ -103,9 +103,9 @@ describe("analyzeTrades", () => {
 
   it("finds the stop, its risk and the R-multiple, and labels a stop exit", () => {
     const orders: OrderInput[] = [
-      { id: 1, productId: 1, side: "sell", stopOrderType: "stop_loss_order", stopPrice: 3990, bracketStopLossPrice: null, size: 500, editedTs: null, ts: T0 + 2 * MIN },
+      { id: 1, accountId: "acc_a", productId: 1, side: "sell", stopOrderType: "stop_loss_order", stopPrice: 3990, bracketStopLossPrice: null, size: 500, editedTs: null, ts: T0 + 2 * MIN },
       // The order that closed the trade was the stop.
-      { id: 2, productId: 1, side: "sell", stopOrderType: "stop_loss_order", stopPrice: 3990, bracketStopLossPrice: null, size: 500, editedTs: null, ts: T0 + 3 * MIN },
+      { id: 2, accountId: "acc_a", productId: 1, side: "sell", stopOrderType: "stop_loss_order", stopPrice: 3990, bracketStopLossPrice: null, size: 500, editedTs: null, ts: T0 + 3 * MIN },
     ];
     const t0 = trade("a", 0, 30, -5);
     t0.legs[1].orderId = "2";
@@ -121,8 +121,8 @@ describe("analyzeTrades", () => {
 
   it("treats a moved stop's risk as unknown and says where it ended up", () => {
     const orders: OrderInput[] = [
-      { id: 1, productId: 1, side: "sell", stopOrderType: "stop_loss_order", stopPrice: 4001, bracketStopLossPrice: null, size: 500, ts: T0 + MIN, editedTs: T0 + 20 * MIN },
-      { id: 2, productId: 1, side: "sell", stopOrderType: "stop_loss_order", stopPrice: 3995, bracketStopLossPrice: null, size: 500, ts: T0 + 101 * MIN, editedTs: T0 + 110 * MIN },
+      { id: 1, accountId: "acc_a", productId: 1, side: "sell", stopOrderType: "stop_loss_order", stopPrice: 4001, bracketStopLossPrice: null, size: 500, ts: T0 + MIN, editedTs: T0 + 20 * MIN },
+      { id: 2, accountId: "acc_a", productId: 1, side: "sell", stopOrderType: "stop_loss_order", stopPrice: 3995, bracketStopLossPrice: null, size: 500, ts: T0 + 101 * MIN, editedTs: T0 + 110 * MIN },
     ];
     const [trailed, widened] = analyzeTrades([trade("a", 0, 30, 1), trade("b", 100, 130, -3)], orders, []);
     expect(trailed.stopMovedAfterSec).toBe(20 * 60);
@@ -135,7 +135,7 @@ describe("analyzeTrades", () => {
 
   it("tags a late stop and a missing stop", () => {
     const orders: OrderInput[] = [
-      { id: 1, productId: 1, side: "sell", stopOrderType: "stop_loss_order", stopPrice: 3990, bracketStopLossPrice: null, size: 500, editedTs: null, ts: T0 + 10 * MIN },
+      { id: 1, accountId: "acc_a", productId: 1, side: "sell", stopOrderType: "stop_loss_order", stopPrice: 3990, bracketStopLossPrice: null, size: 500, editedTs: null, ts: T0 + 10 * MIN },
     ];
     const [late, none] = analyzeTrades([trade("a", 0, 30, 1), trade("b", 100, 130, 1)], orders, []);
     expect(tagsOf(late)).toContain("late_stop");
@@ -168,7 +168,7 @@ describe("analyzeTrades", () => {
   });
 
   it("flags heavy margin against the wallet balance at entry", () => {
-    const wallet: WalletInput[] = [{ type: "deposit", amount: 100, balance: 100, assetSymbol: "USD", productId: null, ts: T0 - MIN }];
+    const wallet: WalletInput[] = [{ accountId: "acc_a", type: "deposit", amount: 100, balance: 100, assetSymbol: "USD", productId: null, ts: T0 - MIN }];
     const [t] = analyzeTrades([trade("a", 0, 10, 1, { maxNotional: 4000, leverage: 50 })], [], wallet);
     expect(t.marginUsed).toBeCloseTo(80);
     expect(t.tags.find((g) => g.tag === "heavy_margin")?.detail).toBe("margin was 80% of the wallet");
@@ -180,5 +180,38 @@ describe("analyzeTrades", () => {
     const [t] = analyzeTrades([{ ...t0 }], [], []);
     expect(tagsOf(t)).toEqual(expect.arrayContaining(["session:new_york", "hold:scalp", "added_to_loser"]));
     expect(t.addCount).toBe(1);
+  });
+});
+
+describe("several trading accounts", () => {
+  // Saturday 2026-10-17 05:00 UTC: a weekend, and inside a crypto session.
+  const SAT = Date.UTC(2026, 9, 17, 5) - T0;
+  const accounts = new Map([
+    ["acc_a", { broker: "delta" as const, currency: "USD" as const }],
+    ["acc_d", { broker: "dhan" as const, currency: "INR" as const }],
+  ]);
+
+  it("tags each account on its own, and leaves stops and crypto sessions out of Indian accounts", () => {
+    // The Dhan loss closes last, just before the next Delta trade: only the Delta loss may count for it.
+    const deltaLoss = trade("x", SAT / MIN, SAT / MIN + 2, -20);
+    const dhanLoss = trade("d1", SAT / MIN + 1, SAT / MIN + 6, -1250, { accountId: "acc_d" });
+    const dhanNext = trade("d2", SAT / MIN + 8, SAT / MIN + 9, 300, { accountId: "acc_d" });
+    const deltaNext = trade("y", SAT / MIN + 7, SAT / MIN + 9, 5, { maxNotional: 9000 });
+    const out = analyzeTrades([deltaLoss, dhanLoss, dhanNext, deltaNext], [], [], journalConfig, accounts);
+    const byId = new Map(out.map((t) => [t.id, t]));
+
+    // Delta keeps its crypto tags and its missing stop.
+    expect(tagsOf(byId.get("x")!)).toEqual(expect.arrayContaining(["weekend", "no_stop"]));
+    // Dhan: no weekend, no session, no stop verdict, and the exit reason is unknown.
+    const d2 = byId.get("d2")!;
+    expect(tagsOf(d2)).not.toEqual(expect.arrayContaining(["weekend"]));
+    expect(tagsOf(d2).filter((t) => t.startsWith("session:") || t === "no_stop")).toEqual([]);
+    expect(d2.exitReason).toBeNull();
+    // "After a loss" looks only at the same account, with that account's currency.
+    expect(d2.tags.find((g) => g.tag === "after_loss")?.detail).toBe("2 min after a -₹1,250.00 loss");
+    const y = byId.get("y")!;
+    expect(y.tags.find((g) => g.tag === "after_loss")?.detail).toBe("5 min after a -$20.00 loss");
+    // Sizes are only compared within an account: y is 4.5x the Delta loss, not compared with the Dhan one.
+    expect(y.tags.find((g) => g.tag === "sized_up_after_loss")?.detail).toBe("4.5x the size of that loss");
   });
 });
