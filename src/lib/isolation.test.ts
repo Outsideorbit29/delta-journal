@@ -111,7 +111,8 @@ describe("each user only sees their own data", () => {
     // A row of B's from before accounts existed goes to B's account, and adopting touches nothing of A's.
     await db.update(schema.fills).set({ accountId: "" }).where(eq(schema.fills.id, "b2"));
     expect(await adoptUnassigned(db, A)).toBe(0);
-    expect(await adoptUnassigned(db, B)).toBe(1);
+    // The fill, and B's AI review from the test setup (written without an account).
+    expect(await adoptUnassigned(db, B)).toBe(2);
     const [b2] = await db.select().from(schema.fills).where(eq(schema.fills.id, "b2"));
     expect(b2.accountId).toBe(accountB.id);
   });
@@ -160,7 +161,7 @@ describe("each user only sees their own data", () => {
   });
 
   it("gives the AI coach only the user's own trades, and lists only their reviews", async () => {
-    const input = await buildReviewInput(db, A, { start: T0 - 3_600_000, end: T0 + 3_600_000 });
+    const input = await buildReviewInput(db, A, (await ensureAccount(db, A, "delta")).id, { start: T0 - 3_600_000, end: T0 + 3_600_000 });
     expect(input.stats.trades).toBe(1);
     expect(input.allTimeStats.trades).toBe(1);
     expect(JSON.stringify(input)).not.toContain("B's note");

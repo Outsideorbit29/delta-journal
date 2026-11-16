@@ -1,19 +1,27 @@
 import Link from "next/link";
 import { connection } from "next/server";
 import { requireUserId } from "@/lib/session";
+import { AccountPicker } from "@/components/filter-bar";
 import { ReviewButtons } from "@/components/review-buttons";
 import { ReviewView } from "@/components/review-view";
 import { getDb } from "@/db";
 import { AI_MODELS, aiConfigured } from "@/lib/ai/models";
 import { listReviews } from "@/lib/ai/review";
+import { chooseAccount, listAccounts } from "@/lib/accounts";
 import { formatDateTime } from "@/lib/format";
 
 export default async function ReviewPage({ searchParams }: PageProps<"/review">) {
   await connection();
   const userId = await requireUserId();
-  const reviews = await listReviews(await getDb(), userId);
-  const id = Number((await searchParams).id);
+  const params = await searchParams;
+  const db = await getDb();
+  // One account at a time: each review covers one account, in its currency and market.
+  const accounts = await listAccounts(db, userId);
+  const account = chooseAccount(accounts, typeof params.account === "string" ? params.account : undefined);
+  const reviews = account ? await listReviews(db, userId, 20, account.id) : [];
+  const id = Number(params.id);
   const shown = reviews.find((r) => r.id === id) ?? reviews[0];
+  const href = (q: Record<string, string>) => `/review?${new URLSearchParams(q)}`;
 
   return (
     <main id="main" className="container pt-10 pb-24">
@@ -26,8 +34,11 @@ export default async function ReviewPage({ searchParams }: PageProps<"/review">)
               Gateway, so your trade data and notes are sent there.
             </p>
           </div>
-          {aiConfigured() ? (
-            <ReviewButtons />
+          <AccountPicker accounts={accounts} account={account} href={(a) => href({ account: a })} />
+          {!account ? (
+            <p className="text-base text-ink-2">Connect an account in Settings first; reviews are written from your trades.</p>
+          ) : aiConfigured() ? (
+            <ReviewButtons key={account.id} accountId={account.id} />
           ) : (
             <p className="face-label bg-warn-soft px-4 py-3 text-sm text-warn">
               AI is off. Add <code>AI_GATEWAY_API_KEY</code> to <code>.env.local</code> and restart the app.
@@ -41,7 +52,7 @@ export default async function ReviewPage({ searchParams }: PageProps<"/review">)
                 {reviews.map((r) => (
                   <li key={r.id}>
                     <Link
-                      href={`/review?id=${r.id}`}
+                      href={href({ account: r.accountId, id: String(r.id) })}
                       aria-current={r.id === shown?.id ? "page" : undefined}
                       className={`block py-3 no-underline hover:bg-paper-2 ${r.id === shown?.id ? "text-ink" : "text-ink-2"}`}
                     >
@@ -57,7 +68,7 @@ export default async function ReviewPage({ searchParams }: PageProps<"/review">)
 
         <div className="lg:col-span-8">
           {shown ? (
-            <ReviewView row={shown} />
+            <ReviewView row={shown} currency={account?.currency} />
           ) : (
             <section className="opens max-w-2xl">
               <h2 className="text-xl">No reviews yet</h2>

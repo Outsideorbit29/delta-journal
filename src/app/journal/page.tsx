@@ -1,21 +1,35 @@
 import Link from "next/link";
 import { connection } from "next/server";
 import { requireUserId } from "@/lib/session";
+import { AccountPicker } from "@/components/filter-bar";
 import { JournalSection } from "@/components/journal-section";
+import { getDb } from "@/db";
+import { chooseAccount, listAccounts } from "@/lib/accounts";
 import { TagChip } from "@/components/tag-chip";
 import { TradePriceChart } from "@/components/trade-price-chart";
 import { formatDateTime, formatDuration, formatMoney, pnlClass } from "@/lib/format";
-import { getTrade, journaledTradeIds, listUnjournaled } from "@/lib/queries";
+import { countJournaled, getTrade, listUnjournaled } from "@/lib/queries";
 
 /** Work through closed trades that have no journal entry yet, newest first. */
 export default async function JournalQueue({ searchParams }: PageProps<"/journal">) {
   await connection();
   const userId = await requireUserId();
   const params = await searchParams;
-  const [queue, journaled] = await Promise.all([listUnjournaled(userId), journaledTradeIds(userId)]);
+  // One account at a time, like the dashboard: its own queue and its own count.
+  const accounts = await listAccounts(await getDb(), userId);
+  const account = chooseAccount(accounts, typeof params.account === "string" ? params.account : undefined);
+  const [queue, journaledCount] = account ? await Promise.all([listUnjournaled(userId, account.id), countJournaled(userId, account.id)]) : [[], 0];
   const skip = Math.min(Math.max(0, Number(params.skip) || 0), Math.max(0, queue.length - 1));
   const current = queue[skip] ? await getTrade(userId, queue[skip].id) : null;
-  const total = queue.length + journaled.size;
+  const total = queue.length + journaledCount;
+  const href = (n: number, accountId = account?.id) => {
+    const q = new URLSearchParams();
+    if (accountId && accountId !== accounts[0]?.id) q.set("account", accountId);
+    if (n > 0) q.set("skip", String(n));
+    const s = q.toString();
+    return s ? `/journal?${s}` : "/journal";
+  };
+  const indian = current?.currency === "INR";
 
   return (
     <main id="main" className="container space-y-10 pt-10 pb-24">
@@ -23,12 +37,15 @@ export default async function JournalQueue({ searchParams }: PageProps<"/journal
         <div>
           <h1 className="text-3xl leading-none">Journal</h1>
           <p className="face-label mt-2 text-base text-ink-2">
-            {journaled.size} of {total} closed trades journaled, {queue.length} to go
+            {journaledCount} of {total} closed trades journaled, {queue.length} to go
           </p>
+          <div className="mt-4">
+            <AccountPicker accounts={accounts} account={account} href={(id) => href(0, id)} />
+          </div>
         </div>
-        <div className="w-56" role="img" aria-label={`${journaled.size} of ${total} journaled`}>
+        <div className="w-56" role="img" aria-label={`${journaledCount} of ${total} journaled`}>
           <div className="h-2 bg-paper-3">
-            <div className="h-2 bg-accent" style={{ width: `${total ? (journaled.size / total) * 100 : 0}%` }} />
+            <div className="h-2 bg-accent" style={{ width: `${total ? (journaledCount / total) * 100 : 0}%` }} />
           </div>
         </div>
       </header>
@@ -38,7 +55,7 @@ export default async function JournalQueue({ searchParams }: PageProps<"/journal
           <h2 className="text-xl">{total === 0 ? "No closed trades yet" : "Every closed trade is journaled"}</h2>
           <p className="mt-2 text-ink-2">
             {total === 0
-              ? "Each trade you close on Delta shows up here, ready to journal, within a minute."
+              ? "Each trade you close shows up here, ready to journal, within minutes."
               : "New trades show up here within a minute of closing."}
           </p>
         </section>
@@ -55,7 +72,10 @@ export default async function JournalQueue({ searchParams }: PageProps<"/journal
                 <p className={`figure-display text-[clamp(2rem,4vw,3rem)] ${pnlClass(current.netPnl)}`}>{formatMoney(current.netPnl, { sign: true, currency: current.currency })}</p>
               </div>
               <p className="face-label mt-2 text-base text-muted">
-                Opened {formatDateTime(current.openedTs)} IST, held {formatDuration(current.holdSeconds)}, {current.maxQty.toLocaleString()} contracts
+                Opened {formatDateTime(current.openedTs)} IST, held {formatDuration(current.holdSeconds)},{" "}
+                {indian
+                  ? `${current.maxQty.toLocaleString("en-IN")} ${current.contractType === "equity" ? "shares" : "units"}`
+                  : `${current.maxQty.toLocaleString()} contracts`}
                 {current.leverage ? ` at ${current.leverage}x` : ""}
               </p>
               <div className="mt-3 flex flex-wrap gap-1.5">
@@ -65,19 +85,20 @@ export default async function JournalQueue({ searchParams }: PageProps<"/journal
               </div>
               <nav aria-label="Queue" className="face-label mt-5 flex gap-6 text-sm">
                 {skip > 0 && (
-                  <Link href={skip === 1 ? "/journal" : `/journal?skip=${skip - 1}`} className="link">
+                  <Link href={href(skip - 1)} className="link">
                     Previous trade
                   </Link>
                 )}
                 {skip < queue.length - 1 && (
-                  <Link href={`/journal?skip=${skip + 1}`} className="link">
+                  <Link href={href(skip + 1)} className="link">
                     Skip this one
                   </Link>
                 )}
               </nav>
             </section>
 
-            <TradePriceChart trade={current} plannedStop={null} plannedTarget={null} />
+            {/* Price candles come from Delta's public API; Indian trades have none yet. */}
+            {!indian && <TradePriceChart trade={current} plannedStop={null} plannedTarget={null} />}
             <JournalSection trade={current} entry={null} submitLabel="Save & next" />
           </div>
 
@@ -92,7 +113,7 @@ export default async function JournalQueue({ searchParams }: PageProps<"/journal
                     .slice(skip, skip + 8)
                     .map(({ t, i }) => (
                       <li key={t.id}>
-                        <Link href={`/journal?skip=${i}`} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 py-3 no-underline hover:bg-paper-2">
+                        <Link href={href(i)} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 py-3 no-underline hover:bg-paper-2">
                           <span className="min-w-0">
                             <span className="block text-ink">
                               {t.symbol} {t.direction}

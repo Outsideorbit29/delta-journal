@@ -48,7 +48,7 @@ export async function DashboardView({
     listTrades(userId, { accountId, symbol: filters.symbol, tag: filters.tag, sinceTs: rangeStart(filters.range) }),
     listSymbols(userId, accountId),
     journaledTradeIds(userId),
-    listReviews(db, userId, 1),
+    listReviews(db, userId, 1, accountId ?? "none"),
     demo ? Promise.resolve([]) : listTrades(userId, { accountId, sinceTs: summarySince() }),
   ]);
   const summary = demo ? null : todaySummary(recentTrades, journaled);

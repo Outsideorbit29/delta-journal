@@ -1,8 +1,9 @@
+import type { Currency } from "@/db/schema";
 import type { ReviewRow } from "@/lib/ai/review";
 import { formatDateTime, formatMoney } from "@/lib/format";
 
 /** One AI coaching review, set like a short magazine piece from its stored JSON. */
-export function ReviewView({ row }: { row: ReviewRow }) {
+export function ReviewView({ row, currency = "USD" }: { row: ReviewRow; currency?: Currency }) {
   const r = row.review;
   const day = (ts: number) => formatDateTime(ts).split(",")[0];
   return (
@@ -23,7 +24,7 @@ export function ReviewView({ row }: { row: ReviewRow }) {
               <p className="face-label text-xl text-ink">{l.pattern}</p>
               <p className="mt-1 max-w-[60ch] text-base text-ink-2">{l.evidence}</p>
             </div>
-            {l.costUsd !== null && <p className="figure-display text-3xl text-loss sm:text-right">{formatMoney(l.costUsd, { sign: true })}</p>}
+            {l.costUsd !== null && <p className="figure-display text-3xl text-loss sm:text-right">{formatMoney(l.costUsd, { sign: true, currency })}</p>}
           </li>
         ))}
       </Section>

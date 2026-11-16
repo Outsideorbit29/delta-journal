@@ -59,7 +59,7 @@ export async function currencyByAccount(db: Db, userId: string): Promise<Map<str
 }
 
 /** Tables whose rows carry an account. */
-const WITH_ACCOUNT = [schema.fills, schema.orders, schema.walletTransactions, schema.trades] as const;
+const WITH_ACCOUNT = [schema.fills, schema.orders, schema.walletTransactions, schema.trades, schema.aiReviews] as const;
 
 /**
  * Gives the user's rows that have no account ("", written by code from before

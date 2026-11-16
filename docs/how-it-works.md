@@ -151,7 +151,11 @@ are not journaled, with the page's one filled button, **Journal N trades** → `
   national code), because NSE and BSE give one share two security ids; derivatives keep the security id.
 - Analysis per account (`analyzeTrades` with account info): no orders from Dhan, so no `no_stop`, no exit reason and
   the trade page says the stop is "not shared by your broker"; no crypto sessions or weekend tag; size tags compare
-  like with like (options with options). The AI weekly review covers the Delta account only for now.
+  like with like (options with options).
+- **AI reviews are per account** (`ai_reviews.account_id`, migration 0016; older reviews were moved to the Delta account):
+  the coach is told the account's market and currency (`MARKETS` in `lib/ai/review.ts`). The review page, the journal
+  and the dashboard's review link use the same account chips (`AccountPicker`); the weekly review and /review send one
+  review per account that traded (`generateReviews`), titled with the account when there are several.
 - Checked on the owner's account: 80 Dhan trades → 41 round trips, no warnings, all 10 open positions equal Dhan's holdings.
 
 ## Accounts in the website

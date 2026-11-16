@@ -2,6 +2,7 @@ import { and, desc, eq, gte, lt } from "drizzle-orm";
 import { generateText, Output, type LanguageModel } from "ai";
 import { z } from "zod";
 import { schema, type Db } from "@/db";
+import type { Broker } from "@/db/schema";
 import { formatDateTime } from "@/lib/format";
 import { computeStats, tagPerformance } from "@/lib/stats";
 import { isJournalTag, tagLabel } from "@/lib/tags";
@@ -23,7 +24,8 @@ export const reviewSchema = z.object({
       z.object({
         pattern: z.string().describe("A behaviour that cost money, in plain words"),
         evidence: z.string().describe("Counts, win rate and P&L from the data that show it"),
-        costUsd: z.number().nullable().describe("Net P&L of the trades showing this pattern, if it can be read from the data"),
+        // Named before rupee accounts existed (stored reviews use it): the amount is in the account's currency.
+        costUsd: z.number().nullable().describe("Net P&L of the trades showing this pattern, in the account's currency, if it can be read from the data"),
       }),
     )
     .min(1)
@@ -64,7 +66,14 @@ export function tidyReview(review: Review): Review {
 }
 export type ReviewRow = typeof schema.aiReviews.$inferSelect;
 
-const SYSTEM = `You are a trading coach reviewing one trader's journal from Delta Exchange India (crypto and tokenized-gold perpetual futures, amounts in USD).
+/** What the coach is told about the account's market, so it reads the numbers right. */
+const MARKETS: Record<Broker, string> = {
+  delta: "Delta Exchange India (crypto and tokenized-gold perpetual futures, amounts in USD)",
+  dhan: "Dhan, an Indian broker (NSE and BSE stocks, intraday and delivery, and index and stock options and futures; amounts in INR, and fees are the statutory charges: brokerage, STT, GST, exchange and SEBI fees, stamp duty; stop orders are not visible)",
+  groww: "Groww, an Indian broker (NSE and BSE stocks and F&O; amounts in INR, fees are the statutory charges)",
+};
+
+const system = (broker: Broker) => `You are a trading coach reviewing one trader's journal from ${MARKETS[broker]}.
 
 Coach the process and habits, using only the data provided:
 - Base every claim on the numbers given, and quote them (counts, win rates, P&L, R-multiples).
@@ -83,14 +92,9 @@ interface Window {
 }
 
 /** Everything the coach sees, as compact JSON: period stats, tag performance and the trades themselves. */
-export async function buildReviewInput(db: Db, userId: string, window: Window) {
-  // The coach reads dollars and perpetual futures: for now it reviews the Delta account only (rupee accounts
-  // would mix currencies and markets into one review).
-  const [delta] = await db
-    .select({ id: schema.accounts.id })
-    .from(schema.accounts)
-    .where(and(eq(schema.accounts.userId, userId), eq(schema.accounts.broker, "delta")));
-  const inDelta = eq(schema.trades.accountId, delta?.id ?? "none");
+/** One account's trades only: a review never mixes currencies or markets. */
+export async function buildReviewInput(db: Db, userId: string, accountId: string, window: Window) {
+  const inAccount = eq(schema.trades.accountId, accountId);
   const [trades, tags, journal, allTrades] = await Promise.all([
     db
       .select()
@@ -98,7 +102,7 @@ export async function buildReviewInput(db: Db, userId: string, window: Window) {
       .where(
         and(
           eq(schema.trades.userId, userId),
-          inDelta,
+          inAccount,
           eq(schema.trades.status, "closed"),
           gte(schema.trades.closedTs, window.start),
           lt(schema.trades.closedTs, window.end),
@@ -110,7 +114,7 @@ export async function buildReviewInput(db: Db, userId: string, window: Window) {
     db
       .select()
       .from(schema.trades)
-      .where(and(eq(schema.trades.userId, userId), inDelta, eq(schema.trades.status, "closed"))),
+      .where(and(eq(schema.trades.userId, userId), inAccount, eq(schema.trades.status, "closed"))),
   ]);
   const tagsByTrade = new Map<string, string[]>();
   for (const t of tags) tagsByTrade.set(t.tradeId, [...(tagsByTrade.get(t.tradeId) ?? []), t.tag]);
@@ -170,21 +174,30 @@ export async function buildReviewInput(db: Db, userId: string, window: Window) {
   };
 }
 
-/** Writes a coaching review of the last `days` days and stores it. Returns null when there were no closed trades. */
+/**
+ * Writes a coaching review of one account's last `days` days and stores it. Returns null when it had no closed
+ * trades (or is not the user's).
+ */
 export async function generateReview(
   db: Db,
   userId: string,
+  accountId: string,
   days: number,
   model: LanguageModel = AI_MODELS.review,
   now = Date.now(),
 ): Promise<ReviewRow | null> {
+  const [account] = await db
+    .select()
+    .from(schema.accounts)
+    .where(and(eq(schema.accounts.userId, userId), eq(schema.accounts.id, accountId)));
+  if (!account) return null;
   const window = { start: now - days * DAY_MS, end: now };
-  const input = await buildReviewInput(db, userId, window);
+  const input = await buildReviewInput(db, userId, accountId, window);
   if (!input.stats.trades) return null;
 
   const { output, usage } = await generateText({
     model,
-    system: SYSTEM,
+    system: system(account.broker),
     prompt: `Review this trader's last ${days} days.\n\n${JSON.stringify(input)}`,
     output: Output.object({ schema: reviewSchema }),
     maxOutputTokens: MAX_OUTPUT_TOKENS,
@@ -194,6 +207,7 @@ export async function generateReview(
     .insert(schema.aiReviews)
     .values({
       userId,
+      accountId,
       periodStart: window.start,
       periodEnd: window.end,
       tradeCount: input.stats.trades,
@@ -207,11 +221,23 @@ export async function generateReview(
   return row;
 }
 
-export async function listReviews(db: Db, userId: string, limit = 20): Promise<ReviewRow[]> {
+/** Writes a review for each of the user's accounts that closed trades in the period (the weekly review, /review). */
+export async function generateReviews(db: Db, userId: string, days: number, model?: LanguageModel, now = Date.now()): Promise<ReviewRow[]> {
+  const accounts = await db.select({ id: schema.accounts.id }).from(schema.accounts).where(eq(schema.accounts.userId, userId)).orderBy(schema.accounts.createdAt);
+  const rows: ReviewRow[] = [];
+  for (const a of accounts) {
+    const row = await generateReview(db, userId, a.id, days, model, now);
+    if (row) rows.push(row);
+  }
+  return rows;
+}
+
+/** The user's reviews, newest first; only one account's when `accountId` is given. */
+export async function listReviews(db: Db, userId: string, limit = 20, accountId?: string): Promise<ReviewRow[]> {
   return db
     .select()
     .from(schema.aiReviews)
-    .where(eq(schema.aiReviews.userId, userId))
+    .where(and(eq(schema.aiReviews.userId, userId), accountId ? eq(schema.aiReviews.accountId, accountId) : undefined))
     .orderBy(desc(schema.aiReviews.createdAt))
     .limit(limit);
 }

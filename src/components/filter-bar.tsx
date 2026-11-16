@@ -22,15 +22,7 @@ export function FilterBar({
 }) {
   return (
     <nav aria-label="Filters" className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5">
-      {accounts.length > 1 && (
-        <div className={row} role="group" aria-label="Account">
-          {accounts.map((a) => (
-            <Chip key={a.id} href={filterHref(path, filters, { account: a.id, symbol: undefined, tag: undefined })} active={account?.id === a.id}>
-              {a.label}
-            </Chip>
-          ))}
-        </div>
-      )}
+      <AccountPicker accounts={accounts} account={account} href={(id) => filterHref(path, filters, { account: id, symbol: undefined, tag: undefined })} />
       {/* On phones each group is one row that scrolls sideways instead of wrapping. */}
       <div className={row} role="group" aria-label="Date range">
         {RANGES.map((r) => (
@@ -55,6 +47,28 @@ export function FilterBar({
         </Link>
       )}
     </nav>
+  );
+}
+
+/** Chips to switch between trading accounts, one at a time; nothing when the user has only one. */
+export function AccountPicker({
+  accounts,
+  account,
+  href,
+}: {
+  accounts: Pick<Account, "id" | "label">[];
+  account: Pick<Account, "id"> | null;
+  href: (accountId: string) => string;
+}) {
+  if (accounts.length < 2) return null;
+  return (
+    <div className={row} role="group" aria-label="Account">
+      {accounts.map((a) => (
+        <Chip key={a.id} href={href(a.id)} active={account?.id === a.id}>
+          {a.label}
+        </Chip>
+      ))}
+    </div>
   );
 }
 

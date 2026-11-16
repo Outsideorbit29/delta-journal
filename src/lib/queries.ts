@@ -124,14 +124,32 @@ export async function journaledTradeIds(userId: string): Promise<Set<string>> {
   return new Set(rows.map((r) => r.id));
 }
 
-/** Closed trades without a journal entry, newest first. */
-export async function listUnjournaled(userId: string): Promise<TradeWithTags[]> {
+/** Closed trades without a journal entry, newest first; only one account's when `accountId` is given. */
+export async function listUnjournaled(userId: string, accountId?: string): Promise<TradeWithTags[]> {
   const db = await getDb();
   const journaled = db.select({ id: schema.journalEntries.tradeId }).from(schema.journalEntries).where(eq(schema.journalEntries.userId, userId));
   const rows = await db
     .select()
     .from(schema.trades)
-    .where(and(eq(schema.trades.userId, userId), eq(schema.trades.status, "closed"), notInArray(schema.trades.id, journaled)))
+    .where(
+      and(
+        eq(schema.trades.userId, userId),
+        accountId ? eq(schema.trades.accountId, accountId) : undefined,
+        eq(schema.trades.status, "closed"),
+        notInArray(schema.trades.id, journaled),
+      ),
+    )
     .orderBy(desc(schema.trades.closedTs));
   return attachTags(userId, rows);
+}
+
+/** How many of one account's closed trades are journaled. */
+export async function countJournaled(userId: string, accountId: string): Promise<number> {
+  const db = await getDb();
+  const [row] = await db
+    .select({ n: count() })
+    .from(schema.trades)
+    .innerJoin(schema.journalEntries, and(eq(schema.journalEntries.tradeId, schema.trades.id), eq(schema.journalEntries.userId, userId)))
+    .where(and(eq(schema.trades.userId, userId), eq(schema.trades.accountId, accountId), eq(schema.trades.status, "closed")));
+  return row?.n ?? 0;
 }

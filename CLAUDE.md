@@ -119,6 +119,7 @@ Raw (upserted by Delta ids, `raw` keeps the full API record): `fills`, `orders`,
 Derived (rebuilt from raw; trade id = id of the opening fill, or `<fillId>-flip`, so it is
 stable): `trades`, `trade_fills` (legs), `trade_tags` (`source` = `auto` | `user`).
 User data (never touched by sync/rebuild): `journal_entries` (keyed by trade id).
+AI reviews (`ai_reviews`) carry `account_id` too: one review covers one account.
 Caches/state: `trade_candles`, `telegram_messages` (message → trade, kinds `trade` |
 `note_prompt` | `suggestion` with `payload`), `app_state` (key/value), `ai_reviews`,
 `push_subscriptions` (endpoint, keys, device label, failure count).

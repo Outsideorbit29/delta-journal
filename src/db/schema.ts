@@ -302,12 +302,13 @@ export const appState = sqliteTable(
   (t) => [primaryKey({ columns: [t.userId, t.key] })],
 );
 
-// AI coaching reviews, kept so you can look back at past advice.
+// AI coaching reviews, kept so you can look back at past advice. Each reviews one trading account.
 export const aiReviews = sqliteTable(
   "ai_reviews",
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
     userId: ownerId(),
+    accountId: accountId(),
     periodStart: integer("period_start").notNull(),
     periodEnd: integer("period_end").notNull(),
     tradeCount: integer("trade_count").notNull(),

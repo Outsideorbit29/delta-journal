@@ -252,7 +252,7 @@ describe("Telegram bot with AI", () => {
     },
     review: async (days) => {
       calls.push(`review:${days}`);
-      return { id: 1, userId: "u1", periodStart: T0 - 7 * 86_400_000, periodEnd: T0, tradeCount: 3, model: "fake", review, inputTokens: 1, outputTokens: 1, createdAt: T0 };
+      return [{ id: 1, userId: "u1", accountId: "", periodStart: T0 - 7 * 86_400_000, periodEnd: T0, tradeCount: 3, model: "fake", review, inputTokens: 1, outputTokens: 1, createdAt: T0 }];
     },
   };
   const voice = (replyTo: number): TgUpdate => ({
@@ -364,7 +364,7 @@ describe("phone-only users (no Telegram chat)", () => {
     const ai: BotAi = {
       transcribe: async () => "",
       suggest: async () => ({ setup: null, emotions: [], mistakes: [], followedPlan: null }),
-      review: async () => ({ id: 2, userId: "p1", periodStart: 0, periodEnd: 0, tradeCount: 1, model: "fake", review: {} as never, inputTokens: 1, outputTokens: 1, createdAt: 0 }),
+      review: async () => [{ id: 2, userId: "p1", accountId: "", periodStart: 0, periodEnd: 0, tradeCount: 1, model: "fake", review: {} as never, inputTokens: 1, outputTokens: 1, createdAt: 0 }],
     };
     now = Date.UTC(2026, 10, 8, 14, 31); // Sunday 20:01 IST
     const phoneOnly: BotContext = { ...ctx(new FakeTelegram(), null, ai), userId: "p1", push: async (m) => void pushed.push(m) };

@@ -2,6 +2,9 @@
 
 Newest first. Add a line with every change to the project (standing rule in CLAUDE.md).
 
+- **2026-11-16**: Journal and AI review per account: the journal queue and the review page get the account chips (Dhan
+  trades were buried under newer Delta ones), AI reviews are written per account with the coach told the market and
+  currency (migration 0016, existing reviews moved to Delta), and the weekly review sends one per account that traded.
 - **2026-11-16**: Dhan first sync failed with "too many requests" (DH-904): the first backfill fired ~30 history requests
   at once. The Dhan client now spaces requests (350 ms) and retries a rate-limit reply after 2, 5 and 10 s.
 - **2026-11-16**: **Dhan** (Phase 2): connect a Dhan token in Settings (checked with Dhan, sealed, renewed daily by the

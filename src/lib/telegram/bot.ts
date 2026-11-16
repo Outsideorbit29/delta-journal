@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, notInArray } from "drizzle-orm";
 import { schema, type Db } from "@/db";
 import type { Currency } from "@/db/schema";
-import { currencyByAccount } from "@/lib/accounts";
+import { currencyByAccount, listAccounts } from "@/lib/accounts";
 import { AI_NOT_CONFIGURED, explainAiError } from "@/lib/ai/models";
 import type { ReviewRow } from "@/lib/ai/review";
 import type { PushMessage } from "@/lib/push";
@@ -21,7 +21,8 @@ import { applyCallback, changesEntry, escapeHtml, parseCallback, renderReview, r
 export interface BotAi {
   transcribe(audio: Uint8Array): Promise<string>;
   suggest(note: string, trade: { symbol: string; direction: string; netPnl: number }): Promise<NoteSuggestion>;
-  review(days: number): Promise<ReviewRow | null>;
+  /** One review per account that closed trades in the last `days` days. */
+  review(days: number): Promise<ReviewRow[]>;
 }
 
 /** One user's view of the shared bot. */
@@ -409,15 +410,25 @@ async function reviewCommand(ctx: BotContext) {
   await sendReview(ctx);
 }
 
-/** Writes a review of the last 7 days and sends it to the chat, if there is one. `quiet` skips "nothing to review". */
+/**
+ * Writes a review of the last 7 days for each account that traded, and sends them to the chat, if there is one.
+ * `quiet` skips "nothing to review".
+ */
 async function sendReview(ctx: BotContext, { quiet = false } = {}): Promise<boolean> {
   try {
-    const row = await ctx.ai!.review(7);
-    if (!row) {
+    const rows = await ctx.ai!.review(7);
+    if (!rows.length) {
       if (ctx.chatId && !quiet) await ctx.tg.sendMessage(ctx.chatId, "No closed trades in the last 7 days, so there is nothing to review.");
       return false;
     }
-    if (ctx.chatId) await ctx.tg.sendMessage(ctx.chatId, renderReview(row.review, row));
+    if (ctx.chatId) {
+      const accounts = new Map((await listAccounts(ctx.db, ctx.userId)).map((a) => [a.id, a]));
+      for (const row of rows) {
+        const account = accounts.get(row.accountId);
+        // Name the account only when the user has more than one.
+        await ctx.tg.sendMessage(ctx.chatId, renderReview(row.review, { ...row, currency: account?.currency, account: accounts.size > 1 ? account?.label : undefined }));
+      }
+    }
     return true;
   } catch (err) {
     if (ctx.chatId) await ctx.tg.sendMessage(ctx.chatId, escapeHtml(explainAiError(err)));

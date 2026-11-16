@@ -4,7 +4,8 @@ import { useState, useTransition } from "react";
 import { reviewAction, type AiResult } from "@/app/ai-actions";
 import { buttonPrimary, buttonSecondary } from "@/components/ui";
 
-export function ReviewButtons() {
+/** Asks for a review of one trading account. */
+export function ReviewButtons({ accountId }: { accountId: string }) {
   const [result, setResult] = useState<AiResult | null>(null);
   const [pending, start] = useTransition();
   const [days, setDays] = useState<number | null>(null);
@@ -12,7 +13,7 @@ export function ReviewButtons() {
   const run = (d: number) => {
     setDays(d);
     setResult(null);
-    start(async () => setResult(await reviewAction(d)));
+    start(async () => setResult(await reviewAction(d, accountId)));
   };
 
   return (

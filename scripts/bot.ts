@@ -9,7 +9,7 @@ import { transcribe } from "ai";
 import { eq } from "drizzle-orm";
 import { getDb, schema, type Db } from "@/db";
 import { AI_MODELS, aiConfigured } from "@/lib/ai/models";
-import { generateReview } from "@/lib/ai/review";
+import { generateReviews } from "@/lib/ai/review";
 import { suggestFromNote } from "@/lib/ai/suggest";
 import { DeltaClient } from "@/lib/delta/client";
 import { errorsToAlert, markAlerted, pruneAppErrors, renderErrorAlert } from "@/lib/app-errors";
@@ -250,7 +250,7 @@ function botAi(db: Db, userId: string): BotAi {
   return {
     transcribe: async (audio) => (await transcribe({ model: AI_MODELS.transcribe, audio })).text,
     suggest: (note, trade) => suggestFromNote(note, trade),
-    review: (days) => generateReview(db, userId, days),
+    review: (days) => generateReviews(db, userId, days),
   };
 }
 

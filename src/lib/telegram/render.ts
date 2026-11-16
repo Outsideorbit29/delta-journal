@@ -209,18 +209,22 @@ export function suggestionSummary(s: NoteSuggestion): string {
 
 const TELEGRAM_MAX_CHARS = 4096;
 
-/** A coaching review as one Telegram message. Model text is escaped. */
-export function renderReview(review: Review, meta: { periodStart: number; periodEnd: number; tradeCount: number }): string {
+/** A coaching review as one Telegram message. Model text is escaped. With `account`, the title names it (a user with several). */
+export function renderReview(
+  review: Review,
+  meta: { periodStart: number; periodEnd: number; tradeCount: number; currency?: Currency; account?: string },
+): string {
   const e = escapeHtml;
   const day = (ts: number) => formatDateTime(ts).split(",")[0];
+  const currency = meta.currency ?? "USD";
   const lines = [
-    `<b>Trading review</b> · ${day(meta.periodStart)} – ${day(meta.periodEnd)} · ${meta.tradeCount} trades`,
+    `<b>Trading review${meta.account ? `, ${e(meta.account)}` : ""}</b> · ${day(meta.periodStart)} – ${day(meta.periodEnd)} · ${meta.tradeCount} trades`,
     "",
     `<b>${e(review.headline)}</b>`,
     e(review.summary),
     "",
     "<b>Costly habits</b>",
-    ...review.leaks.map((l) => `• ${e(l.pattern)}: ${e(l.evidence)}${l.costUsd !== null ? ` (${formatMoney(l.costUsd, { sign: true })})` : ""}`),
+    ...review.leaks.map((l) => `• ${e(l.pattern)}: ${e(l.evidence)}${l.costUsd !== null ? ` (${formatMoney(l.costUsd, { sign: true, currency })})` : ""}`),
   ];
   if (review.strengths.length) lines.push("", "<b>What helped</b>", ...review.strengths.map((s) => `• ${e(s.point)}: ${e(s.evidence)}`));
   lines.push("", "<b>Rules for next week</b>", ...review.rules.map((r, i) => `${i + 1}. ${e(r)}`));

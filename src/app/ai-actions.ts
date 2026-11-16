@@ -15,8 +15,8 @@ export interface AiResult<T = undefined> {
   value?: T;
 }
 
-/** Writes and stores a coaching review of the last `days` days. */
-export async function reviewAction(days: number): Promise<AiResult> {
+/** Writes and stores a coaching review of one account's last `days` days. */
+export async function reviewAction(days: number, accountId: string): Promise<AiResult> {
   const userId = await currentUserId();
   if (!userId) return { ok: false, message: "Sign in first." };
   if (!aiConfigured()) return { ok: false, message: AI_NOT_CONFIGURED };
@@ -25,7 +25,8 @@ export async function reviewAction(days: number): Promise<AiResult> {
   const limit = await rateLimit(db, userId, "ai.review");
   if (!limit.ok) return { ok: false, message: tooMany(limit) };
   try {
-    const row = await generateReview(db, userId, days);
+    // generateReview checks the account is the user's.
+    const row = await generateReview(db, userId, String(accountId ?? ""), days);
     if (!row) return { ok: false, message: `No closed trades in the last ${days} days.` };
     revalidatePath("/", "layout");
     return { ok: true, message: "Review ready." };

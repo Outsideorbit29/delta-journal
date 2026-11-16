@@ -129,7 +129,7 @@ describe("weekly review", () => {
   });
 
   it("gives the coach the period's stats, tag results and trades with journal notes", async () => {
-    const input = await buildReviewInput(db, "u1", { start: NOW - 7 * 86_400_000, end: NOW });
+    const input = await buildReviewInput(db, "u1", "acc_u1", { start: NOW - 7 * 86_400_000, end: NOW });
     expect(input.stats).toMatchObject({ trades: 2, netPnl: -3, winRatePct: 0 });
     expect(input.allTimeStats.trades).toBe(3);
     expect(input.journaled).toBe("1 of 2 trades");
@@ -141,15 +141,28 @@ describe("weekly review", () => {
 
   it("stores the review with its period and token usage", async () => {
     const { model, prompts } = mockModel(review);
-    const row = await generateReview(db, "u1", 7, model, NOW);
-    expect(row).toMatchObject({ tradeCount: 2, review, inputTokens: 1200, outputTokens: 300, periodEnd: NOW });
+    const row = await generateReview(db, "u1", "acc_u1", 7, model, NOW);
+    expect(row).toMatchObject({ accountId: "acc_u1", tradeCount: 2, review, inputTokens: 1200, outputTokens: 300, periodEnd: NOW });
     expect(prompts[0]).toContain("Do not recommend specific trades");
+    expect(prompts[0]).toContain("perpetual futures, amounts in USD");
     expect((await listReviews(db, "u1")).map((r) => r.review.headline)).toEqual(["Fees ate your edge"]);
+    expect(await listReviews(db, "u1", 20, "acc_u1_dhan")).toEqual([]);
+  });
+
+  it("reviews a rupee account on its own, told it is an Indian broker", async () => {
+    const { model, prompts } = mockModel(review);
+    const row = await generateReview(db, "u1", "acc_u1_dhan", 7, model, NOW);
+    expect(row).toMatchObject({ accountId: "acc_u1_dhan", tradeCount: 1 });
+    expect(prompts[0]).toContain("amounts in INR");
+    expect(prompts[0]).toContain("-5000");
+    expect(prompts[0]).not.toContain("perpetual futures, amounts in USD");
+    // Another user's account id gives nothing.
+    expect(await generateReview(db, "someone_else", "acc_u1", 7, model, NOW)).toBeNull();
   });
 
   it("skips a period with no closed trades", async () => {
     const { model, prompts } = mockModel(review);
-    expect(await generateReview(db, "u1", 7, model, NOW - 60 * 86_400_000)).toBeNull();
+    expect(await generateReview(db, "u1", "acc_u1", 7, model, NOW - 60 * 86_400_000)).toBeNull();
     expect(prompts).toHaveLength(0);
   });
 });
