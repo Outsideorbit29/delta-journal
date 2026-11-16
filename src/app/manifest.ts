@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Hardwon",
     short_name: "Hardwon",
-    description: "Trading journal and habit insights for Delta Exchange India traders",
+    description: "Trading journal and habit insights for Delta Exchange and Dhan traders",
     start_url: "/",
     scope: "/",
     display: "standalone",

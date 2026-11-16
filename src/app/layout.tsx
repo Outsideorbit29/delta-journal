@@ -31,7 +31,7 @@ const sourceSerif = Source_Serif_4({
 
 export const metadata: Metadata = {
   title: "Hardwon",
-  description: "A trading journal for Delta Exchange India that shows which habits cost you money.",
+  description: "A trading journal for Indian traders on Delta Exchange and Dhan that shows which habits cost you money.",
   appleWebApp: { capable: true, title: "Hardwon", statusBarStyle: "default" },
 };
 

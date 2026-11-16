@@ -53,7 +53,7 @@ export async function Landing() {
           <div className="lg:col-span-5">
             <h1 className="max-w-[11ch] text-[clamp(3rem,5.6vw+1rem,6rem)] leading-[0.9]">See the habits that cost you money.</h1>
             <p className="mt-6 max-w-[30ch] text-[clamp(1.25rem,1.4vw+0.5rem,1.625rem)] leading-snug text-ink">
-              Hardwon rebuilds every Delta trade and shows what each habit cost.
+              Hardwon rebuilds every trade from Delta Exchange or Dhan and shows what each habit cost.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/demo" className={buttonPrimaryLarge}>
@@ -122,8 +122,10 @@ export async function Landing() {
                 </ul>
                 <p className="face-label mt-3 text-sm text-muted">Bars show each session&apos;s share of trades.</p>
               </Tile>
-              <Tile className="md:col-span-6" title="Synced every minute">
-                <p className="mt-3 max-w-[34ch] text-xl leading-snug text-ink">Fills, orders, stops, fees and funding, straight from Delta.</p>
+              <Tile className="md:col-span-6" title="Synced on its own">
+                <p className="mt-3 max-w-[34ch] text-xl leading-snug text-ink">
+                  Every fill and every charge, straight from your broker: Delta Exchange for crypto, Dhan for stocks and F&amp;O.
+                </p>
               </Tile>
               <Tile className="md:col-span-6" title="AI review, weekly">
                 <p className="mt-3 max-w-[40ch] text-xl leading-snug text-ink">
@@ -237,7 +239,7 @@ export async function Landing() {
         <section id="how" className="scroll-mt-24 bg-paper-2 py-(--section-gap-s)">
           <div className="container grid gap-x-8 gap-y-10 lg:grid-cols-12">
             <div className="lg:col-span-4">
-              <h2 className="max-w-[12ch]">From Delta to insight in minutes</h2>
+              <h2 className="max-w-[12ch]">From your broker to insight in minutes</h2>
               <p className="lead mt-5 text-ink-2">No spreadsheets, no CSV exports, no typing in trades.</p>
             </div>
             <div className="lg:col-span-8">
@@ -252,7 +254,7 @@ export async function Landing() {
             <div className="container">
               <div className="grid gap-x-8 gap-y-4 lg:grid-cols-12 lg:items-end">
                 <h2 className="lg:col-span-6">Trades arrive on their own</h2>
-                <p className="lead text-ink-2 lg:col-span-5 lg:col-start-8">Close a trade on Delta and it shows up here within a minute, already tagged.</p>
+                <p className="lead text-ink-2 lg:col-span-5 lg:col-start-8">Close a trade and it shows up here within minutes, already tagged.</p>
               </div>
               <div className="mt-12">
                 <TradeFeed trades={feed} />
@@ -276,7 +278,7 @@ export async function Landing() {
                 </div>
                 <div>
                   <ul className="face-label divide-y divide-rule border-y border-rule-2 text-lg text-ink">
-                    {["Full history synced from Delta", "Dashboard, leaks and behaviour score", "Journal on the web and Telegram", "Weekly AI review", "Phone notifications"].map((f) => (
+                    {["Full history synced from Delta or Dhan", "Dashboard, leaks and behaviour score", "Journal on the web and Telegram", "Weekly AI review", "Phone notifications"].map((f) => (
                       <li key={f} className="py-3">
                         {f}
                       </li>
@@ -347,7 +349,7 @@ export async function Landing() {
               <h2 className="face-label text-sm font-medium text-muted">Good to know</h2>
               <ul className="mt-3 space-y-2 text-base text-ink-2">
                 <li>Hardwon is a journal, not investment advice.</li>
-                <li>Independent, not affiliated with Delta Exchange.</li>
+                <li>Independent, not affiliated with Delta Exchange or Dhan.</li>
                 <li>Read-only: Hardwon never places orders.</li>
               </ul>
             </div>

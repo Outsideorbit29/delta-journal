@@ -2,12 +2,12 @@
 
 const STEPS = [
   {
-    title: "Connect a read-only key",
-    body: "Create a Delta API key with only the Read Data permission, whitelist our server, paste it in. Hardwon can never trade.",
+    title: "Connect your broker",
+    body: "Delta Exchange: a Read Data key with our server whitelisted. Dhan: paste an access token once; we renew it for you. Hardwon only reads, never trades.",
   },
   {
     title: "Every trade, rebuilt",
-    body: "Fills become round-trip trades, checked against Delta's own P&L to the cent, with every fee, funding payment and stop.",
+    body: "Fills become round-trip trades with every fee and charge: brokerage, STT and GST on Dhan; funding and stops on Delta, checked against its P&L to the cent.",
   },
   {
     title: "See what your habits cost",
