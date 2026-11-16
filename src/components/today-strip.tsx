@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Currency } from "@/db/schema";
+import { CountUp } from "@/components/motion/count-up";
 import { buttonPrimary } from "@/components/ui";
 import { formatMoney, pnlClass } from "@/lib/format";
 import { RECENT_DAYS, type TodaySummary } from "@/lib/today";
@@ -15,7 +16,7 @@ export function TodayStrip({ summary, currency = "USD" }: { summary: TodaySummar
       <Cell label="Today">
         {today.trades ? (
           <>
-            <span className={`figure-display text-3xl ${pnlClass(today.netPnl)}`}>{formatMoney(today.netPnl, { sign: true, currency })}</span>
+            <CountUp value={today.netPnl} sign currency={currency} className={`figure-display text-3xl ${pnlClass(today.netPnl)}`} />
             <span className="face-label text-sm text-muted">
               {today.trades} {today.trades === 1 ? "trade" : "trades"} · {today.wins} won
             </span>
@@ -29,14 +30,14 @@ export function TodayStrip({ summary, currency = "USD" }: { summary: TodaySummar
       </Cell>
       <Cell label={`Last ${RECENT_DAYS} days`}>
         <span className={`figure-display text-3xl ${recent.trades ? pnlClass(recent.netPnl) : "text-ink"}`}>
-          {recent.trades ? formatMoney(recent.netPnl, { sign: true, currency }) : "–"}
+          {recent.trades ? <CountUp value={recent.netPnl} sign currency={currency} /> : "–"}
         </span>
         <span className="face-label text-sm text-muted">
           {recent.trades} {recent.trades === 1 ? "trade" : "trades"}
         </span>
       </Cell>
       <Cell label="To journal">
-        <span className={`figure-display text-3xl ${toJournal ? "text-warn" : "text-ink"}`}>{toJournal}</span>
+        <CountUp value={toJournal} kind="int" className={`figure-display text-3xl ${toJournal ? "text-warn" : "text-ink"}`} />
         <span className="face-label text-sm text-muted">{toJournal ? `from the last ${RECENT_DAYS} days` : "all caught up"}</span>
       </Cell>
       {toJournal > 0 && (

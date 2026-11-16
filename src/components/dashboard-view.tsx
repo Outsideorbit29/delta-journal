@@ -4,6 +4,7 @@ import { EquityChart } from "@/components/charts/equity-chart";
 import { PnlCalendar } from "@/components/charts/pnl-calendar";
 import { FilterBar } from "@/components/filter-bar";
 import { ScoreCard, type ScoreAction } from "@/components/score-card";
+import { CountUp } from "@/components/motion/count-up";
 import { TodayStrip } from "@/components/today-strip";
 import { TagChip } from "@/components/tag-chip";
 import { getDb } from "@/db";
@@ -92,7 +93,9 @@ export async function DashboardView({
           <section className="opens grid gap-x-8 gap-y-10 lg:grid-cols-12">
             <div className="min-w-0 lg:col-span-4">
               <h2 className="face-label text-sm font-medium text-muted">Net P&L, {rangeLabel}</h2>
-              <p className={`figure-display mt-3 text-[clamp(3.5rem,6vw,5.5rem)] ${pnlClass(stats.netPnl)}`}>{formatMoney(stats.netPnl, { sign: true, currency })}</p>
+              <p className={`figure-display mt-3 text-[clamp(3.5rem,6vw,5.5rem)] ${pnlClass(stats.netPnl)}`}>
+                <CountUp value={stats.netPnl} sign currency={currency} />
+              </p>
               <p className="mt-4 max-w-xs text-lg text-ink">
                 {stats.trades} closed trades, after {formatMoney(stats.fees + stats.liquidationFees, { currency })} of fees.
               </p>
