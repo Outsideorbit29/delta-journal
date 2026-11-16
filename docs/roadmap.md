@@ -93,9 +93,23 @@ Users can connect several accounts, kept apart (USD and INR are never summed), a
 - **Phase 1, done 2026-11-16:** trading accounts under every row (`accounts`, `account_id`; migration 0014).
 - **Phase 2, done 2026-11-16:** Dhan by API (free; read calls need no static IP): history with charges, token pasted once
   and renewed by the server; account chips; ₹ formatting.
-- **Phase 3:** Groww by file upload (its API costs ₹499/month, needs daily approval and lists only today's orders). The
-  P&L Excel lists matched lots with dates but no times and only period totals of charges, so a Groww trade is one lot
-  with its share of the charges, marked estimated. Contract notes (PAN-locked PDFs) are left out at first.
-- **Phase 4:** Indian-market tags (NSE sessions, expiry day, intraday vs delivery), segment filter, per-account AI
-  review, charts for Indian trades.
+- **Phase 3, Groww: parked on 2026-11-16 as a future update.** The owner has a Groww API subscription and chose the API
+  over Excel upload. What the docs say (read 2026-11-16, groww.in/trade-api/docs):
+  - **Only today's trades:** `GET /v1/order/list` is "the history of orders executed for the day" (no date filter), and
+    `GET /v1/order/trades/{groww_order_id}` gives each fill (`trade_date_time`, `exchange_trade_id`, price, quantity,
+    product, segment). No past orders, contract notes, ledger or P&L endpoint. So Groww syncs **from the day it is
+    connected onwards**: the server must read each trading day before the list resets. Past history would need a
+    one-time Excel import (not wanted for now).
+  - **No charges in the API:** estimate them from Groww's brokerage and the statutory rates, marked "estimated".
+  - **Auth:** the API key + secret flow "requires daily approval" on Groww Cloud; the UI access token expires at 6 AM.
+    Use the **TOTP flow** (`POST /v1/token/api/access`, `key_type: "totp"`, the TOTP token as the bearer key): a server
+    holding the TOTP token and secret can mint a token itself (the Python docs say "No Expiry"). Token endpoint limit:
+    150 a day. Unverified until tried: whether TOTP really needs no daily approval.
+  - **To resume:** the owner creates a TOTP key on Groww (Trading APIs → Generate API keys → TOTP) and puts
+    `GROWW_TOTP_TOKEN` and `GROWW_TOTP_SECRET` in `.env.local`; then probe token minting and a trading day's orders,
+    and build it like Dhan (`lib/groww/`, `broker_credentials` with broker `groww`, account currency INR).
+  - Also known: positions (`/v1/positions/user`) have `realised_pnl`; holdings (`/v1/holdings/user`) for checking open
+    positions; non-trading rate limit 20/s, 500/min. Static IP for reads: not stated.
+- **Phase 4:** Indian-market tags (NSE sessions, expiry day, intraday vs delivery), segment filter, charts for Indian
+  trades. (Per-account AI review was done on 2026-11-16.)
 - Before a public launch: apply to Dhan's partner programme (consent sign-in instead of pasting a personal token).

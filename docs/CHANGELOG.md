@@ -2,6 +2,8 @@
 
 Newest first. Add a line with every change to the project (standing rule in CLAUDE.md).
 
+- **2026-11-16**: Groww parked as a future update; what its API can do (today's trades only, no charges, TOTP sign-in)
+  and how to resume are in docs/roadmap.md.
 - **2026-11-16**: Journal and AI review per account: the journal queue and the review page get the account chips (Dhan
   trades were buried under newer Delta ones), AI reviews are written per account with the coach told the market and
   currency (migration 0016, existing reviews moved to Delta), and the weekly review sends one per account that traded.
