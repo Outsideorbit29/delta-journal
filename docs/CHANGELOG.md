@@ -2,6 +2,8 @@
 
 Newest first. Add a line with every change to the project (standing rule in CLAUDE.md).
 
+- **2026-11-16**: Content Security Policy, report-only, with reports filed as website errors (`/api/csp-report`). A local
+  test found Clerk's bot-protection hosts, which a first draft would have blocked.
 - **2026-11-16**: Indian-market insights (Phase 4): NSE session, intraday/delivery, expiry-day and "won before charges"
   tags for rupee accounts; a segment filter (options, futures, intraday, delivery); the score skips stop dimensions where
   the broker shares no stops; "Charges" in the cost breakdown. `trades.product_type`/`expiry_date` (migration 0017).

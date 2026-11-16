@@ -1,4 +1,11 @@
 import type { NextConfig } from "next";
+import { clerkFrontendHost, contentSecurityPolicy } from "./src/lib/csp";
+
+// Report-only for now (see src/lib/csp.ts): rename the header to "Content-Security-Policy" to enforce it.
+const csp = contentSecurityPolicy({
+  clerkHost: clerkFrontendHost(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY),
+  dev: process.env.NODE_ENV === "development",
+});
 
 const nextConfig: NextConfig = {
   /* config options here */
@@ -21,6 +28,7 @@ const nextConfig: NextConfig = {
         headers: [
           { key: "X-Frame-Options", value: "DENY" },
           { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+          { key: "Content-Security-Policy-Report-Only", value: csp },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()" },

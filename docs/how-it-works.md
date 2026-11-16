@@ -156,7 +156,18 @@ are not journaled, with the page's one filled button, **Journal N trades** → `
   the coach is told the account's market and currency (`MARKETS` in `lib/ai/review.ts`). The review page, the journal
   and the dashboard's review link use the same account chips (`AccountPicker`); the weekly review and /review send one
   review per account that traded (`generateReviews`), titled with the account when there are several.
+- **No price charts for Dhan trades:** Dhan's candles need its paid Data APIs plan ("This API requires a Data APIs Plan.
+  Current plan: Free Plan", checked 2026-11-16).
 - Checked on the owner's account: 80 Dhan trades → 41 round trips, no warnings, all 10 open positions equal Dhan's holdings.
+
+## Content Security Policy (`lib/csp.ts`, since 2026-11-16)
+- Every page sends a full policy as **Content-Security-Policy-Report-Only** (only `frame-ancestors 'none'` is enforced).
+  Browsers post what it would block to `/api/csp-report`, which files each distinct directive + blocked origin with the
+  website errors, so the owner gets a Telegram alert. Clerk's host comes from the publishable key; Clerk's bot protection
+  needs `cdn.protect.clerk.com` and `*.protect.clerk.com:*` (found in a local test: the first policy would have broken sign-in).
+- **To enforce:** once no reports arrive for some days of real use (signed-in pages included), rename the header to
+  `Content-Security-Policy` in `next.config.ts`. Scripts keep `'unsafe-inline'` (Next's inline scripts; nonces would make
+  every page dynamic under Cache Components).
 
 ## Indian-market insights (Phase 4, since 2026-11-16)
 - Trades carry `product_type` (intraday, delivery, margin) and `expiry_date` (migration 0017), read from Dhan's raw record
