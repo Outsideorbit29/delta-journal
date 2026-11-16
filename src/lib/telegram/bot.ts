@@ -1,5 +1,7 @@
 import { and, desc, eq, gte, notInArray } from "drizzle-orm";
 import { schema, type Db } from "@/db";
+import type { Currency } from "@/db/schema";
+import { currencyByAccount } from "@/lib/accounts";
 import { AI_NOT_CONFIGURED, explainAiError } from "@/lib/ai/models";
 import type { ReviewRow } from "@/lib/ai/review";
 import type { PushMessage } from "@/lib/push";
@@ -187,6 +189,7 @@ export async function notifyClosedTrades(ctx: BotContext): Promise<number> {
   const due = await ctx.db
     .select({
       id: schema.trades.id,
+      accountId: schema.trades.accountId,
       symbol: schema.trades.symbol,
       direction: schema.trades.direction,
       netPnl: schema.trades.netPnl,
@@ -205,10 +208,11 @@ export async function notifyClosedTrades(ctx: BotContext): Promise<number> {
     .orderBy(schema.trades.closedTs)
     .limit(MAX_CARDS_PER_RUN);
 
+  const currencies = due.length ? await currencyByAccount(ctx.db, ctx.userId) : new Map<string, Currency>();
   for (const t of due) {
     if (ctx.chatId) await sendTradeCard(ctx, t.id);
     await notifyPhone(ctx, {
-      title: `${t.symbol} ${t.direction} closed · ${formatMoney(t.netPnl, { sign: true })}`,
+      title: `${t.symbol} ${t.direction} closed · ${formatMoney(t.netPnl, { sign: true, currency: currencies.get(t.accountId) })}`,
       body: "Tap to journal it while it's fresh.",
       url: `/trades/${encodeURIComponent(t.id)}`,
       tag: `trade-${t.id}`,
@@ -526,19 +530,28 @@ async function todayCommand(ctx: BotContext) {
   const today = istDate(ctx.now?.() ?? Date.now());
   const since = Date.parse(`${today}T00:00:00+05:30`);
   const trades = await ctx.db
-    .select({ netPnl: schema.trades.netPnl })
+    .select({ netPnl: schema.trades.netPnl, accountId: schema.trades.accountId })
     .from(schema.trades)
     .where(and(eq(schema.trades.userId, ctx.userId), eq(schema.trades.status, "closed"), gte(schema.trades.closedTs, since)));
   if (!trades.length) {
     await ctx.tg.sendMessage(ctx.chatId!, "No closed trades today.");
     return;
   }
-  const net = trades.reduce((a, t) => a + t.netPnl, 0);
-  const wins = trades.filter((t) => t.netPnl > 0).length;
-  await ctx.tg.sendMessage(
-    ctx.chatId!,
-    `<b>Today: ${formatMoney(net, { sign: true })}</b>\n${trades.length} trades · ${wins} won (${formatPercent(wins / trades.length)})`,
+  // One line per currency: dollars and rupees are never added together.
+  const currencies = await currencyByAccount(ctx.db, ctx.userId);
+  const byCurrency = new Map<Currency, { net: number; trades: number; wins: number }>();
+  for (const t of trades) {
+    const currency = currencies.get(t.accountId) ?? "USD";
+    const day = byCurrency.get(currency) ?? { net: 0, trades: 0, wins: 0 };
+    day.net += t.netPnl;
+    day.trades++;
+    if (t.netPnl > 0) day.wins++;
+    byCurrency.set(currency, day);
+  }
+  const lines = [...byCurrency].map(
+    ([currency, d]) => `<b>Today: ${formatMoney(d.net, { sign: true, currency })}</b>\n${d.trades} trades · ${d.wins} won (${formatPercent(d.wins / d.trades)})`,
   );
+  await ctx.tg.sendMessage(ctx.chatId!, lines.join("\n\n"));
 }
 
 async function syncCommand(ctx: BotContext) {
@@ -601,7 +614,8 @@ async function renderCard(ctx: BotContext, tradeId: string, stage: Stage) {
   const tags = await ctx.db.select({ tag: schema.tradeTags.tag, source: schema.tradeTags.source }).from(schema.tradeTags)
     .where(and(eq(schema.tradeTags.userId, ctx.userId), eq(schema.tradeTags.tradeId, tradeId)));
   const autoTags = tags.filter((t) => t.source === "auto").map((t) => t.tag);
-  return renderTradeCard(trade, autoTags, await loadJournalEntry(ctx.db, ctx.userId, tradeId), stage, suggestionsFor(autoTags));
+  const currency = (await currencyByAccount(ctx.db, ctx.userId)).get(trade.accountId);
+  return renderTradeCard({ ...trade, currency }, autoTags, await loadJournalEntry(ctx.db, ctx.userId, tradeId), stage, suggestionsFor(autoTags));
 }
 
 export async function sendTradeCard(ctx: BotContext, tradeId: string): Promise<void> {

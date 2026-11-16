@@ -66,8 +66,13 @@ describe("weekly review", () => {
   beforeAll(async () => {
     dir = mkdtempSync(path.join(tmpdir(), "journal-ai-"));
     db = await openDatabase(`file:${path.join(dir, "test.db")}`);
+    await db.insert(schema.accounts).values([
+      { id: "acc_u1", userId: "u1", broker: "delta", label: "Delta Exchange", currency: "USD", createdAt: NOW },
+      { id: "acc_u1_dhan", userId: "u1", broker: "dhan", label: "Dhan", currency: "INR", createdAt: NOW },
+    ]);
     const base = {
       userId: "u1",
+      accountId: "acc_u1",
       productId: 1,
       symbol: "XAUTUSD",
       contractType: "perpetual_futures",
@@ -96,6 +101,8 @@ describe("weekly review", () => {
       { ...base, id: "in1", openedTs: NOW - 3 * 3_600_000, closedTs: NOW - 2 * 3_600_000, netPnl: -1 },
       { ...base, id: "in2", openedTs: NOW - 2 * 3_600_000, closedTs: NOW - 3_600_000, netPnl: -2 },
       { ...base, id: "old", openedTs: NOW - 30 * 86_400_000, closedTs: NOW - 30 * 86_400_000 + 1, netPnl: 10 },
+      // Rupees: not part of the (dollar) review.
+      { ...base, id: "rupee", accountId: "acc_u1_dhan", openedTs: NOW - 2 * 3_600_000, closedTs: NOW - 3_600_000, netPnl: -5000 },
     ]);
     await db.insert(schema.tradeTags).values([
       { tradeId: "in1", userId: "u1", tag: "hold:scalp", source: "auto" },

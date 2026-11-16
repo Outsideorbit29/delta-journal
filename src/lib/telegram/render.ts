@@ -2,6 +2,7 @@
 // no network or database, so the whole journaling flow is unit-testable.
 
 import type { schema } from "@/db";
+import type { Currency } from "@/db/schema";
 import type { NoteSuggestion } from "@/lib/ai/suggest";
 import type { Review } from "@/lib/ai/review";
 import type { JournalInput } from "@/lib/journal/entry";
@@ -117,7 +118,8 @@ interface Suggestions {
 }
 
 export function renderTradeCard(
-  trade: Trade,
+  /** With its account's currency (USD when not given). */
+  trade: Trade & { currency?: Currency },
   autoTags: string[],
   entry: JournalInput | null,
   stage: Stage,
@@ -126,13 +128,18 @@ export function renderTradeCard(
   const e = entry ?? { setup: null, emotions: [], mistakes: [], followedPlan: null, rating: null, notes: null, plannedStop: null, plannedTarget: null };
   const lines: string[] = [];
 
-  const pnl = trade.status === "closed" ? formatMoney(trade.netPnl, { sign: true }) : "open";
+  const currency = trade.currency ?? "USD";
+  // Rupee accounts are Indian brokers: shares or units, no leverage.
+  const indian = currency === "INR";
+  const pnl = trade.status === "closed" ? formatMoney(trade.netPnl, { sign: true, currency }) : "open";
   lines.push(`<b>${escapeHtml(trade.symbol)} ${trade.direction}</b> · <b>${pnl}</b>${trade.rMultiple !== null ? ` (${formatR(trade.rMultiple)})` : ""}`);
   lines.push(
-    `Held ${formatDuration(trade.holdSeconds)} · ${trade.maxQty.toLocaleString("en-US")} contracts${trade.leverage ? ` · ${trade.leverage}x` : ""}`,
+    indian
+      ? `Held ${formatDuration(trade.holdSeconds)} · ${trade.maxQty.toLocaleString("en-IN")} ${trade.contractType === "equity" ? "shares" : "units"}`
+      : `Held ${formatDuration(trade.holdSeconds)} · ${trade.maxQty.toLocaleString("en-US")} contracts${trade.leverage ? ` · ${trade.leverage}x` : ""}`,
   );
   lines.push(
-    `${formatPrice(trade.avgEntry)} → ${formatPrice(trade.avgExit)}${trade.exitReason ? ` (${EXIT_LABELS[trade.exitReason]})` : ""} · fees ${formatMoney(trade.fees + trade.liquidationFees)}`,
+    `${formatPrice(trade.avgEntry)} → ${formatPrice(trade.avgExit)}${trade.exitReason ? ` (${EXIT_LABELS[trade.exitReason]})` : ""} · ${indian ? "charges" : "fees"} ${formatMoney(trade.fees + trade.liquidationFees, { currency })}`,
   );
   const warnings = autoTags.filter((t) => isWarningTag(t) && !isJournalTag(t)).map(tagLabel);
   if (warnings.length) lines.push(`⚠️ ${warnings.join(" · ")}`);

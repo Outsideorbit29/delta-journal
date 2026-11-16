@@ -84,6 +84,13 @@ interface Window {
 
 /** Everything the coach sees, as compact JSON: period stats, tag performance and the trades themselves. */
 export async function buildReviewInput(db: Db, userId: string, window: Window) {
+  // The coach reads dollars and perpetual futures: for now it reviews the Delta account only (rupee accounts
+  // would mix currencies and markets into one review).
+  const [delta] = await db
+    .select({ id: schema.accounts.id })
+    .from(schema.accounts)
+    .where(and(eq(schema.accounts.userId, userId), eq(schema.accounts.broker, "delta")));
+  const inDelta = eq(schema.trades.accountId, delta?.id ?? "none");
   const [trades, tags, journal, allTrades] = await Promise.all([
     db
       .select()
@@ -91,6 +98,7 @@ export async function buildReviewInput(db: Db, userId: string, window: Window) {
       .where(
         and(
           eq(schema.trades.userId, userId),
+          inDelta,
           eq(schema.trades.status, "closed"),
           gte(schema.trades.closedTs, window.start),
           lt(schema.trades.closedTs, window.end),
@@ -102,7 +110,7 @@ export async function buildReviewInput(db: Db, userId: string, window: Window) {
     db
       .select()
       .from(schema.trades)
-      .where(and(eq(schema.trades.userId, userId), eq(schema.trades.status, "closed"))),
+      .where(and(eq(schema.trades.userId, userId), inDelta, eq(schema.trades.status, "closed"))),
   ]);
   const tagsByTrade = new Map<string, string[]>();
   for (const t of tags) tagsByTrade.set(t.tradeId, [...(tagsByTrade.get(t.tradeId) ?? []), t.tag]);
