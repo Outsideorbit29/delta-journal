@@ -22,6 +22,8 @@ export function rangeStart(key: RangeKey, now = Date.now()): number | undefined 
 }
 
 export interface Filters {
+  /** The trading account shown (an id from `accounts`); unset means the user's first. */
+  account?: string;
   range: RangeKey;
   symbol?: string;
   tag?: string;
@@ -29,13 +31,14 @@ export interface Filters {
 
 export function readFilters(params: Record<string, string | string[] | undefined>): Filters {
   const one = (v: string | string[] | undefined) => (typeof v === "string" && v ? v : undefined);
-  return { range: parseRange(params.range), symbol: one(params.symbol), tag: one(params.tag) };
+  return { account: one(params.account), range: parseRange(params.range), symbol: one(params.symbol), tag: one(params.tag) };
 }
 
 /** URL for `path` with the current filters, overridden by `next` (undefined clears one). */
 export function filterHref(path: string, current: Filters, next: Partial<Filters>): string {
   const merged = { ...current, ...next };
   const q = new URLSearchParams();
+  if (merged.account) q.set("account", merged.account);
   if (merged.range && merged.range !== "all") q.set("range", merged.range);
   if (merged.symbol) q.set("symbol", merged.symbol);
   if (merged.tag) q.set("tag", merged.tag);

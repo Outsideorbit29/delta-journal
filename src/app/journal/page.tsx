@@ -52,7 +52,7 @@ export default async function JournalQueue({ searchParams }: PageProps<"/journal
                     {current.symbol} {current.direction}
                   </Link>
                 </h2>
-                <p className={`figure-display text-[clamp(2rem,4vw,3rem)] ${pnlClass(current.netPnl)}`}>{formatMoney(current.netPnl, { sign: true })}</p>
+                <p className={`figure-display text-[clamp(2rem,4vw,3rem)] ${pnlClass(current.netPnl)}`}>{formatMoney(current.netPnl, { sign: true, currency: current.currency })}</p>
               </div>
               <p className="face-label mt-2 text-base text-muted">
                 Opened {formatDateTime(current.openedTs)} IST, held {formatDuration(current.holdSeconds)}, {current.maxQty.toLocaleString()} contracts
@@ -99,7 +99,7 @@ export default async function JournalQueue({ searchParams }: PageProps<"/journal
                             </span>
                             <span className="block text-sm text-muted">{formatDateTime(t.openedTs)}</span>
                           </span>
-                          <span className={`self-center tabular-nums ${pnlClass(t.netPnl)}`}>{formatMoney(t.netPnl, { sign: true })}</span>
+                          <span className={`self-center tabular-nums ${pnlClass(t.netPnl)}`}>{formatMoney(t.netPnl, { sign: true, currency: t.currency })}</span>
                         </Link>
                       </li>
                     ))}

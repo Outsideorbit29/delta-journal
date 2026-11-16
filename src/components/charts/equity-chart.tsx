@@ -1,5 +1,6 @@
 "use client";
 
+import type { Currency } from "@/db/schema";
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { formatDateTime, formatMoney } from "@/lib/format";
 import type { EquityPoint } from "@/lib/stats";
@@ -13,7 +14,7 @@ const AXIS_H = 28;
 const HEIGHT = EQUITY_H + GAP + DD_H + AXIS_H;
 
 /** Cumulative net P&L by closed trade, with the drawdown beneath it on its own axis. */
-export function EquityChart({ points }: { points: EquityPoint[] }) {
+export function EquityChart({ points, currency = "USD" }: { points: EquityPoint[]; currency?: Currency }) {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(800);
   const [hover, setHover] = useState<number | null>(null);
@@ -61,7 +62,7 @@ export function EquityChart({ points }: { points: EquityPoint[] }) {
       className="face-label relative outline-none focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-focus"
       tabIndex={0}
       role="img"
-      aria-label={`Equity curve over ${last} closed trades, ending at ${formatMoney(end.equity)}. Use the arrow keys to read each trade.`}
+      aria-label={`Equity curve over ${last} closed trades, ending at ${formatMoney(end.equity, { currency })}. Use the arrow keys to read each trade.`}
       onKeyDown={onKey}
       onFocus={() => setHover((v) => v ?? last)}
       onBlur={() => setHover(null)}
@@ -72,7 +73,7 @@ export function EquityChart({ points }: { points: EquityPoint[] }) {
           <g key={`e${t}`}>
             <line x1={M.left} x2={width - M.right} y1={yEq(t)} y2={yEq(t)} stroke={t === 0 ? "var(--viz-axis)" : "var(--viz-grid)"} />
             <text x={M.left - 8} y={yEq(t)} dy="0.32em" textAnchor="end" className="fill-[var(--viz-muted)] text-xs tabular-nums">
-              {axisMoney(t)}
+              {axisMoney(t, currency)}
             </text>
           </g>
         ))}
@@ -80,7 +81,7 @@ export function EquityChart({ points }: { points: EquityPoint[] }) {
         <path d={line(yEq, (p) => p.equity)} fill="none" stroke="var(--viz-profit)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
         <circle cx={x(last)} cy={yEq(end.equity)} r={4} fill="var(--viz-profit)" stroke="var(--viz-surface)" strokeWidth={2} />
         <text x={x(last) + 10} y={yEq(end.equity)} dy="0.32em" className="fill-[var(--viz-ink)] text-xs font-medium">
-          {formatMoney(end.equity, { sign: true })}
+          {formatMoney(end.equity, { sign: true, currency })}
         </text>
 
         {/* Drawdown */}
@@ -91,7 +92,7 @@ export function EquityChart({ points }: { points: EquityPoint[] }) {
           <g key={`d${t}`}>
             <line x1={M.left} x2={width - M.right} y1={yDd(t)} y2={yDd(t)} stroke={t === 0 ? "var(--viz-axis)" : "var(--viz-grid)"} />
             <text x={M.left - 8} y={yDd(t)} dy="0.32em" textAnchor="end" className="fill-[var(--viz-muted)] text-xs tabular-nums">
-              {axisMoney(t)}
+              {axisMoney(t, currency)}
             </text>
           </g>
         ))}
@@ -137,12 +138,12 @@ export function EquityChart({ points }: { points: EquityPoint[] }) {
             {h.ts !== null && `, ${formatDateTime(h.ts)}`}
           </div>
           <dl className="mt-1.5 space-y-0.5">
-            <TooltipRow color="var(--viz-profit)" label="Cumulative P&L" value={formatMoney(h.equity, { sign: true })} />
-            <TooltipRow color="var(--viz-loss)" label="Drawdown" value={formatMoney(h.drawdown)} />
+            <TooltipRow color="var(--viz-profit)" label="Cumulative P&L" value={formatMoney(h.equity, { sign: true, currency })} />
+            <TooltipRow color="var(--viz-loss)" label="Drawdown" value={formatMoney(h.drawdown, { currency })} />
           </dl>
           {h.ts !== null && (
             <p className="mt-1.5 text-[var(--viz-ink-2)]">
-              This trade: {h.symbol} {formatMoney(h.tradePnl, { sign: true })}
+              This trade: {h.symbol} {formatMoney(h.tradePnl, { sign: true, currency })}
             </p>
           )}
         </div>

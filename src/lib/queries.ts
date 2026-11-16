@@ -1,14 +1,18 @@
 // Reads for the web pages. Every function takes the signed-in user's id and
 // only ever returns that user's rows.
 
-import { and, asc, desc, eq, gte, inArray, notInArray, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, notInArray, type SQL } from "drizzle-orm";
 import { getDb, schema } from "@/db";
+import type { Currency } from "@/db/schema";
 
 export type Trade = typeof schema.trades.$inferSelect;
 export type TradeTag = typeof schema.tradeTags.$inferSelect;
-export type TradeWithTags = Trade & { tags: TradeTag[] };
+/** A trade with its tags and its account's currency (USD for Delta, INR for Indian brokers). */
+export type TradeWithTags = Trade & { tags: TradeTag[]; currency: Currency };
 
 export interface TradeFilter {
+  /** Only this trading account's trades. */
+  accountId?: string;
   symbol?: string;
   tag?: string;
   /** Only trades opened at or after this time (ms). */
@@ -18,6 +22,7 @@ export interface TradeFilter {
 export async function listTrades(userId: string, filter: TradeFilter = {}): Promise<TradeWithTags[]> {
   const db = await getDb();
   const where: SQL[] = [eq(schema.trades.userId, userId)];
+  if (filter.accountId) where.push(eq(schema.trades.accountId, filter.accountId));
   if (filter.symbol) where.push(eq(schema.trades.symbol, filter.symbol));
   if (filter.sinceTs !== undefined) where.push(gte(schema.trades.openedTs, filter.sinceTs));
   if (filter.tag) {
@@ -71,27 +76,33 @@ export async function getSyncStatus(userId: string) {
   return db.select().from(schema.syncState).where(eq(schema.syncState.userId, userId));
 }
 
-export async function listSymbols(userId: string) {
+/** The symbols traded, most traded first (an options trader has one per contract, so the order matters). */
+export async function listSymbols(userId: string, accountId?: string) {
   const db = await getDb();
   const rows = await db
-    .selectDistinct({ symbol: schema.trades.symbol })
+    .select({ symbol: schema.trades.symbol, n: count() })
     .from(schema.trades)
-    .where(eq(schema.trades.userId, userId))
-    .orderBy(asc(schema.trades.symbol));
+    .where(and(eq(schema.trades.userId, userId), accountId ? eq(schema.trades.accountId, accountId) : undefined))
+    .groupBy(schema.trades.symbol)
+    .orderBy(desc(count()), asc(schema.trades.symbol));
   return rows.map((r) => r.symbol);
 }
 
 async function attachTags(userId: string, trades: Trade[]): Promise<TradeWithTags[]> {
   if (!trades.length) return [];
   const db = await getDb();
-  const tags = await db.select().from(schema.tradeTags).where(eq(schema.tradeTags.userId, userId));
+  const [tags, accounts] = await Promise.all([
+    db.select().from(schema.tradeTags).where(eq(schema.tradeTags.userId, userId)),
+    db.select({ id: schema.accounts.id, currency: schema.accounts.currency }).from(schema.accounts).where(eq(schema.accounts.userId, userId)),
+  ]);
+  const currencyOf = new Map(accounts.map((a) => [a.id, a.currency]));
   const byTrade = new Map<string, TradeTag[]>();
   for (const tag of tags) {
     const list = byTrade.get(tag.tradeId);
     if (list) list.push(tag);
     else byTrade.set(tag.tradeId, [tag]);
   }
-  return trades.map((t) => ({ ...t, tags: byTrade.get(t.id) ?? [] }));
+  return trades.map((t) => ({ ...t, tags: byTrade.get(t.id) ?? [], currency: currencyOf.get(t.accountId) ?? "USD" }));
 }
 
 // --- journal ------------------------------------------------------------------

@@ -46,14 +46,15 @@ export async function exportAccount(db: Db, userId: string, now = Date.now()): P
 }
 
 const CSV_COLUMNS = [
-  "trade_id", "symbol", "direction", "status", "opened_ist", "closed_ist", "hold_seconds", "max_qty", "avg_entry", "avg_exit",
-  "leverage", "gross_pnl", "fees", "funding", "liquidation_fees", "net_pnl", "exit_reason", "stop_price", "risk_usd", "r_multiple",
+  "trade_id", "account", "currency", "symbol", "direction", "status", "opened_ist", "closed_ist", "hold_seconds", "max_qty", "avg_entry", "avg_exit",
+  "leverage", "gross_pnl", "fees", "funding", "liquidation_fees", "net_pnl", "exit_reason", "stop_price", "risk", "r_multiple",
   "tags", "setup", "emotions", "mistakes", "followed_plan", "rating", "planned_stop", "planned_target", "notes",
 ] as const;
 
 /** One row per trade with its journal, for a spreadsheet. Oldest first; times in IST. */
 export async function tradesCsv(db: Db, userId: string): Promise<string> {
   const trades = await db.select().from(schema.trades).where(eq(schema.trades.userId, userId)).orderBy(schema.trades.openedTs);
+  const accounts = new Map((await db.select().from(schema.accounts).where(eq(schema.accounts.userId, userId))).map((a) => [a.id, a]));
   const journals = new Map(
     (await db.select().from(schema.journalEntries).where(eq(schema.journalEntries.userId, userId))).map((j) => [j.tradeId, j]),
   );
@@ -67,7 +68,7 @@ export async function tradesCsv(db: Db, userId: string): Promise<string> {
   for (const t of trades) {
     const j = journals.get(t.id);
     const row = [
-      t.id, t.symbol, t.direction, t.status, formatDateTime(t.openedTs), t.closedTs ? formatDateTime(t.closedTs) : "",
+      t.id, accounts.get(t.accountId)?.label, accounts.get(t.accountId)?.currency ?? "USD", t.symbol, t.direction, t.status, formatDateTime(t.openedTs), t.closedTs ? formatDateTime(t.closedTs) : "",
       t.holdSeconds, t.maxQty, t.avgEntry, t.avgExit, t.leverage, t.grossPnl, t.fees, t.funding, t.liquidationFees, t.netPnl,
       t.exitReason, t.stopPrice, t.riskAmount, t.rMultiple, (tags.get(t.id) ?? []).sort().join(" "),
       j?.setup, j?.emotions.join(" "), j?.mistakes.join(" "), j?.followedPlan == null ? "" : j.followedPlan ? "yes" : "no",

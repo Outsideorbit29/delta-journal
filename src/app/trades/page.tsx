@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { connection } from "next/server";
 import { FilterBar } from "@/components/filter-bar";
+import { getDb } from "@/db";
+import { chooseAccount, listAccounts } from "@/lib/accounts";
 import { TagChip } from "@/components/tag-chip";
 import { formatDateTime, formatDuration, formatMoney, formatPercent, formatPrice, formatR, pnlClass } from "@/lib/format";
 import { journaledTradeIds, listSymbols, listTrades, type TradeWithTags } from "@/lib/queries";
@@ -13,9 +15,13 @@ export default async function TradesPage({ searchParams }: PageProps<"/trades">)
   await connection();
   const userId = await requireUserId();
   const filters = readFilters(await searchParams);
+  const accounts = await listAccounts(await getDb(), userId);
+  const account = chooseAccount(accounts, filters.account);
+  const accountId = account?.id;
+  const currency = account?.currency ?? "USD";
   const [trades, symbols, journaled] = await Promise.all([
-    listTrades(userId, { symbol: filters.symbol, tag: filters.tag, sinceTs: rangeStart(filters.range) }),
-    listSymbols(userId),
+    listTrades(userId, { accountId, symbol: filters.symbol, tag: filters.tag, sinceTs: rangeStart(filters.range) }),
+    listSymbols(userId, accountId),
     journaledTradeIds(userId),
   ]);
   const stats = computeStats(trades);
@@ -28,10 +34,10 @@ export default async function TradesPage({ searchParams }: PageProps<"/trades">)
           <h1 className="text-3xl leading-none">Trades</h1>
           <p className="face-label mt-2 text-base text-ink-2">
             {trades.length} trades, {stats.wins} won and {stats.losses} lost ({formatPercent(stats.winRate)}), net{" "}
-            <span className={pnlClass(stats.netPnl)}>{formatMoney(stats.netPnl, { sign: true })}</span>
+            <span className={pnlClass(stats.netPnl)}>{formatMoney(stats.netPnl, { sign: true, currency })}</span>
           </p>
         </div>
-        <FilterBar path="/trades" filters={filters} symbols={symbols} />
+        <FilterBar path="/trades" filters={filters} symbols={symbols} accounts={accounts} account={account} />
       </div>
 
       {trades.length === 0 && (
@@ -51,7 +57,7 @@ export default async function TradesPage({ searchParams }: PageProps<"/trades">)
                   <span className="face-label text-lg text-ink">
                     {t.symbol} <span className="text-ink-2">{t.direction}</span>
                   </span>
-                  <span className={`figure-display text-2xl ${pnlClass(t.netPnl)}`}>{t.status === "open" ? "open" : formatMoney(t.netPnl, { sign: true })}</span>
+                  <span className={`figure-display text-2xl ${pnlClass(t.netPnl)}`}>{t.status === "open" ? "open" : formatMoney(t.netPnl, { sign: true, currency: t.currency })}</span>
                 </div>
                 <div className="face-label mt-1 flex justify-between gap-3 text-sm text-muted">
                   <span>
@@ -101,7 +107,7 @@ export default async function TradesPage({ searchParams }: PageProps<"/trades">)
                   <td className={`${td} text-right tabular-nums`}>{t.status === "open" ? "open" : formatPrice(t.avgExit)}</td>
                   <td className={`${td} text-right tabular-nums`}>{formatDuration(t.holdSeconds)}</td>
                   <td className={`${td} text-right tabular-nums`}>{t.leverage ? `${t.leverage}x` : "–"}</td>
-                  <td className={`${td} text-right font-medium tabular-nums ${pnlClass(t.netPnl)}`}>{t.status === "open" ? "–" : formatMoney(t.netPnl, { sign: true })}</td>
+                  <td className={`${td} text-right font-medium tabular-nums ${pnlClass(t.netPnl)}`}>{t.status === "open" ? "–" : formatMoney(t.netPnl, { sign: true, currency: t.currency })}</td>
                   <td className={`${td} text-right tabular-nums`}>{formatR(t.rMultiple)}</td>
                   <td className={td}>
                     {journaled.has(t.id) ? (

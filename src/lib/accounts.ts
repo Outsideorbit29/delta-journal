@@ -44,6 +44,20 @@ export async function listAccounts(db: Db, userId: string): Promise<Account[]> {
   return db.select().from(schema.accounts).where(eq(schema.accounts.userId, userId)).orderBy(asc(schema.accounts.createdAt), asc(schema.accounts.id));
 }
 
+/**
+ * The account a page shows: the one asked for if it is the user's, else the first (oldest). Null when the user has
+ * no account yet. Only ever one: totals never mix currencies.
+ */
+export function chooseAccount(accounts: Account[], requested: string | undefined): Account | null {
+  return accounts.find((a) => a.id === requested) ?? accounts[0] ?? null;
+}
+
+/** Each of the user's accounts' currency, for code that handles trades from several accounts (Telegram). */
+export async function currencyByAccount(db: Db, userId: string): Promise<Map<string, Currency>> {
+  const rows = await db.select({ id: schema.accounts.id, currency: schema.accounts.currency }).from(schema.accounts).where(eq(schema.accounts.userId, userId));
+  return new Map(rows.map((r) => [r.id, r.currency]));
+}
+
 /** Tables whose rows carry an account. */
 const WITH_ACCOUNT = [schema.fills, schema.orders, schema.walletTransactions, schema.trades] as const;
 

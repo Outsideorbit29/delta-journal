@@ -7,6 +7,8 @@ import { ScoreCard, type ScoreAction } from "@/components/score-card";
 import { TodayStrip } from "@/components/today-strip";
 import { TagChip } from "@/components/tag-chip";
 import { getDb } from "@/db";
+import type { Currency } from "@/db/schema";
+import { chooseAccount, listAccounts } from "@/lib/accounts";
 import { listReviews } from "@/lib/ai/review";
 import { formatDateTime, formatMoney, formatPercent, pnlClass } from "@/lib/format";
 import { biggestLeaks, TAG_HINTS, whatWorks } from "@/lib/insights";
@@ -36,12 +38,18 @@ export async function DashboardView({
   greeting?: string;
 }) {
   const path = demo ? "/demo" : "/";
+  const db = await getDb();
+  // One account at a time: its trades, in its currency.
+  const accounts = await listAccounts(db, userId);
+  const account = chooseAccount(accounts, filters.account);
+  const accountId = account?.id;
+  const currency: Currency = account?.currency ?? "USD";
   const [trades, symbols, journaled, [latestReview], recentTrades] = await Promise.all([
-    listTrades(userId, { symbol: filters.symbol, tag: filters.tag, sinceTs: rangeStart(filters.range) }),
-    listSymbols(userId),
+    listTrades(userId, { accountId, symbol: filters.symbol, tag: filters.tag, sinceTs: rangeStart(filters.range) }),
+    listSymbols(userId, accountId),
     journaledTradeIds(userId),
-    getDb().then((db) => listReviews(db, userId, 1)),
-    demo ? Promise.resolve([]) : listTrades(userId, { sinceTs: summarySince() }),
+    listReviews(db, userId, 1),
+    demo ? Promise.resolve([]) : listTrades(userId, { accountId, sinceTs: summarySince() }),
   ]);
   const summary = demo ? null : todaySummary(recentTrades, journaled);
   const journaledHere = trades.filter((t) => t.status === "closed" && journaled.has(t.id)).length;
@@ -65,17 +73,17 @@ export async function DashboardView({
           <h1 className="text-3xl leading-none">{demo ? "The demo trader's dashboard" : "Dashboard"}</h1>
         )}
         <div className="space-y-2">
-          <FilterBar path={path} filters={filters} symbols={symbols} />
+          <FilterBar path={path} filters={filters} symbols={symbols} accounts={accounts} account={account} />
           {!demo && mismatches > 0 && <p className="face-label text-sm text-warn">{mismatches} trades don&apos;t match Delta&apos;s P&L</p>}
         </div>
       </div>
 
-      {summary && summary.recent.trades > 0 && <TodayStrip summary={summary} />}
+      {summary && summary.recent.trades > 0 && <TodayStrip summary={summary} currency={currency} />}
 
       {stats.trades === 0 ? (
         <section className="opens max-w-2xl">
           <h2 className="text-xl">No closed trades in this view yet</h2>
-          <p className="mt-3 text-ink-2">Try a wider date range. New trades appear here within a minute of closing on Delta.</p>
+          <p className="mt-3 text-ink-2">Try a wider date range. New trades appear here within minutes of closing.</p>
         </section>
       ) : (
         <>
@@ -83,9 +91,9 @@ export async function DashboardView({
           <section className="opens grid gap-x-8 gap-y-10 lg:grid-cols-12">
             <div className="min-w-0 lg:col-span-4">
               <h2 className="face-label text-sm font-medium text-muted">Net P&L, {rangeLabel}</h2>
-              <p className={`figure-display mt-3 text-[clamp(3.5rem,6vw,5.5rem)] ${pnlClass(stats.netPnl)}`}>{formatMoney(stats.netPnl, { sign: true })}</p>
+              <p className={`figure-display mt-3 text-[clamp(3.5rem,6vw,5.5rem)] ${pnlClass(stats.netPnl)}`}>{formatMoney(stats.netPnl, { sign: true, currency })}</p>
               <p className="mt-4 max-w-xs text-lg text-ink">
-                {stats.trades} closed trades, after {formatMoney(stats.fees + stats.liquidationFees)} of fees.
+                {stats.trades} closed trades, after {formatMoney(stats.fees + stats.liquidationFees, { currency })} of fees.
               </p>
               <p className="face-label mt-3 text-sm text-muted">
                 {journaledHere} of {stats.trades} journaled
@@ -99,7 +107,7 @@ export async function DashboardView({
                 )}
               </p>
             </div>
-            <Insights leaks={leaks} works={works} href={(tag) => filterHref(tagPath, filters, { tag })} />
+            <Insights leaks={leaks} works={works} href={(tag) => filterHref(tagPath, filters, { tag })} currency={currency} />
           </section>
 
           <section className={`grid gap-x-8 gap-y-12 ${score ? "lg:grid-cols-12" : ""}`}>
@@ -113,10 +121,10 @@ export async function DashboardView({
               <dl className={`mt-2 grid grid-cols-2 ${score ? "" : "sm:grid-cols-3 lg:grid-cols-6"}`}>
                 <Figure label="Win rate" value={formatPercent(stats.winRate)} hint={`${stats.wins} won, ${stats.losses} lost`} />
                 <Figure label="Profit factor" value={stats.profitFactor === null ? "–" : stats.profitFactor.toFixed(2)} hint="gross wins ÷ gross losses" />
-                <Figure label="Expectancy" value={formatMoney(stats.expectancy, { sign: true })} hint="average per trade" />
-                <Figure label="Average win" value={formatMoney(stats.avgWin)} hint={`average loss ${formatMoney(stats.avgLoss)}`} />
-                <Figure label="Max drawdown" value={formatMoney(stats.maxDrawdown)} hint="from the highest point" />
-                <Figure label="Trading costs" value={formatMoney(stats.fees + stats.liquidationFees)} hint="fees and liquidation fees" />
+                <Figure label="Expectancy" value={formatMoney(stats.expectancy, { sign: true, currency })} hint="average per trade" />
+                <Figure label="Average win" value={formatMoney(stats.avgWin, { currency })} hint={`average loss ${formatMoney(stats.avgLoss, { currency })}`} />
+                <Figure label="Max drawdown" value={formatMoney(stats.maxDrawdown, { currency })} hint="from the highest point" />
+                <Figure label="Trading costs" value={formatMoney(stats.fees + stats.liquidationFees, { currency })} hint="fees and liquidation fees" />
               </dl>
             </div>
           </section>
@@ -133,35 +141,35 @@ export async function DashboardView({
           )}
 
           <Section title="Equity curve" subtitle="Cumulative net P&L after each closed trade, oldest to newest.">
-            <EquityChart points={curve} />
+            <EquityChart points={curve} currency={currency} />
           </Section>
 
           <div className="grid gap-x-8 gap-y-16 lg:grid-cols-12">
             <div className="min-w-0 lg:col-span-7">
               <Section title="Daily P&L" subtitle="Net P&L by the day a trade closed, in IST.">
-                <PnlCalendar days={days} />
+                <PnlCalendar days={days} currency={currency} />
               </Section>
             </div>
             <div className="min-w-0 space-y-16 lg:col-span-5">
               <Section title="Where your P&L went" subtitle="The trading result before costs, then each cost.">
-                <CostBreakdown stats={stats} />
+                <CostBreakdown stats={stats} currency={currency} />
               </Section>
               <Section title="By symbol">
-                <GroupTable groups={groupStats(trades, (t) => t.symbol)} label="Symbol" />
+                <GroupTable groups={groupStats(trades, (t) => t.symbol)} label="Symbol" currency={currency} />
               </Section>
               <Section title="Long and short">
-                <GroupTable groups={groupStats(trades, (t) => t.direction)} label="Side" />
+                <GroupTable groups={groupStats(trades, (t) => t.direction)} label="Side" currency={currency} />
               </Section>
             </div>
           </div>
 
           <Section title="How tagged trades performed" subtitle="Worst first. Select a tag to see its trades.">
-            <TagTable trades={trades} filters={filters} path={demo ? "/demo" : "/trades"} />
+            <TagTable trades={trades} filters={filters} path={demo ? "/demo" : "/trades"} currency={currency} />
           </Section>
 
           <details className="group border-t border-rule-2 pt-4">
             <summary className="face-label flex min-h-11 cursor-pointer items-center text-base text-ink">Daily P&L as a table</summary>
-            <DailyTable days={days} />
+            <DailyTable days={days} currency={currency} />
           </details>
         </>
       )}
@@ -182,7 +190,7 @@ function scoreAction(score: BehaviourScore, summary: TodaySummary, tradesWith: (
 }
 
 /** The signature: the costliest habits set like a market table, each linking to its trades. */
-function Insights({ leaks, works, href }: { leaks: TagPerformance[]; works: TagPerformance[]; href: (tag: string) => string }) {
+function Insights({ leaks, works, href, currency }: { leaks: TagPerformance[]; works: TagPerformance[]; href: (tag: string) => string; currency: Currency }) {
   if (!leaks.length && !works.length) return null;
   return (
     <div className="min-w-0 space-y-10 lg:col-span-8">
@@ -191,7 +199,7 @@ function Insights({ leaks, works, href }: { leaks: TagPerformance[]; works: TagP
           <h2 className="text-2xl">Your biggest leaks</h2>
           <ul className="mt-4 divide-y divide-rule border-y border-rule-2">
             {leaks.map((r) => (
-              <InsightRow key={r.tag} row={r} href={href(r.tag)} />
+              <InsightRow key={r.tag} row={r} href={href(r.tag)} currency={currency} />
             ))}
           </ul>
         </div>
@@ -201,7 +209,7 @@ function Insights({ leaks, works, href }: { leaks: TagPerformance[]; works: TagP
           <h2 className="text-xl">What works for you</h2>
           <ul className="mt-3 divide-y divide-rule border-y border-rule-2">
             {works.map((r) => (
-              <InsightRow key={r.tag} row={r} href={href(r.tag)} small />
+              <InsightRow key={r.tag} row={r} href={href(r.tag)} currency={currency} small />
             ))}
           </ul>
         </div>
@@ -210,7 +218,7 @@ function Insights({ leaks, works, href }: { leaks: TagPerformance[]; works: TagP
   );
 }
 
-function InsightRow({ row, href, small = false }: { row: TagPerformance; href: string; small?: boolean }) {
+function InsightRow({ row, href, currency, small = false }: { row: TagPerformance; href: string; currency: Currency; small?: boolean }) {
   return (
     <li>
       <Link href={href} className="group grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-6 py-4 no-underline">
@@ -221,7 +229,7 @@ function InsightRow({ row, href, small = false }: { row: TagPerformance; href: s
           {TAG_HINTS[row.tag] && <span className="mt-1 block text-base text-muted">{TAG_HINTS[row.tag]}</span>}
         </span>
         <span className="text-right">
-          <span className={`figure-display block ${small ? "text-3xl" : "text-4xl"} ${pnlClass(row.netPnl)}`}>{formatMoney(row.netPnl, { sign: true })}</span>
+          <span className={`figure-display block ${small ? "text-3xl" : "text-4xl"} ${pnlClass(row.netPnl)}`}>{formatMoney(row.netPnl, { sign: true, currency })}</span>
           <span className="face-label mt-1 block text-sm text-muted">
             {row.trades} trades, {formatPercent(row.winRate)} won
           </span>
@@ -256,7 +264,7 @@ function Figure({ label, value, hint }: { label: string; value: string; hint?: s
 const th = "face-label px-3 py-3 text-sm font-medium whitespace-nowrap text-muted first:pl-0 last:pr-0";
 const td = "face-label px-3 py-2.5 text-base tabular-nums first:pl-0 last:pr-0";
 
-function GroupTable({ groups, label }: { groups: GroupStats[]; label: string }) {
+function GroupTable({ groups, label, currency }: { groups: GroupStats[]; label: string; currency: Currency }) {
   return (
     <div className="overflow-x-auto">
     <table className="w-full">
@@ -275,8 +283,8 @@ function GroupTable({ groups, label }: { groups: GroupStats[]; label: string }) 
             <td className={`${td} font-medium text-ink capitalize`}>{g.key}</td>
             <td className={`${td} text-right`}>{g.trades}</td>
             <td className={`${td} text-right`}>{formatPercent(g.winRate)}</td>
-            <td className={`${td} text-right ${pnlClass(g.netPnl)}`}>{formatMoney(g.netPnl, { sign: true })}</td>
-            <td className={`${td} text-right ${pnlClass(g.expectancy)}`}>{formatMoney(g.expectancy, { sign: true })}</td>
+            <td className={`${td} text-right ${pnlClass(g.netPnl)}`}>{formatMoney(g.netPnl, { sign: true, currency })}</td>
+            <td className={`${td} text-right ${pnlClass(g.expectancy)}`}>{formatMoney(g.expectancy, { sign: true, currency })}</td>
           </tr>
         ))}
       </tbody>
@@ -285,7 +293,7 @@ function GroupTable({ groups, label }: { groups: GroupStats[]; label: string }) 
   );
 }
 
-function TagTable({ trades, filters, path }: { trades: Parameters<typeof tagPerformance>[0]; filters: Filters; path: string }) {
+function TagTable({ trades, filters, path, currency }: { trades: Parameters<typeof tagPerformance>[0]; filters: Filters; path: string; currency: Currency }) {
   const rows = tagPerformance(trades);
   return (
     <div className="overflow-x-auto">
@@ -307,8 +315,8 @@ function TagTable({ trades, filters, path }: { trades: Parameters<typeof tagPerf
               </td>
               <td className={`${td} text-right`}>{r.trades}</td>
               <td className={`${td} text-right`}>{formatPercent(r.winRate)}</td>
-              <td className={`${td} text-right ${pnlClass(r.netPnl)}`}>{formatMoney(r.netPnl, { sign: true })}</td>
-              <td className={`${td} text-right ${pnlClass(r.avgPnl)}`}>{formatMoney(r.avgPnl, { sign: true })}</td>
+              <td className={`${td} text-right ${pnlClass(r.netPnl)}`}>{formatMoney(r.netPnl, { sign: true, currency })}</td>
+              <td className={`${td} text-right ${pnlClass(r.avgPnl)}`}>{formatMoney(r.avgPnl, { sign: true, currency })}</td>
             </tr>
           ))}
         </tbody>
@@ -317,7 +325,7 @@ function TagTable({ trades, filters, path }: { trades: Parameters<typeof tagPerf
   );
 }
 
-function DailyTable({ days }: { days: ReturnType<typeof dailyPnl> }) {
+function DailyTable({ days, currency }: { days: ReturnType<typeof dailyPnl>; currency: Currency }) {
   const rows = [...days].reverse();
   return (
     <div className="mt-4 overflow-x-auto">
@@ -337,8 +345,8 @@ function DailyTable({ days }: { days: ReturnType<typeof dailyPnl> }) {
               <td className={td}>{d.date}</td>
               <td className={`${td} text-right`}>{d.trades}</td>
               <td className={`${td} text-right`}>{d.wins}</td>
-              <td className={`${td} text-right ${pnlClass(d.netPnl)}`}>{formatMoney(d.netPnl, { sign: true })}</td>
-              <td className={`${td} text-right`}>{formatMoney(d.cumulative, { sign: true })}</td>
+              <td className={`${td} text-right ${pnlClass(d.netPnl)}`}>{formatMoney(d.netPnl, { sign: true, currency })}</td>
+              <td className={`${td} text-right`}>{formatMoney(d.cumulative, { sign: true, currency })}</td>
             </tr>
           ))}
         </tbody>

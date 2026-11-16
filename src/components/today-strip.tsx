@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Currency } from "@/db/schema";
 import { buttonPrimary } from "@/components/ui";
 import { formatMoney, pnlClass } from "@/lib/format";
 import { RECENT_DAYS, type TodaySummary } from "@/lib/today";
@@ -7,14 +8,14 @@ import { RECENT_DAYS, type TodaySummary } from "@/lib/today";
  * The top of the dashboard: today's result, the last week's, and the trades still to journal,
  * with the one action that matters most. It ignores the page's filters on purpose.
  */
-export function TodayStrip({ summary }: { summary: TodaySummary }) {
+export function TodayStrip({ summary, currency = "USD" }: { summary: TodaySummary; currency?: Currency }) {
   const { today, recent, toJournal } = summary;
   return (
     <section aria-label="Today" className="opens grid grid-cols-2 gap-x-6 sm:grid-cols-[repeat(3,minmax(0,1fr))_auto] sm:items-center">
       <Cell label="Today">
         {today.trades ? (
           <>
-            <span className={`figure-display text-3xl ${pnlClass(today.netPnl)}`}>{formatMoney(today.netPnl, { sign: true })}</span>
+            <span className={`figure-display text-3xl ${pnlClass(today.netPnl)}`}>{formatMoney(today.netPnl, { sign: true, currency })}</span>
             <span className="face-label text-sm text-muted">
               {today.trades} {today.trades === 1 ? "trade" : "trades"} · {today.wins} won
             </span>
@@ -28,7 +29,7 @@ export function TodayStrip({ summary }: { summary: TodaySummary }) {
       </Cell>
       <Cell label={`Last ${RECENT_DAYS} days`}>
         <span className={`figure-display text-3xl ${recent.trades ? pnlClass(recent.netPnl) : "text-ink"}`}>
-          {recent.trades ? formatMoney(recent.netPnl, { sign: true }) : "–"}
+          {recent.trades ? formatMoney(recent.netPnl, { sign: true, currency }) : "–"}
         </span>
         <span className="face-label text-sm text-muted">
           {recent.trades} {recent.trades === 1 ? "trade" : "trades"}

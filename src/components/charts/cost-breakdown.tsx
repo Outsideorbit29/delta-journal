@@ -1,3 +1,4 @@
+import type { Currency } from "@/db/schema";
 import { formatMoney } from "@/lib/format";
 import type { Stats } from "@/lib/stats";
 
@@ -5,7 +6,7 @@ import type { Stats } from "@/lib/stats";
  * Gross trading result and each cost, as bars from a shared zero line, ending
  * in the net result. Every bar carries its value, so nothing hides in a tooltip.
  */
-export function CostBreakdown({ stats }: { stats: Stats }) {
+export function CostBreakdown({ stats, currency = "USD" }: { stats: Stats; currency?: Currency }) {
   const rows = [
     { label: "Trading P&L before costs", value: stats.grossPnl },
     { label: "Fees", value: -stats.fees },
@@ -47,7 +48,7 @@ export function CostBreakdown({ stats }: { stats: Stats }) {
                   className={`absolute top-1/2 -translate-y-1/2 whitespace-nowrap text-sm tabular-nums ${r.total ? "font-semibold text-[var(--viz-ink)]" : "text-[var(--viz-ink-2)]"}`}
                   style={negative ? { right: `calc(${100 - zero + width}% + 6px)` } : { left: `calc(${zero + width}% + 6px)` }}
                 >
-                  {formatMoney(r.value, { sign: true })}
+                  {formatMoney(r.value, { sign: true, currency })}
                 </span>
               </div>
             </li>
@@ -60,8 +61,8 @@ export function CostBreakdown({ stats }: { stats: Stats }) {
             ? `Costs took ${Math.round((costs / stats.grossPnl) * 100)}% of your gross profit.`
             : stats.netPnl < 0
               ? `Costs make up ${Math.round((costs / -stats.netPnl) * 100)}% of your net loss.`
-              : `Costs were ${formatMoney(costs)}.`}
-          {stats.feeCredits > 0 && ` Fee credits covered another ${formatMoney(stats.feeCredits)}.`}
+              : `Costs were ${formatMoney(costs, { currency })}.`}
+          {stats.feeCredits > 0 && ` Fee credits covered another ${formatMoney(stats.feeCredits, { currency })}.`}
         </p>
       )}
     </div>

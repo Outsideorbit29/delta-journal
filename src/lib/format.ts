@@ -1,3 +1,4 @@
+import type { Currency } from "@/db/schema";
 import { journalConfig } from "@/lib/config";
 
 const dateTime = new Intl.DateTimeFormat("en-IN", {
@@ -12,12 +13,23 @@ const dateTime = new Intl.DateTimeFormat("en-IN", {
 
 export const formatDateTime = (ts: number) => dateTime.format(ts);
 
-export function formatMoney(n: number | null | undefined, { sign = false } = {}) {
+const MONEY: Record<Currency, { symbol: string; locale: string }> = {
+  USD: { symbol: "$", locale: "en-US" },
+  // Indian grouping: ₹1,25,000.00
+  INR: { symbol: "₹", locale: "en-IN" },
+};
+
+/** "$1,234.50", "-₹1,25,000.00"; with `sign`, gains get a "+". Each account has one currency, never mixed. */
+export function formatMoney(n: number | null | undefined, { sign = false, currency = "USD" }: { sign?: boolean; currency?: Currency } = {}) {
   if (n === null || n === undefined) return "–";
-  const abs = Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (n < 0) return `-$${abs}`;
-  return `${sign && n > 0 ? "+" : ""}$${abs}`;
+  const { symbol, locale } = MONEY[currency];
+  const abs = Math.abs(n).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (n < 0) return `-${symbol}${abs}`;
+  return `${sign && n > 0 ? "+" : ""}${symbol}${abs}`;
 }
+
+/** The symbol alone, for chart axes. */
+export const currencySymbol = (currency: Currency = "USD") => MONEY[currency].symbol;
 
 export function formatPrice(n: number | null | undefined) {
   if (n === null || n === undefined) return "–";

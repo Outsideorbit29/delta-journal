@@ -1,11 +1,36 @@
 import Link from "next/link";
+import type { Account } from "@/lib/accounts";
 import { filterHref, RANGES, type Filters } from "@/lib/range";
 import { tagLabel } from "@/lib/tags";
 
-/** One row of filters that scopes everything below it on the page. */
-export function FilterBar({ path, filters, symbols }: { path: string; filters: Filters; symbols: string[] }) {
+/**
+ * One row of filters that scopes everything below it on the page. With more than one trading account, the first
+ * group picks the account (one at a time: their money is in different currencies).
+ */
+export function FilterBar({
+  path,
+  filters,
+  symbols,
+  accounts = [],
+  account = null,
+}: {
+  path: string;
+  filters: Filters;
+  symbols: string[];
+  accounts?: Pick<Account, "id" | "label">[];
+  account?: Pick<Account, "id"> | null;
+}) {
   return (
     <nav aria-label="Filters" className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5">
+      {accounts.length > 1 && (
+        <div className={row} role="group" aria-label="Account">
+          {accounts.map((a) => (
+            <Chip key={a.id} href={filterHref(path, filters, { account: a.id, symbol: undefined, tag: undefined })} active={account?.id === a.id}>
+              {a.label}
+            </Chip>
+          ))}
+        </div>
+      )}
       {/* On phones each group is one row that scrolls sideways instead of wrapping. */}
       <div className={row} role="group" aria-label="Date range">
         {RANGES.map((r) => (
@@ -18,7 +43,7 @@ export function FilterBar({ path, filters, symbols }: { path: string; filters: F
         <Chip href={filterHref(path, filters, { symbol: undefined })} active={!filters.symbol}>
           All symbols
         </Chip>
-        {symbols.map((s) => (
+        {shownSymbols(symbols, filters.symbol).map((s) => (
           <Chip key={s} href={filterHref(path, filters, { symbol: s })} active={filters.symbol === s}>
             {s}
           </Chip>
@@ -31,6 +56,13 @@ export function FilterBar({ path, filters, symbols }: { path: string; filters: F
       )}
     </nav>
   );
+}
+
+/** The most traded symbols (the list comes most traded first), plus the chosen one if it is further down. */
+const MAX_SYMBOLS = 8;
+function shownSymbols(symbols: string[], chosen: string | undefined): string[] {
+  const top = symbols.slice(0, MAX_SYMBOLS);
+  return chosen && !top.includes(chosen) && symbols.includes(chosen) ? [...top, chosen] : top;
 }
 
 // Each group is one segmented row: squares sharing hairlines, the chosen one in ink.

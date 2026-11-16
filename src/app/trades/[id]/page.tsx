@@ -22,46 +22,59 @@ export default async function TradePage({ params }: PageProps<"/trades/[id]">) {
       ? (Math.abs(entry.plannedTarget - trade.avgEntry) * trade.maxQty * trade.contractValue) / trade.riskAmount
       : null;
 
+  // Indian brokers (rupee accounts) report shares and units, with no leverage, margin, funding or stop orders.
+  const indian = trade.currency === "INR";
   const rows: [string, React.ReactNode][] = [
     ["Opened", `${formatDateTime(trade.openedTs)} IST`],
     ["Closed", trade.closedTs ? `${formatDateTime(trade.closedTs)} IST` : "Still open"],
     ["Held", formatDuration(trade.holdSeconds)],
-    ["Max size", `${trade.maxQty.toLocaleString()} contracts (${formatPrice(trade.maxQty * trade.contractValue)} units)`],
-    ["Notional", formatMoney(trade.maxNotional)],
-    ["Leverage", trade.leverage ? `${trade.leverage}x` : "–"],
+    [
+      "Max size",
+      indian
+        ? `${trade.maxQty.toLocaleString("en-IN")} ${trade.contractType === "equity" ? "shares" : "units"}`
+        : `${trade.maxQty.toLocaleString()} contracts (${formatPrice(trade.maxQty * trade.contractValue)} units)`,
+    ],
+    [indian ? "Value" : "Notional", formatMoney(trade.maxNotional, { currency: trade.currency })],
+    ...(indian ? [] : ([["Leverage", trade.leverage ? `${trade.leverage}x` : "–"]] as [string, string][])),
+  ];
+  if (!indian) rows.push(
     [
       "Margin used",
       trade.marginUsed === null
         ? "–"
-        : `${formatMoney(trade.marginUsed)}${trade.walletBalanceAtOpen ? ` (${formatPercent(trade.marginUsed / trade.walletBalanceAtOpen)} of ${formatMoney(trade.walletBalanceAtOpen)} wallet)` : ""}`,
+        : `${formatMoney(trade.marginUsed, { currency: trade.currency })}${trade.walletBalanceAtOpen ? ` (${formatPercent(trade.marginUsed / trade.walletBalanceAtOpen)} of ${formatMoney(trade.walletBalanceAtOpen, { currency: trade.currency })} wallet)` : ""}`,
     ],
+  );
+  rows.push(
     ["Avg entry", formatPrice(trade.avgEntry)],
     ["Avg exit", formatPrice(trade.avgExit)],
     ["Exit", trade.exitReason ? EXIT_LABELS[trade.exitReason] : "–"],
     [
       "Stop-loss",
       trade.stopPrice === null
-        ? "None found"
+        ? indian
+          ? "Not shared by your broker. Add your planned stop in the journal."
+          : "None found"
         : `${formatPrice(trade.stopPrice)}, placed ${formatDuration(trade.stopPlacedAfterSec)} after entry` +
           (trade.stopMovedAfterSec === null ? "" : `, moved ${formatDuration(trade.stopMovedAfterSec)} after entry`),
     ],
     [
       "Planned risk",
       trade.riskSource === "journal"
-        ? `${formatMoney(trade.riskAmount)} (from your planned stop)`
+        ? `${formatMoney(trade.riskAmount, { currency: trade.currency })} (from your planned stop)`
         : trade.stopMovedAfterSec !== null
           ? "Unknown: the stop was moved and Delta keeps only its last price. Add your planned stop in the journal."
-          : formatMoney(trade.riskAmount),
+          : formatMoney(trade.riskAmount, { currency: trade.currency }),
     ],
     ["R-multiple", formatR(trade.rMultiple)],
     ...(plannedReward ? ([["Planned reward:risk", `${plannedReward.toFixed(1)} : 1`]] as [string, string][]) : []),
-  ];
+  );
 
   const pnl: [string, number][] = [
     ["Gross P&L", trade.grossPnl],
-    ["Fees", -trade.fees],
+    [indian ? "Charges (brokerage, STT, GST…)" : "Fees", -trade.fees],
     ...(trade.liquidationFees ? ([["Liquidation fee", -trade.liquidationFees]] as [string, number][]) : []),
-    ["Funding", trade.funding],
+    ...(indian ? [] : ([["Funding", trade.funding]] as [string, number][])),
     ["Net P&L", trade.netPnl],
   ];
 
@@ -75,7 +88,7 @@ export default async function TradePage({ params }: PageProps<"/trades/[id]">) {
           <h1 className="text-[clamp(2.5rem,5vw,4rem)]">
             {trade.symbol} {trade.direction}
           </h1>
-          <p className={`figure-display text-[clamp(2.5rem,5vw,4rem)] ${pnlClass(trade.netPnl)}`}>{trade.status === "open" ? "open" : formatMoney(trade.netPnl, { sign: true })}</p>
+          <p className={`figure-display text-[clamp(2.5rem,5vw,4rem)] ${pnlClass(trade.netPnl)}`}>{trade.status === "open" ? "open" : formatMoney(trade.netPnl, { sign: true, currency: trade.currency })}</p>
         </div>
         {/* Each tag once: the ones with an explanation as a list, the rest as tags. */}
         {trade.tags.some((g) => g.detail) && (
@@ -102,7 +115,8 @@ export default async function TradePage({ params }: PageProps<"/trades/[id]">) {
         </ul>
       )}
 
-      <TradePriceChart trade={trade} plannedStop={entry?.plannedStop ?? null} plannedTarget={entry?.plannedTarget ?? null} />
+      {/* Price candles come from Delta's public API; Indian brokers' charts come later. */}
+      {!indian && <TradePriceChart trade={trade} plannedStop={entry?.plannedStop ?? null} plannedTarget={entry?.plannedTarget ?? null} />}
 
       {trade.status === "closed" && <JournalSection trade={trade} entry={entry} />}
 
@@ -124,16 +138,16 @@ export default async function TradePage({ params }: PageProps<"/trades/[id]">) {
             {pnl.map(([k, v]) => (
               <div key={k} className={`flex justify-between gap-4 py-2.5 ${k === "Net P&L" ? "border-t-4 border-ink" : "border-b border-rule"}`}>
                 <dt className={k === "Net P&L" ? "text-ink" : "text-muted"}>{k}</dt>
-                <dd className={k === "Net P&L" ? `figure-display text-3xl ${pnlClass(v)}` : `tabular-nums ${pnlClass(v)}`}>{formatMoney(v, { sign: true })}</dd>
+                <dd className={k === "Net P&L" ? `figure-display text-3xl ${pnlClass(v)}` : `tabular-nums ${pnlClass(v)}`}>{formatMoney(v, { sign: true, currency: trade.currency })}</dd>
               </div>
             ))}
           </dl>
           {trade.deltaRealizedPnl !== null && (
             <p className={`face-label mt-4 text-sm ${trade.pnlMatchesDelta ? "text-muted" : "text-warn"}`}>
-              Delta reports {formatMoney(trade.deltaRealizedPnl, { sign: true })} gross: {trade.pnlMatchesDelta ? "matches" : "does not match"}.
+              Delta reports {formatMoney(trade.deltaRealizedPnl, { sign: true, currency: trade.currency })} gross: {trade.pnlMatchesDelta ? "matches" : "does not match"}.
             </p>
           )}
-          {trade.feeCredits > 0 && <p className="face-label mt-1 text-sm text-muted">{formatMoney(trade.feeCredits)} of fees were paid with fee credits.</p>}
+          {trade.feeCredits > 0 && <p className="face-label mt-1 text-sm text-muted">{formatMoney(trade.feeCredits, { currency: trade.currency })} of fees were paid with fee credits.</p>}
         </section>
       </div>
 
@@ -158,7 +172,7 @@ export default async function TradePage({ params }: PageProps<"/trades/[id]">) {
                   <td className={`${td} text-ink capitalize`}>{l.kind}</td>
                   <td className={`${td} text-right tabular-nums`}>{l.qty > 0 ? `+${l.qty}` : l.qty}</td>
                   <td className={`${td} text-right tabular-nums`}>{formatPrice(l.price)}</td>
-                  <td className={`${td} text-right tabular-nums`}>{formatMoney(l.fee)}</td>
+                  <td className={`${td} text-right tabular-nums`}>{formatMoney(l.fee, { currency: trade.currency })}</td>
                   <td className={`${td} text-muted`}>
                     {l.fillType === "liquidation" ? "liquidation" : (l.stopOrderType?.replace(/_order$/, "").replace("_", " ") ?? l.orderType?.replace("_order", "") ?? "–")}
                     {l.source ? `, ${l.source.replace("_", " ")}` : ""}

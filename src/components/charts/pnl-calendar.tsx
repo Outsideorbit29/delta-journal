@@ -1,5 +1,6 @@
 "use client";
 
+import type { Currency } from "@/db/schema";
 import { useState } from "react";
 import { formatMoney } from "@/lib/format";
 import type { DayPnl } from "@/lib/stats";
@@ -33,7 +34,7 @@ function cellStyle(day: DayPnl | undefined, edges: number[]) {
 }
 
 /** Daily net P&L laid out as month calendars, newest month first. */
-export function PnlCalendar({ days }: { days: DayPnl[] }) {
+export function PnlCalendar({ days, currency = "USD" }: { days: DayPnl[]; currency?: Currency }) {
   const [hover, setHover] = useState<{ day: DayPnl; month: string; x: number; y: number } | null>(null);
   const [older, setOlder] = useState(false);
   const byDate = new Map(days.map((d) => [d.date, d]));
@@ -43,7 +44,7 @@ export function PnlCalendar({ days }: { days: DayPnl[] }) {
 
   return (
     <div className="face-label space-y-6">
-      <Legend edges={edges} />
+      <Legend edges={edges} currency={currency} />
       <div className="grid gap-x-6 gap-y-12 sm:grid-cols-2 xl:grid-cols-3">
         {shown.map((month) => {
           const [y, m] = month.split("-").map(Number);
@@ -59,7 +60,7 @@ export function PnlCalendar({ days }: { days: DayPnl[] }) {
               <header className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
                 <h3 className="text-lg text-[var(--viz-ink)]">{monthName.format(first)}</h3>
                 <span className="text-sm text-[var(--viz-ink-2)]">
-                  <span className="font-medium text-[var(--viz-ink)]">{formatMoney(net, { sign: true })}</span>, {trades} {trades === 1 ? "trade" : "trades"}
+                  <span className="font-medium text-[var(--viz-ink)]">{formatMoney(net, { sign: true, currency })}</span>, {trades} {trades === 1 ? "trade" : "trades"}
                 </span>
               </header>
               <div className="grid grid-cols-7 gap-0.5 text-xs">
@@ -86,7 +87,7 @@ export function PnlCalendar({ days }: { days: DayPnl[] }) {
                       key={date}
                       role={day ? "img" : undefined}
                       tabIndex={day ? 0 : undefined}
-                      aria-label={day ? `${dayName.format(new Date(date))}: ${formatMoney(day.netPnl, { sign: true })}, ${day.trades} trades` : undefined}
+                      aria-label={day ? `${dayName.format(new Date(date))}: ${formatMoney(day.netPnl, { sign: true, currency })}, ${day.trades} trades` : undefined}
                       onPointerEnter={(e) => show(e.currentTarget)}
                       onFocus={(e) => show(e.currentTarget)}
                       onBlur={() => setHover(null)}
@@ -105,7 +106,7 @@ export function PnlCalendar({ days }: { days: DayPnl[] }) {
                   className="pointer-events-none absolute z-(--z-tooltip) w-48 -translate-x-1/2 -translate-y-full border border-rule-2 bg-paper p-3 text-sm"
                   style={{ left: hover.x, top: hover.y - 6 }}
                 >
-                  <div className="text-base font-medium text-[var(--viz-ink)]">{formatMoney(hover.day.netPnl, { sign: true })}</div>
+                  <div className="text-base font-medium text-[var(--viz-ink)]">{formatMoney(hover.day.netPnl, { sign: true, currency })}</div>
                   <div className="text-[var(--viz-ink-2)]">{dayName.format(new Date(hover.day.date))}</div>
                   <div className="text-[var(--viz-ink-2)]">
                     {hover.day.trades} {hover.day.trades === 1 ? "trade" : "trades"}, {hover.day.wins} won
@@ -134,7 +135,7 @@ export function PnlCalendar({ days }: { days: DayPnl[] }) {
   );
 }
 
-function Legend({ edges }: { edges: number[] }) {
+function Legend({ edges, currency }: { edges: number[]; currency: Currency }) {
   const steps = [4, 3, 2, 1] as const;
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-[var(--viz-ink-2)]">
@@ -150,7 +151,7 @@ function Legend({ edges }: { edges: number[] }) {
         <span>Profit</span>
       </div>
       <span className="text-[var(--viz-muted)]">
-        Steps at {edges.map((e) => formatMoney(e)).join(", ")}. Empty squares had no closed trades.
+        Steps at {edges.map((e) => formatMoney(e, { currency })).join(", ")}. Empty squares had no closed trades.
       </span>
     </div>
   );

@@ -23,9 +23,9 @@ export function linear(domain: [number, number], range: [number, number]) {
   return (v: number) => r0 + (v - d0) * k;
 }
 
-/** Axis label for money: whole dollars, compact past 10,000. */
-export function axisMoney(v: number) {
+/** Axis label for money: whole units, compact past 10,000. */
+export function axisMoney(v: number, currency: "USD" | "INR" = "USD") {
   const abs = Math.abs(v);
-  const text = abs >= 10_000 ? `${Math.round(abs / 1000)}K` : abs.toLocaleString("en-US", { maximumFractionDigits: abs < 10 ? 1 : 0 });
-  return `${v < 0 ? "-" : ""}$${text}`;
+  const text = abs >= 10_000 ? `${Math.round(abs / 1000)}K` : abs.toLocaleString(currency === "INR" ? "en-IN" : "en-US", { maximumFractionDigits: abs < 10 ? 1 : 0 });
+  return `${v < 0 ? "-" : ""}${currency === "INR" ? "₹" : "$"}${text}`;
 }
