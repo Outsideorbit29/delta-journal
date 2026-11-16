@@ -18,6 +18,7 @@ const HIDDEN_EVERYWHERE = ["raw"];
 const HIDDEN: Record<string, string[]> = {
   // Sealed to the server's key: useless to the user, and nobody should carry it around.
   delta_credentials: ["sealed"],
+  broker_credentials: ["sealed"],
   // The device's push encryption keys.
   push_subscriptions: ["p256dh", "auth"],
   // A pending one-time link code.
@@ -107,7 +108,9 @@ export async function deleteAccountData(db: Db, userId: string): Promise<Record<
       candles += (await tx.delete(schema.tradeCandles).where(inArray(schema.tradeCandles.tradeId, chunk)).returning({ id: schema.tradeCandles.tradeId })).length;
     }
     deleted.trade_candles = candles;
-    const ordered = [schema.deltaCredentials, ...OWNED.filter((t) => t !== schema.deltaCredentials)];
+    // Access first, so a sync running right now cannot write anything more.
+    const access = [schema.deltaCredentials, schema.brokerCredentials] as const;
+    const ordered = [...access, ...OWNED.filter((t) => !(access as readonly unknown[]).includes(t))];
     for (const table of ordered) {
       deleted[getTableName(table)] = (await tx.delete(table).where(eq(table.userId, userId)).returning({ userId: table.userId })).length;
     }

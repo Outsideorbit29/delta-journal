@@ -349,6 +349,28 @@ export const deltaCredentials = sqliteTable("delta_credentials", {
   updatedAt: integer("updated_at").notNull(),
 });
 
+// Access to other brokers (Dhan today), one per user and broker, sealed exactly like Delta keys
+// (src/lib/keys/brokers.ts): the website can store it, only the sync server can open it.
+// Delta keeps its own table, delta_credentials, because every stored Delta key depends on it.
+export const brokerCredentials = sqliteTable(
+  "broker_credentials",
+  {
+    userId: text("user_id").notNull(),
+    broker: text("broker", { enum: BROKERS }).notNull(),
+    /** The last 4 characters of the broker's client id, so the user can tell which account is connected. */
+    keyHint: text("key_hint").notNull(),
+    sealed: text("sealed").notNull(),
+    status: text("status", { enum: ["pending", "ok", "error"] }).notNull(),
+    lastError: text("last_error"),
+    checkedAt: integer("checked_at"),
+    /** When the stored token stops working (Dhan's last 24 hours; the server renews it before then). */
+    expiresAt: integer("expires_at"),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.broker] })],
+);
+
 // Which Telegram chat belongs to which user. All users share one bot; a user
 // links their private chat by opening a one-time link from Settings
 // (src/lib/telegram/links.ts). Only the code's hash is stored.

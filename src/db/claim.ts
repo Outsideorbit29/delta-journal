@@ -22,6 +22,7 @@ export const OWNED = [
   schema.aiReviews,
   schema.pushSubscriptions,
   schema.deltaCredentials,
+  schema.brokerCredentials,
   schema.telegramLinks,
   schema.feedback,
 ] as const;
@@ -32,7 +33,7 @@ export type ClaimResult = Record<string, number>;
  * Tables keyed by the user, where the new account's own first-visit rows would collide with the moved ones.
  * Its trading accounts are empty (it has no synced fills) and would clash with the moved ones (one per broker).
  */
-const KEYED_BY_USER = [schema.accounts, schema.deltaCredentials, schema.telegramLinks, schema.appState, schema.syncState] as const;
+const KEYED_BY_USER = [schema.accounts, schema.deltaCredentials, schema.brokerCredentials, schema.telegramLinks, schema.appState, schema.syncState] as const;
 
 /**
  * Gives every row owned by `from` to the signed-up user `to`, in one
@@ -61,6 +62,12 @@ export async function claimRows(db: Db, from: string, to: string): Promise<Claim
       .where(eq(schema.deltaCredentials.userId, from))
       .returning({ userId: schema.deltaCredentials.userId });
     moved.delta_credentials_dropped = sealed.length;
+    // Broker tokens are sealed to their owner's id in the same way.
+    const tokens = await tx
+      .delete(schema.brokerCredentials)
+      .where(eq(schema.brokerCredentials.userId, from))
+      .returning({ userId: schema.brokerCredentials.userId });
+    moved.broker_credentials_dropped = tokens.length;
     for (const table of OWNED) {
       const rows = await tx.update(table).set({ userId: to }).where(eq(table.userId, from)).returning({ userId: table.userId });
       moved[getTableName(table)] = rows.length;

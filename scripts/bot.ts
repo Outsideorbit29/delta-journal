@@ -16,6 +16,7 @@ import { errorsToAlert, markAlerted, pruneAppErrors, renderErrorAlert } from "@/
 import { markFeedbackDelivered, renderFeedback, undeliveredFeedback } from "@/lib/feedback";
 import { recordHeartbeat } from "@/lib/health";
 import { sealPrivateKey } from "@/lib/keys/credentials";
+import { mergeSyncResults, syncDhanAccounts, type SyncOutcome } from "@/lib/keys/sync-brokers";
 import { hasStoredKey, syncStoredKeys, syncWithStoredKey, type UserSyncResult } from "@/lib/keys/sync-users";
 import { pushConfigured, sendPush } from "@/lib/push";
 import { ownerUserId } from "@/lib/runtime";
@@ -123,8 +124,11 @@ async function syncUser(db: Db, userId: string, owner: string) {
   throw new Error("No Delta key is connected. Connect one in Hardwon → Settings.");
 }
 
-/** The owner first, then everyone else who connected a key. One user's failure never stops the others. */
-async function syncEveryone(db: Db, owner: string): Promise<UserSyncResult[]> {
+/**
+ * The owner first, then everyone else who connected a Delta key, then every connected Dhan account; one result
+ * per user. One user's failure never stops the others.
+ */
+async function syncEveryone(db: Db, owner: string): Promise<SyncOutcome[]> {
   const results: UserSyncResult[] = [];
   try {
     results.push({ userId: owner, summary: await syncUser(db, owner, owner) });
@@ -133,7 +137,9 @@ async function syncEveryone(db: Db, owner: string): Promise<UserSyncResult[]> {
   }
   const privateKey = sealPrivateKey();
   if (privateKey) results.push(...(await syncStoredKeys(db, privateKey, { skip: [owner] })));
-  return results;
+  const dhan = privateKey ? await syncDhanAccounts(db, privateKey) : [];
+  for (const r of dhan) if (r.renewed) log(`Renewed the Dhan token for ${r.userId}.`);
+  return mergeSyncResults(results, dhan);
 }
 
 /**
@@ -144,16 +150,21 @@ async function syncLoop(db: Db, owner: string, context: (userId: string, chatId:
   // The last sync error each user was told about. Seeded from the stored keys,
   // so a restart does not repeat a problem users already know about.
   const told = new Map<string, string>();
+  const lastErrors = new Map<string, string[]>();
   for (const k of await db.select().from(schema.deltaCredentials).where(eq(schema.deltaCredentials.status, "error"))) {
-    if (k.lastError) told.set(k.userId, k.lastError);
+    if (k.lastError) lastErrors.set(k.userId, [k.lastError]);
   }
+  for (const k of await db.select().from(schema.brokerCredentials).where(eq(schema.brokerCredentials.status, "error"))) {
+    if (k.lastError) lastErrors.set(k.userId, [...(lastErrors.get(k.userId) ?? []), k.lastError]);
+  }
+  for (const [userId, errors] of lastErrors) told.set(userId, errors.join("\n"));
   // Users whose closes still need checking: everyone once after a start, then
   // only after a sync wrote something, or when the last check hit its cap.
   const unchecked = new Set<string>();
   const seen = new Set<string>();
 
   while (!stopping) {
-    let results: UserSyncResult[] = [];
+    let results: SyncOutcome[] = [];
     try {
       results = await syncEveryone(db, owner);
     } catch (err) {
@@ -175,7 +186,7 @@ async function syncLoop(db: Db, owner: string, context: (userId: string, chatId:
           seen.add(r.userId);
           unchecked.add(r.userId);
         }
-        if (r.summary?.rebuild) unchecked.add(r.userId);
+        if (r.rebuilt) unchecked.add(r.userId);
         if (unchecked.has(r.userId)) {
           const sent = await notifyClosedTrades(ctx);
           if (sent) log(`Announced ${sent} closed trade(s) to ${r.userId}.`);
