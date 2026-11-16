@@ -1,4 +1,4 @@
-import { index, integer, primaryKey, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 /**
  * Owner of rows created before accounts existed. `npm run claim-legacy` hands
@@ -8,6 +8,12 @@ export const LEGACY_USER = "legacy";
 
 /** Every per-user row carries its owner's id (the Clerk user id). */
 const ownerId = () => text("user_id").notNull().default(LEGACY_USER);
+
+/**
+ * The trading account a synced row came from (`accounts.id`). "" only for a row written by code from before
+ * accounts existed; rebuildTrades hands such rows to the user's Delta account.
+ */
+const accountId = () => text("account_id").notNull().default("");
 
 // ---------------------------------------------------------------------------
 // People who signed up. The id is the Clerk user id.
@@ -24,6 +30,30 @@ export const users = sqliteTable("users", {
 });
 
 // ---------------------------------------------------------------------------
+// A user's trading accounts: where their trades come from, and the currency
+// their money is in. Accounts are never summed together (USD and INR differ).
+// For now each user has at most one account per broker.
+// ---------------------------------------------------------------------------
+
+export const BROKERS = ["delta", "dhan", "groww"] as const;
+export type Broker = (typeof BROKERS)[number];
+export type Currency = "USD" | "INR";
+
+export const accounts = sqliteTable(
+  "accounts",
+  {
+    /** Random ("acc_…"), so it survives the user moving to another id (claim). */
+    id: text("id").primaryKey(),
+    userId: ownerId(),
+    broker: text("broker", { enum: BROKERS }).notNull(),
+    label: text("label").notNull(),
+    currency: text("currency", { enum: ["USD", "INR"] }).notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [uniqueIndex("accounts_user_broker").on(t.userId, t.broker)],
+);
+
+// ---------------------------------------------------------------------------
 // Raw data synced from Delta. Rows are upserted by Delta's own ids, so a sync
 // can safely be re-run. `raw` keeps the full API record for anything we have
 // not modelled yet.
@@ -35,6 +65,7 @@ export const fills = sqliteTable(
     id: text("id").primaryKey(),
     userId: ownerId(),
     orderId: text("order_id").notNull(),
+    accountId: accountId(),
     productId: integer("product_id").notNull(),
     symbol: text("symbol").notNull(),
     contractType: text("contract_type").notNull(),
@@ -64,6 +95,7 @@ export const orders = sqliteTable(
   {
     id: integer("id").primaryKey(),
     userId: ownerId(),
+    accountId: accountId(),
     productId: integer("product_id").notNull(),
     symbol: text("symbol").notNull(),
     side: text("side").notNull(),
@@ -91,6 +123,7 @@ export const walletTransactions = sqliteTable(
   {
     uuid: text("uuid").primaryKey(),
     userId: ownerId(),
+    accountId: accountId(),
     type: text("type").notNull(),
     amount: real("amount").notNull(),
     balance: real("balance"),
@@ -127,6 +160,7 @@ export const trades = sqliteTable(
   {
     id: text("id").primaryKey(),
     userId: ownerId(),
+    accountId: accountId(),
     productId: integer("product_id").notNull(),
     symbol: text("symbol").notNull(),
     contractType: text("contract_type").notNull(),

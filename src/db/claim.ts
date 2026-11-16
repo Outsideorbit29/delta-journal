@@ -8,6 +8,7 @@ import * as schema from "./schema";
  * account deletion all use this list, so a new per-user table goes here.
  */
 export const OWNED = [
+  schema.accounts,
   schema.fills,
   schema.orders,
   schema.walletTransactions,
@@ -27,8 +28,11 @@ export const OWNED = [
 
 export type ClaimResult = Record<string, number>;
 
-/** Tables keyed by the user, where the new account's own first-visit rows would collide with the moved ones. */
-const KEYED_BY_USER = [schema.deltaCredentials, schema.telegramLinks, schema.appState, schema.syncState] as const;
+/**
+ * Tables keyed by the user, where the new account's own first-visit rows would collide with the moved ones.
+ * Its trading accounts are empty (it has no synced fills) and would clash with the moved ones (one per broker).
+ */
+const KEYED_BY_USER = [schema.accounts, schema.deltaCredentials, schema.telegramLinks, schema.appState, schema.syncState] as const;
 
 /**
  * Gives every row owned by `from` to the signed-up user `to`, in one
