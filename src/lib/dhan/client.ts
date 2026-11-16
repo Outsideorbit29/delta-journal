@@ -29,20 +29,60 @@ export class DhanApiError extends Error {
   get isAuth() {
     return this.code === "DH-901" || this.status === 401;
   }
+
+  /** Too many requests: worth waiting and trying again. */
+  get isRateLimit() {
+    return this.code === "DH-904" || this.code === "805" || this.status === 429;
+  }
 }
 
 type Fetch = typeof fetch;
 
 const MAX_PAGES = 200;
 
+export interface DhanClientOptions {
+  baseUrl?: string;
+  /** Pause between requests. Dhan allows a few a second per user; a first backfill makes dozens (DH-904 otherwise). */
+  minGapMs?: number;
+  /** Waits before retrying a "too many requests" reply; one retry per entry. */
+  retryDelaysMs?: number[];
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export class DhanClient {
+  private readonly baseUrl: string;
+  private readonly minGapMs: number;
+  private readonly retryDelaysMs: number[];
+  private lastRequestAt = 0;
+
   constructor(
     private readonly credentials: DhanCredentials,
     private readonly fetchImpl: Fetch = fetch,
-    private readonly baseUrl = DHAN_BASE_URL,
-  ) {}
+    { baseUrl = DHAN_BASE_URL, minGapMs = 350, retryDelaysMs = [2_000, 5_000, 10_000] }: DhanClientOptions = {},
+  ) {
+    this.baseUrl = baseUrl;
+    this.minGapMs = minGapMs;
+    this.retryDelaysMs = retryDelaysMs;
+  }
 
+  /** One GET, spaced from the previous one, retried after a pause when Dhan says too many requests. */
   async get<T>(path: string): Promise<T> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.request<T>(path);
+      } catch (err) {
+        const wait = this.retryDelaysMs[attempt];
+        if (!(err instanceof DhanApiError && err.isRateLimit) || wait === undefined) throw err;
+        await sleep(wait);
+      }
+    }
+  }
+
+  private async request<T>(path: string): Promise<T> {
+    const gap = this.lastRequestAt + this.minGapMs - Date.now();
+    if (gap > 0) await sleep(gap);
+    this.lastRequestAt = Date.now();
     const res = await this.fetchImpl(this.baseUrl + path, {
       headers: {
         "access-token": this.credentials.accessToken,

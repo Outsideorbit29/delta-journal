@@ -2,6 +2,8 @@
 
 Newest first. Add a line with every change to the project (standing rule in CLAUDE.md).
 
+- **2026-11-16**: Dhan first sync failed with "too many requests" (DH-904): the first backfill fired ~30 history requests
+  at once. The Dhan client now spaces requests (350 ms) and retries a rate-limit reply after 2, 5 and 10 s.
 - **2026-11-16**: **Dhan** (Phase 2): connect a Dhan token in Settings (checked with Dhan, sealed, renewed daily by the
   server); trade history with charges syncs every 15 minutes and today's trades every minute; shares matched on the ISIN.
   Analysis runs per account (no stop tags or crypto sessions for Dhan; size tags compare like with like, which removed one

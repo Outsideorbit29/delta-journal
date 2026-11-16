@@ -43,12 +43,16 @@ const trade = (order: string, side: "BUY" | "SELL", time: string, price: number,
 });
 
 /** A fake Dhan: history (with charges), today's book (without), profile and renewal, per token. */
-function fakeDhan(state: { history: DhanTrade[]; today: DhanTrade[]; renewTo?: string; failAuth?: boolean; calls: string[] }) {
+function fakeDhan(state: { history: DhanTrade[]; today: DhanTrade[]; renewTo?: string; failAuth?: boolean; busy?: number; calls: string[] }) {
   return ({ clientId, accessToken }: { clientId: string; accessToken: string }) =>
     new DhanClient({ clientId, accessToken }, async (url) => {
       const p = String(url).replace("https://api.dhan.co/v2", "");
       state.calls.push(p);
       const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
+      if (state.busy) {
+        state.busy--;
+        return json({ errorType: "Rate_Limit", errorCode: "DH-904", errorMessage: "Too many requests on server from single user breaching rate limits. Try throttling API calls." }, 429);
+      }
       if (state.failAuth) return json({ errorType: "Invalid_Authentication", errorCode: "DH-901", errorMessage: "Client ID or user generated access token is invalid or expired." }, 401);
       if (p === "/profile") return json({ dhanClientId: clientId, tokenValidity: accessToken === state.renewTo ? "17/11/2026 11:30" : "16/11/2026 13:00" });
       if (p === "/RenewToken") return json(state.renewTo ? { accessToken: state.renewTo } : {});
@@ -56,7 +60,7 @@ function fakeDhan(state: { history: DhanTrade[]; today: DhanTrade[]; renewTo?: s
       const m = /^\/trades\/[\d-]+\/[\d-]+\/(\d+)$/.exec(p);
       if (m) return json(m[1] === "0" ? state.history : []);
       return json({ errorCode: "DH-905", errorMessage: `unexpected ${p}` }, 400);
-    });
+    }, { minGapMs: 0, retryDelaysMs: [0, 0] });
 }
 
 beforeAll(async () => {
@@ -98,10 +102,13 @@ describe("syncing Dhan accounts", () => {
     today: [] as DhanTrade[],
     renewTo: undefined as string | undefined,
     failAuth: false,
+    busy: 0,
     calls: [] as string[],
   };
 
   it("syncs history into the user's Dhan account, in rupees, with the charges netted", async () => {
+    // Dhan says "too many requests" twice: the client waits and tries again instead of failing the sync.
+    state.busy = 2;
     await saveDhanCredentials(db, U, { clientId: CLIENT, accessToken: TOKEN(1) }, keys.publicKey, { expiresAt: NOW + 20 * HOUR, now: NOW });
     const [r] = await syncDhanAccounts(db, keys.privateKey, { makeClient: fakeDhan(state), now: NOW });
     expect(r.error).toBeUndefined();
