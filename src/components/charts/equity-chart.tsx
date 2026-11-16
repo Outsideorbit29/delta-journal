@@ -67,7 +67,8 @@ export function EquityChart({ points, currency = "USD" }: { points: EquityPoint[
       onFocus={() => setHover((v) => v ?? last)}
       onBlur={() => setHover(null)}
     >
-      <svg width={width} height={HEIGHT} className="block overflow-visible">
+      {/* The lines trace themselves as the chart scrolls in (globals.css → Motion, A3). */}
+      <svg width={width} height={HEIGHT} className="chart-timeline block overflow-visible">
         {/* Equity */}
         {eqTicks.map((t) => (
           <g key={`e${t}`}>
@@ -77,10 +78,10 @@ export function EquityChart({ points, currency = "USD" }: { points: EquityPoint[
             </text>
           </g>
         ))}
-        <path d={area(yEq, (p) => p.equity)} fill="var(--viz-profit)" fillOpacity={0.1} />
-        <path d={line(yEq, (p) => p.equity)} fill="none" stroke="var(--viz-profit)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
-        <circle cx={x(last)} cy={yEq(end.equity)} r={4} fill="var(--viz-profit)" stroke="var(--viz-surface)" strokeWidth={2} />
-        <text x={x(last) + 10} y={yEq(end.equity)} dy="0.32em" className="fill-[var(--viz-ink)] text-xs font-medium">
+        <path className="draw-after" d={area(yEq, (p) => p.equity)} fill="var(--viz-profit)" fillOpacity={0.1} />
+        <path className="draw-line" pathLength={1} d={line(yEq, (p) => p.equity)} fill="none" stroke="var(--viz-profit)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        <circle className="draw-after" cx={x(last)} cy={yEq(end.equity)} r={4} fill="var(--viz-profit)" stroke="var(--viz-surface)" strokeWidth={2} />
+        <text x={x(last) + 10} y={yEq(end.equity)} dy="0.32em" className="draw-after fill-[var(--viz-ink)] text-xs font-medium">
           {formatMoney(end.equity, { sign: true, currency })}
         </text>
 
@@ -96,8 +97,8 @@ export function EquityChart({ points, currency = "USD" }: { points: EquityPoint[
             </text>
           </g>
         ))}
-        <path d={area(yDd, (p) => p.drawdown)} fill="var(--viz-loss)" fillOpacity={0.1} />
-        <path d={line(yDd, (p) => p.drawdown)} fill="none" stroke="var(--viz-loss)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        <path className="draw-after" d={area(yDd, (p) => p.drawdown)} fill="var(--viz-loss)" fillOpacity={0.1} />
+        <path className="draw-line" pathLength={1} d={line(yDd, (p) => p.drawdown)} fill="none" stroke="var(--viz-loss)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
 
         {/* Trade-number axis */}
         {xTicks.map((t) => (

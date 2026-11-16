@@ -173,3 +173,43 @@
 
 /* A sticky pinned visual releases on small screens. */
 @media (max-width: 60rem) { .pin { position: static !important; } }
+
+/* ---------------------------------------------------------------------------
+   Motion (design.md → Motion): a few quiet moves, each once or tied to scroll.
+   Scroll-linked ones use the browser's own scroll timelines (no script); browsers
+   without them, and anyone asking for reduced motion, see the finished state.
+   --------------------------------------------------------------------------- */
+@keyframes rule-draw { from { background-size: 0% var(--rule-heavy); } to { background-size: 100% var(--rule-heavy); } }
+@keyframes line-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes reveal-right { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes tape { to { transform: translateX(-50%); } }
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    @layer components {
+      /* A2: the heavy rule that opens a section draws from the left as the section arrives. */
+      .opens {
+        border-top-color: transparent;
+        background-image: linear-gradient(var(--color-ink), var(--color-ink));
+        background-repeat: no-repeat;
+        background-origin: border-box;
+        background-position: top left;
+        background-size: 100% var(--rule-heavy);
+        animation: rule-draw linear both;
+        animation-timeline: view();
+        animation-range: entry 0% entry 80%;
+      }
+    }
+    /* A3: a chart line traces itself as its chart scrolls in (the chart names its timeline --chart). */
+    .chart-timeline { view-timeline-name: --chart; }
+    .draw-line { stroke-dasharray: 1; animation: line-draw linear both; animation-timeline: --chart; animation-range: entry 10% cover 50%; }
+    .draw-after { animation: fade-in linear both; animation-timeline: --chart; animation-range: cover 40% cover 55%; }
+    .reveal-right { animation: reveal-right linear both; animation-timeline: view(); animation-range: entry 10% cover 50%; }
+  }
+}
+
+/* B5: the ticker tape runs on its own, pauses under the pointer, and holds still for reduced motion. */
+.tape-run { animation: tape 60s linear infinite; }
+.tape:hover .tape-run, .tape:focus-within .tape-run { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) { .tape-run { animation: none; } .tape { overflow-x: auto; } }
