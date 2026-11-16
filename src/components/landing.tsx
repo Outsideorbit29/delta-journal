@@ -1,11 +1,14 @@
 import Link from "next/link";
+import { LeakStory } from "@/components/landing/leak-story";
 import { Pinned } from "@/components/landing/pinned";
 import { Steps } from "@/components/landing/steps";
+import { TickerTape } from "@/components/landing/ticker-tape";
 import { TradeFeed, type FeedTrade } from "@/components/landing/trade-feed";
+import { CountUp } from "@/components/motion/count-up";
 import { buttonPrimaryLarge, buttonSecondaryLarge } from "@/components/ui";
 import { DEMO_USER } from "@/lib/demo";
 import { formatDuration, formatMoney, formatPercent, pnlClass } from "@/lib/format";
-import { biggestLeaks, TAG_HINTS, whatWorks } from "@/lib/insights";
+import { biggestLeaks, LEAK_FIXES, TAG_HINTS, whatWorks } from "@/lib/insights";
 import { LEGAL } from "@/lib/legal";
 import { journaledTradeIds, listTrades } from "@/lib/queries";
 import { behaviourScore, weakest } from "@/lib/score";
@@ -26,8 +29,9 @@ export async function Landing() {
   const works = whatWorks(trades, 1);
   const score = behaviourScore(trades, journaled);
   const sessions = tagPerformance(trades).filter((r) => SESSIONS.includes(r.tag));
-  const recent = [...closed].sort((a, b) => (a.closedTs ?? 0) - (b.closedTs ?? 0)).slice(-7);
-  const feed: FeedTrade[] = recent.map((t) => {
+  const byClose = [...closed].sort((a, b) => (a.closedTs ?? 0) - (b.closedTs ?? 0));
+  const recent = byClose.slice(-7);
+  const toFeed = (t: (typeof closed)[number]): FeedTrade => {
     const tag = topTags(t.tags, 1).shown[0]?.tag ?? null;
     return {
       id: t.id,
@@ -39,7 +43,20 @@ export async function Landing() {
       tag: tag && tagLabel(tag),
       warning: !!tag && isWarningTag(tag),
     };
-  });
+  };
+  const feed = recent.map(toFeed);
+  // B5: a longer run of the latest trades for the ticker tape, newest first.
+  const tape = byClose.slice(-16).reverse().map(toFeed);
+  // A4: the leaks as a pinned story, each with its fix and its size against the biggest.
+  const worstLeak = Math.abs(leaks[0]?.netPnl ?? 0) || 1;
+  const story = leaks.map((r) => ({
+    label: tagLabel(r.tag),
+    amount: formatMoney(r.netPnl, { sign: true }),
+    detail: `${r.trades} trades, ${formatPercent(r.winRate)} won`,
+    fix: LEAK_FIXES[r.tag] ?? null,
+    share: Math.abs(r.netPnl) / worstLeak,
+  }));
+  const leakTotal = formatMoney(leaks.reduce((sum, r) => sum + r.netPnl, 0), { sign: false }).replace("-", "");
   const topLeak = leaks[0];
   const heroAlt = `The demo dashboard: net P&L ${formatMoney(stats.netPnl, { sign: true })}, and its biggest leaks led by ${
     topLeak ? `${tagLabel(topLeak.tag).toLowerCase()} at ${formatMoney(topLeak.netPnl, { sign: true })}` : "moved stops"
@@ -85,27 +102,36 @@ export async function Landing() {
           )}
         </section>
 
+        {/* B5: the demo's latest trades, running past like a market tape. */}
+        <TickerTape trades={tape} />
+
         {/* Bento: what the dashboard works out, in the demo's own figures. */}
         <section id="features" className="scroll-mt-24 border-t-4 border-ink py-(--section-gap)">
           <div className="container">
             <h2 className="max-w-[16ch]">Every number, worked out for you</h2>
             <div className="mt-16 grid grid-cols-1 gap-(--gap-columns) md:grid-cols-12">
               <Tile className="md:col-span-8" title="Equity curve" note="Every closed trade after fees and funding: what really reached your wallet.">
-                <p className={`figure-display mt-4 text-5xl ${pnlClass(stats.netPnl)}`}>{formatMoney(stats.netPnl, { sign: true })}</p>
+                <p className={`figure-display mt-4 text-5xl ${pnlClass(stats.netPnl)}`}>
+                  <CountUp value={stats.netPnl} sign />
+                </p>
                 <p className="face-label mt-2 text-sm text-muted">
                   {stats.trades} trades, {formatMoney(stats.fees)} of it in fees
                 </p>
-                <Sparkline values={curve} className="mt-6 h-44" />
+                <Sparkline values={curve} className="reveal-right mt-6 h-44" />
               </Tile>
               {score && (
                 <Tile className="md:col-span-4" title="Behaviour score" note={`How often trades avoid each costly habit, over ${score.trades} trades.`}>
-                  <p className="figure-display mt-4 text-[5.5rem] text-ink">{score.overall}</p>
+                  <p className="figure-display mt-4 text-[5.5rem] text-ink">
+                    <CountUp value={score.overall} kind="int" />
+                  </p>
                   <p className="face-label mt-2 text-base text-ink">{score.label}</p>
                   <p className="face-label mt-1 text-sm text-muted">Weakest: {weakest(score).label.toLowerCase()}</p>
                 </Tile>
               )}
               <Tile className="md:col-span-4" title="Rebuilt to the cent">
-                <p className="figure-display mt-4 text-[5.5rem] text-ink">{stats.trades}</p>
+                <p className="figure-display mt-4 text-[5.5rem] text-ink">
+                  <CountUp value={stats.trades} kind="int" />
+                </p>
                 <p className="face-label mt-2 text-base text-ink-2">trades, each checked against Delta</p>
               </Tile>
               <Tile className="md:col-span-8" title="P&L by session">
@@ -135,6 +161,15 @@ export async function Landing() {
             </div>
           </div>
         </section>
+
+        {/* A4: the leaks, one at a time, as the reader scrolls. */}
+        {story.length > 0 && (
+          <section className="border-t-4 border-ink py-(--section-gap) lg:py-0">
+            <div className="container">
+              <LeakStory leaks={story} total={leakTotal} />
+            </div>
+          </section>
+        )}
 
         {/* The product at work: four screens, pinned beside their story. */}
         <section className="py-(--section-gap-l)">
