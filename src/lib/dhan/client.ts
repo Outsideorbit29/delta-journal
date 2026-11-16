@@ -5,6 +5,10 @@ import type { DhanProfile, DhanTrade } from "./types";
 
 export const DHAN_BASE_URL = "https://api.dhan.co/v2";
 
+/** What the user sees when only a new token will help. */
+export const DHAN_EXPIRED = "Your Dhan access token has expired. Generate a new one on web.dhan.co and paste it in Hardwon → Settings.";
+export const DHAN_UNREADABLE = "The stored Dhan token could not be unlocked. Connect Dhan again in Settings.";
+
 export interface DhanCredentials {
   clientId: string;
   accessToken: string;

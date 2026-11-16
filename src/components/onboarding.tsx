@@ -14,6 +14,12 @@ export function Onboarding({ status }: { status: DeltaKeyStatus | null }) {
             minutes.
           </p>
           <p className="face-label mt-6 text-base text-ink-2">
+            Trade stocks or F&amp;O on Dhan?{" "}
+            <Link href="/settings" className="link">
+              Connect Dhan in Settings
+            </Link>
+          </p>
+          <p className="face-label mt-2 text-base text-ink-2">
             Want to look around first?{" "}
             <Link href="/demo" className="link">
               Open the demo account

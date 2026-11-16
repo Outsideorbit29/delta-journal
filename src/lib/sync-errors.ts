@@ -1,7 +1,16 @@
+import { DHAN_EXPIRED, DHAN_UNREADABLE } from "@/lib/dhan/client";
 import { KEY_UNREADABLE } from "@/lib/keys/sync-users";
 
-/** A sync failure in plain language, with what the user can do about it. */
+/** A sync failure in plain language, with what the user can do about it. Several brokers' problems come one per line. */
 export function explainSyncError(raw: string): string {
+  const lines = raw.split("\n").filter(Boolean);
+  if (lines.length > 1) return lines.map(explainSyncError).join(" ");
+  if (raw === DHAN_EXPIRED || raw === DHAN_UNREADABLE) return raw;
+  if (raw.startsWith("Dhan")) {
+    if (/DH-901|invalid or expired/i.test(raw)) return DHAN_EXPIRED;
+    if (/fetch failed|ECONNRESET|ETIMEDOUT|ENOTFOUND|timeout|HTTP 5\d\d|DH-904|DH-90[89]/i.test(raw)) return "Couldn't reach Dhan just now. Hardwon retries every minute.";
+    return `Syncing with Dhan failed: ${raw.replace(/^Dhan:\s*/, "")}`;
+  }
   if (raw.includes("ip_not_whitelisted")) {
     return "Delta refused our server because your key's IP whitelist doesn't include it. Add both addresses shown in Settings to the key.";
   }

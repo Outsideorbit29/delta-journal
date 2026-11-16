@@ -17,6 +17,7 @@ export const LIMITS = {
   /** Telegram voice notes transcribed by AI. */
   "ai.transcribe": { limit: 30, windowMs: HOUR },
   "delta.connect": { limit: 10, windowMs: HOUR },
+  "dhan.connect": { limit: 10, windowMs: HOUR },
   "telegram.link": { limit: 10, windowMs: HOUR },
   "push.test": { limit: 10, windowMs: HOUR },
   "account.export": { limit: 10, windowMs: HOUR },

@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { schema, type Db } from "@/db";
 import { accountExists, deleteAccountData } from "@/lib/account";
-import { DhanApiError, DhanClient, tokenExpiry, type DhanCredentials } from "@/lib/dhan/client";
+import { DHAN_EXPIRED, DHAN_UNREADABLE, DhanApiError, DhanClient, tokenExpiry, type DhanCredentials } from "@/lib/dhan/client";
 import { syncDhan, type DhanSyncSummary } from "@/lib/dhan/sync";
 import { markBrokerChecked, openDhanCredentials, replaceDhanToken } from "./brokers";
 import { sealPublicKey } from "./credentials";
@@ -13,8 +13,7 @@ import { ACCOUNT_DELETED } from "./sync-users";
 /** Renew once fewer than this many hours remain. */
 const RENEW_WITHIN_MS = 4 * 3_600_000;
 
-export const DHAN_UNREADABLE = "The stored Dhan token could not be unlocked. Connect Dhan again in Settings.";
-export const DHAN_EXPIRED = "Your Dhan access token has expired. Generate a new one on web.dhan.co and paste it in Hardwon → Settings.";
+export { DHAN_EXPIRED, DHAN_UNREADABLE };
 
 export type DhanClientFactory = (credentials: DhanCredentials) => DhanClient;
 const dhanClient: DhanClientFactory = (credentials) => new DhanClient(credentials);

@@ -25,3 +25,14 @@ describe("formatAgo", () => {
     expect(formatAgo(now - 3 * 86_400_000, now, () => "29 Oct")).toBe("29 Oct");
   });
 });
+
+describe("Dhan problems", () => {
+  it("are explained, also when Delta fails in the same round", async () => {
+    const { DHAN_EXPIRED } = await import("@/lib/dhan/client");
+    expect(explainSyncError("Dhan: Client ID or user generated access token is invalid or expired. (DH-901)")).toBe(DHAN_EXPIRED);
+    expect(explainSyncError("Dhan: HTTP 502")).toMatch(/Couldn't reach Dhan/);
+    expect(explainSyncError(`ip_not_whitelisted_for_api_key\n${DHAN_EXPIRED}`)).toBe(
+      `Delta refused our server because your key's IP whitelist doesn't include it. Add both addresses shown in Settings to the key. ${DHAN_EXPIRED}`,
+    );
+  });
+});

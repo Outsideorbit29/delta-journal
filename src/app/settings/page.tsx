@@ -2,6 +2,7 @@ import { connection } from "next/server";
 import { AccountData } from "@/components/account-data";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { DeltaConnect } from "@/components/delta-connect";
+import { DhanConnect } from "@/components/dhan-connect";
 import { FeedbackForm } from "@/components/feedback-form";
 import { PushSettings } from "@/components/push-settings";
 import { TelegramConnect } from "@/components/telegram-connect";
@@ -11,6 +12,7 @@ import { DELETE_CONFIRMATION } from "@/lib/account";
 import { aiConfigured } from "@/lib/ai/models";
 import { FEEDBACK_MAX } from "@/lib/feedback";
 import { formatDateTime } from "@/lib/format";
+import { getBrokerStatus } from "@/lib/keys/brokers";
 import { getDeltaKeyStatus } from "@/lib/keys/credentials";
 import { vapidPublicKey } from "@/lib/push";
 import { getSyncStatus } from "@/lib/queries";
@@ -22,7 +24,12 @@ export default async function SettingsPage() {
   await connection();
   const userId = await requireUserId();
   const db = await getDb();
-  const [sync, key, telegram] = await Promise.all([getSyncStatus(userId), getDeltaKeyStatus(db, userId), getTelegramLink(db, userId)]);
+  const [sync, key, dhan, telegram] = await Promise.all([
+    getSyncStatus(userId),
+    getDeltaKeyStatus(db, userId),
+    getBrokerStatus(db, userId, "dhan"),
+    getTelegramLink(db, userId),
+  ]);
   const lastRun = Math.max(0, ...sync.map((s) => s.lastRunAt ?? 0));
   const error = sync.find((s) => s.lastError)?.lastError;
 
@@ -33,6 +40,10 @@ export default async function SettingsPage() {
       <div className="mt-8 border-t-4 border-ink">
         <Group title="Delta Exchange" intro="A read-only key lets Hardwon sync your trades every minute.">
           <DeltaConnect status={key} syncedBefore={lastRun > 0} />
+        </Group>
+
+        <Group title="Dhan" intro="Stocks and F&O in rupees, kept apart from Delta. Your trade history and charges sync every few minutes.">
+          <DhanConnect status={dhan} />
         </Group>
 
         <Group title="Telegram" intro="Journal each closed trade from your phone in a few taps.">
@@ -59,7 +70,7 @@ export default async function SettingsPage() {
         <Group title="Status">
           <dl className="face-label divide-y divide-rule border-y border-rule-2 text-base">
             <div className="grid gap-x-6 py-3 sm:grid-cols-[12rem_minmax(0,1fr)]">
-              <dt className="text-muted">Last sync with Delta</dt>
+              <dt className="text-muted">Last sync</dt>
               <dd className="text-ink">
                 {lastRun ? `${formatDateTime(lastRun)} IST` : "never"}
                 {error && <span className="mt-1 block text-warn">{explainSyncError(error)}</span>}
