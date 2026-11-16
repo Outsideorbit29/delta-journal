@@ -192,6 +192,10 @@ path**. Each page calls `requireUserId()`, and each action and API route calls `
 and refuses without a user ("Sign in first." / 401). With Partial Prerendering a signed-out page
 answers 200 with the static shell and then a streamed redirect to `/sign-in`: no user data is
 ever sent (verified with curl). If Clerk's keys are missing, `clerkMiddleware` throws, so auth fails closed.
+The proxy runs on every path except `_next/` and the real files in `public/` (`sw.js`, `screens/`): a path that only
+looks like a file (bots POSTing `/favicon.ico`) renders the 404 inside the root layout, whose Clerk `<Show>` needs the
+proxy, so skipping it by extension turned each probe into a logged server error. **A new file in `public/` must be
+added to the matcher's skip list** (it still works if not, just through the proxy).
 The local Sync button only syncs when the signed-in user is `OWNER_USER_ID`, because the PC's
 Delta key is the owner's. Manifest, icons and `sw.js` need no session, so phones can install.
 **Sign-ups are Waitlist** (Clerk dashboard → Configure → Access mode; set 2026-11-01): visitors join at `/waitlist`

@@ -2,6 +2,9 @@
 
 Newest first. Add a line with every change to the project (standing rule in CLAUDE.md).
 
+- **2026-11-16**: The proxy now runs for missing file-like paths too. Bots POSTing `/favicon.ico` had made 237 Clerk
+  "auth() was called but Clerk can't detect usage of clerkMiddleware()" server errors (and an owner alert every few
+  hours) since 2026-11-07; they now get a plain 404.
 - **2026-11-08**: The dashboard opens with a Today strip (today, last 7 days, trades to journal with a Journal button), and
   the behaviour score's weakest habit now carries a next step ("Journal now" or "See these trades").
 - **2026-11-08**: Evening journaling reminder (21:00 IST, Telegram + push, `/reminders` or a button turns it off) and
