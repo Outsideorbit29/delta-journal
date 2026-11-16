@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Source_Serif_4 } from "next/font/google";
 import Link from "next/link";
 import { Suspense } from "react";
+import { Analytics } from "@/components/analytics";
 import { HideOnLogin } from "@/components/hide-on-login";
 import { SiteMenu } from "@/components/site-menu";
 import { Logo } from "@/components/logo";
@@ -131,6 +132,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             </Suspense>
           </HideOnLogin>
         </ClerkProvider>
+        {/* Page views only, cookieless, with ids and query strings removed (components/analytics.tsx). */}
+        <Analytics />
       </body>
     </html>
   );

@@ -2,6 +2,8 @@
 
 Newest first. Add a line with every change to the project (standing rule in CLAUDE.md).
 
+- **2026-11-16**: Vercel Web Analytics (`@vercel/analytics`, cookieless page views; trade ids and query strings removed in
+  `beforeSend`). Needs Analytics switched on in the Vercel project. /privacy names it.
 - **2026-11-16**: Content Security Policy, report-only, with reports filed as website errors (`/api/csp-report`). A local
   test found Clerk's bot-protection hosts, which a first draft would have blocked.
 - **2026-11-16**: Indian-market insights (Phase 4): NSE session, intraday/delivery, expiry-day and "won before charges"

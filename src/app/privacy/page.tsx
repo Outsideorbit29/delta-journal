@@ -88,7 +88,10 @@ export default function PrivacyPage() {
       <p>We use these providers, each only for the job listed:</p>
       <ul>
         <li>Clerk: accounts and sign-in.</li>
-        <li>Vercel: hosting the website (Mumbai region) and the AI Gateway.</li>
+        <li>
+          Vercel: hosting the website (Mumbai region), the AI Gateway, and Web Analytics, which counts page views without cookies; we
+          remove trade ids and anything after the &quot;?&quot; in the address before it is sent.
+        </li>
         <li>Turso: our database (Mumbai region).</li>
         <li>Amazon Web Services (Lightsail, Mumbai): our sync server, which talks to Delta Exchange and Dhan.</li>
         <li>Google and OpenAI: AI reviews, suggestions and voice transcription.</li>
