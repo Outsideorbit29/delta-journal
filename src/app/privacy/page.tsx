@@ -10,7 +10,7 @@ export default function PrivacyPage() {
   return (
     <LegalPage title="Privacy Policy">
       <p>
-        Hardwon is a trading journal. It reads your trades from Delta Exchange India and shows the habits behind your results. This policy
+        Hardwon is a trading journal. It reads your trades from Delta Exchange India or Dhan and shows the habits behind your results. This policy
         explains what personal data we hold, why, who helps us process it, and the rights you have under India&apos;s Digital Personal Data
         Protection Act, 2023 (the &quot;DPDP Act&quot;).
       </p>
@@ -33,8 +33,17 @@ export default function PrivacyPage() {
           key only.
         </li>
         <li>
+          <strong>Your Dhan client ID and access token</strong>, if you connect Dhan. We check the token with Dhan once when you save it,
+          then lock it the same way; our sync server renews it each day (Dhan replaces the token when it does) and uses it only to read your
+          trades and your profile&apos;s token expiry. It never places orders.
+        </li>
+        <li>
           <strong>Your trading records from Delta:</strong> fills, orders and wallet transactions (including deposits and withdrawals), which
           we rebuild into trades with fees, funding and profit and loss.
+        </li>
+        <li>
+          <strong>Your trading records from Dhan:</strong> your executed trades with their charges (brokerage, STT, GST, exchange and SEBI
+          fees, stamp duty), which we rebuild into trades with profit and loss.
         </li>
         <li>
           <strong>What you write:</strong> journal answers, notes and ratings. Voice notes you send on Telegram are turned into text; we keep
@@ -64,7 +73,7 @@ export default function PrivacyPage() {
       </ul>
       <p>
         We process your data on the basis of your <strong>consent</strong>, which you give by creating an account and by connecting each
-        service. You can withdraw it at any time: disconnect Delta or Telegram, turn notifications off, or delete your account in Settings.
+        service. You can withdraw it at any time: disconnect Delta, Dhan or Telegram, turn notifications off, or delete your account in Settings.
         We do not sell your data, show ads, or use it to trade.
       </p>
 
@@ -81,7 +90,7 @@ export default function PrivacyPage() {
         <li>Clerk: accounts and sign-in.</li>
         <li>Vercel: hosting the website (Mumbai region) and the AI Gateway.</li>
         <li>Turso: our database (Mumbai region).</li>
-        <li>Amazon Web Services (Lightsail, Mumbai): our sync server, which talks to Delta Exchange.</li>
+        <li>Amazon Web Services (Lightsail, Mumbai): our sync server, which talks to Delta Exchange and Dhan.</li>
         <li>Google and OpenAI: AI reviews, suggestions and voice transcription.</li>
         <li>Telegram, and your browser&apos;s push service (Google, Apple or Mozilla), for messages you turned on.</li>
       </ul>
@@ -93,7 +102,7 @@ export default function PrivacyPage() {
       <h2>How long we keep it</h2>
       <p>
         We keep your data while your account exists. When you delete your account, we erase your data from our database straight away; copies
-        in our providers&apos; backups expire within 30 days. Disconnecting Delta deletes your stored API key at once.
+        in our providers&apos; backups expire within 30 days. Disconnecting Delta or Dhan deletes your stored key or token at once.
       </p>
 
       <h2>Your rights</h2>

@@ -7,5 +7,5 @@ export const LEGAL = {
   /** Privacy requests, grievances and support. */
   contactEmail: "anish.grd2004@gmail.com",
   /** When the current versions of the pages took effect. */
-  effective: "8 November 2026",
+  effective: "16 November 2026",
 };

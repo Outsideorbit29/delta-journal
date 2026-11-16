@@ -86,3 +86,16 @@ Week plan and progress:
   Turso, or `ensureUser` creates stray `users` rows there.
 - Still open from earlier days: the owner testing Telegram (`/today`) and Settings export on the phone, a lawyer's read of the legal pages, and a full CSP.
 
+
+## Indian brokers: Dhan and Groww (planned 2026-11-16)
+
+Users can connect several accounts, kept apart (USD and INR are never summed), and choose which one the dashboard shows.
+- **Phase 1, done 2026-11-16:** trading accounts under every row (`accounts`, `account_id`; migration 0014).
+- **Phase 2, done 2026-11-16:** Dhan by API (free; read calls need no static IP): history with charges, token pasted once
+  and renewed by the server; account chips; ₹ formatting.
+- **Phase 3:** Groww by file upload (its API costs ₹499/month, needs daily approval and lists only today's orders). The
+  P&L Excel lists matched lots with dates but no times and only period totals of charges, so a Groww trade is one lot
+  with its share of the charges, marked estimated. Contract notes (PAN-locked PDFs) are left out at first.
+- **Phase 4:** Indian-market tags (NSE sessions, expiry day, intraday vs delivery), segment filter, per-account AI
+  review, charts for Indian trades.
+- Before a public launch: apply to Dhan's partner programme (consent sign-in instead of pasting a personal token).

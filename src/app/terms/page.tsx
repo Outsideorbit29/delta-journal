@@ -2,7 +2,7 @@ import Link from "next/link";
 import { LegalPage } from "@/components/legal-page";
 import { LEGAL } from "@/lib/legal";
 
-export const metadata = { title: "Terms of Service, Hardwon", description: "The terms for using Hardwon, a read-only trading journal for Delta Exchange India." };
+export const metadata = { title: "Terms of Service, Hardwon", description: "The terms for using Hardwon, a read-only trading journal for Delta Exchange India and Dhan." };
 
 export default function TermsPage() {
   return (
@@ -14,9 +14,9 @@ export default function TermsPage() {
 
       <h2>What Hardwon is</h2>
       <p>
-        Hardwon is a trading journal. It reads your trading records from Delta Exchange India with a read-only API key, rebuilds your trades,
-        and helps you study your habits. It never places, changes or cancels orders. Hardwon is independent and is not affiliated with or
-        endorsed by Delta Exchange.
+        Hardwon is a trading journal. It reads your trading records from Delta Exchange India (with a read-only API key) or Dhan (with an
+        access token it uses only to read), rebuilds your trades, and helps you study your habits. It never places, changes or cancels
+        orders. Hardwon is independent and is not affiliated with or endorsed by Delta Exchange or Dhan.
       </p>
 
       <h2>Not investment advice</h2>
@@ -30,14 +30,16 @@ export default function TermsPage() {
       <ul>
         <li>You must be 18 or older and use the service lawfully.</li>
         <li>Connect a Delta key with the Read Data permission only. Never give Hardwon a key that can trade or withdraw.</li>
+        <li>A Dhan access token can place orders on Dhan&apos;s side; Hardwon only ever uses it to read. Disconnect Dhan in Settings at any time.</li>
         <li>Keep your sign-in secure, and tell us at once if you think someone else has used your account.</li>
         <li>Do not try to reach other users&apos; data, overload the service, or get around its limits.</li>
       </ul>
 
       <h2>Accuracy</h2>
       <p>
-        We compute your trades, fees and profit and loss from the records Delta returns, and check them against Delta&apos;s own figures, but
-        mistakes are possible. Delta&apos;s statements are the official record; check anything important against them.
+        We compute your trades, fees and profit and loss from the records your broker returns, and check Delta trades against Delta&apos;s own
+        figures, but mistakes are possible. Your broker&apos;s statements and contract notes are the official record; check anything important
+        against them.
       </p>
 
       <h2>The beta and pricing</h2>

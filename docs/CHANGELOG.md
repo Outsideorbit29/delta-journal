@@ -2,6 +2,12 @@
 
 Newest first. Add a line with every change to the project (standing rule in CLAUDE.md).
 
+- **2026-11-16**: **Dhan** (Phase 2): connect a Dhan token in Settings (checked with Dhan, sealed, renewed daily by the
+  server); trade history with charges syncs every 15 minutes and today's trades every minute; shares matched on the ISIN.
+  Analysis runs per account (no stop tags or crypto sessions for Dhan; size tags compare like with like, which removed one
+  Delta tag that compared a perpetual with an option). Dashboard and trades page show one account at a time with account
+  chips; money in `$` or `₹`; symbol chips capped at the 8 most traded. Telegram and CSV name the currency. AI review is
+  Delta-only for now. `broker_credentials` (migration 0015). /privacy and /terms updated (effective 16 November 2026).
 - **2026-11-16**: Trading accounts (Phase 1a of Groww and Dhan): table `accounts` and `account_id` on fills, orders, wallet
   and trades (migration 0014, which gives each user with data one Delta account). Positions are matched per account.
   Rebuilt trades, legs and tags were checked identical to before for every user, including after an old-code rebuild

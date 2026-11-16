@@ -133,6 +133,32 @@ are not journaled, with the page's one filled button, **Journal N trades** → `
 - Not yet possible: refusing keys that have Trading permission (no known Delta endpoint reports a key's permissions),
   so the page tells users to choose Read Data only.
 
+## Dhan (`lib/dhan/`, `lib/keys/brokers.ts`, `lib/keys/sync-brokers.ts`, since 2026-11-16)
+- Settings → Dhan: the user pastes their client ID and a token generated on web.dhan.co. `connectDhan` checks it with
+  Dhan's `/profile` straight from the website (reading needs no whitelisted IP), checks the client ID matches, reads the
+  expiry (`tokenValidity`, IST) and stores both sealed in `broker_credentials`. A Dhan account (INR) is created.
+- The bot syncs every connected Dhan account each round (`syncDhanAccounts`, results merged with Delta's per user):
+  - the **trade history** `/trades/{from}/{to}/{page}` (with charges) every 15 minutes, re-reading 7 days, first time
+    from 2020 in 90-day windows; `sync_state` resource `dhan.history` (lastTs = how far it has read).
+  - **today's trade book** `/trades` every round, **insert-only**: it has no charges, and must never overwrite the
+    history's copy (which would rewrite and rebuild every minute).
+  - The token is **renewed** (`/RenewToken`) once under 4 hours remain; the new token is sealed and stored before
+    anything else (Dhan expires the old one). Expired or rejected (DH-901): status `error` with `DHAN_EXPIRED`, told to
+    the user once; an expired token is not sent to Dhan again.
+- Mapping (`toDhanFillRow`): quantities are units (contract value 1), the commission is the sum of Dhan's charges
+  (brokerage, STT, exchange, SEBI, stamp duty, GST), times are IST. **Shares are matched on the ISIN** (base-36 of its
+  national code), because NSE and BSE give one share two security ids; derivatives keep the security id.
+- Analysis per account (`analyzeTrades` with account info): no orders from Dhan, so no `no_stop`, no exit reason and
+  the trade page says the stop is "not shared by your broker"; no crypto sessions or weekend tag; size tags compare
+  like with like (options with options). The AI weekly review covers the Delta account only for now.
+- Checked on the owner's account: 80 Dhan trades → 41 round trips, no warnings, all 10 open positions equal Dhan's holdings.
+
+## Accounts in the website
+- The dashboard and trades page show **one account at a time** (`?account=`, default the oldest); account chips appear in
+  the filter bar once a user has two. `formatMoney(n, { currency })` writes `$` or `₹` with Indian grouping; each trade
+  from `listTrades`/`getTrade` carries its account's `currency`. Telegram cards, phone notifications and `/today` (one
+  line per currency) use each trade's currency. Rupee trades hide Delta's price chart, leverage, margin and funding.
+
 ## Your data, legal pages and limits (Day 6)
 - **Legal:** `/privacy` and `/terms` (public), written for India's DPDP Act 2023: data fiduciary, what is collected and
   why, consent and withdrawal, processors (Clerk, Vercel, Turso, AWS, Google/OpenAI via AI Gateway, Telegram, push

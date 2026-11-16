@@ -14,7 +14,8 @@ A trading journal and habit-insight app for one trader's own **Delta Exchange In
 account. It syncs fills, orders and the wallet ledger from Delta's API, rebuilds them into
 round-trip trades, tags each trade with behaviour patterns, lets the trader journal each
 trade (web or Telegram), and uses AI for weekly coaching reviews, note tagging and voice
-notes. It is installable on a phone as a PWA.
+notes. It is installable on a phone as a PWA. Since 2026-11-16 it also syncs **Dhan** (Indian stocks and F&O, in
+rupees) as a separate trading account; Groww (file upload) is next (plan: docs/roadmap.md).
 
 It is becoming **Hardwon** (hardwon.in; planned as Edgebook until 2026-11-07), a multi-user product for Indian traders (see docs/roadmap.md).
 Accounts are Clerk users, and every row of data belongs to one user (`user_id`). The owner's
@@ -126,7 +127,9 @@ Feedback: `feedback` (per user: message, source `web` | `telegram`, `delivered_a
 Accounts: `users` (Clerk user id, email from Clerk on first visit or backfilled once, `""` if none; `plan` default
 `founder`, `access_until`). Limits: `rate_limits` (subject = user id or `chat:<id>`, action, window start, count).
 Keys: `delta_credentials` (one per user: `key_hint` = last 4 characters, `sealed` key and secret, `status`
-`pending` | `ok` | `error`, `last_error`, `checked_at`).
+`pending` | `ok` | `error`, `last_error`, `checked_at`). Other brokers: `broker_credentials` (per user and broker: Dhan
+client id + token sealed with context `edgebook:dhan:<userId>`, `expires_at`, same statuses; migration 0015).
+Dhan fills have ids `dhan:<orderId>:<exchangeTradeId>`; shares are matched on the ISIN (NSE and BSE ids differ).
 Telegram: `telegram_links` (one per user: unique `chat_id`, `chat_name`, `linked_at`, and a pending one-time
 `code_hash` (SHA-256) with `code_expires_at`).
 
