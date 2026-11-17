@@ -47,6 +47,17 @@ Telegram buttons; keys are stored, labels can change. Answers become tags `setup
 `saveJournalEntry()` in `save.ts` is the single save path (web action + bot). `/journal` is a
 queue of un-journaled closed trades, newest first, with Save & next.
 
+**On phones** (below `md`, since 2026-11-17, `components/journal-steps.tsx`) `/journal` shows the next trade as a card
+(its trade-page summary and tags) and **Journal it** opens one question per screen over the whole page: setup (picking
+one moves on by itself), feelings, mistakes, plan with execution and the optional planned stop/target, then the note.
+Suggested answers come from `journalHints()` (`hints.ts`): `SUGGESTED_BY_TAG` plus the tag's own detail as the reason;
+suspected mistakes sit in a "Hardwon spotted these" box, still never pre-selected. Answers are kept in the phone's
+`localStorage` (`hardwon.journal-draft:<tradeId>`) until saved, so the X closes without losing them. After Save, a
+"Saved, N to go" screen leads to the next trade (`/journal?start=1` opens its questions at once). The note step can
+record a **voice note** (`MediaRecorder`, up to a minute, 32 kbit/s): `transcribeAction` turns it into text through
+`AI_TRANSCRIBE_MODEL` (limit `ai.transcribe`, shared with Telegram; under 900 kB, server actions take 1 MB) and the audio
+is not kept. This needs `microphone=(self)` in the Permissions-Policy (`next.config.ts`). Wide screens keep the form.
+
 ## Telegram bot (`lib/telegram/`, `scripts/bot.ts`)
 - **One bot for every user.** Long polling (no public URL). `routeUpdate` looks up the user behind each chat
   (`telegram_links`) and runs that user's handlers (`BotContext` = user + their chat). An unlinked private chat only gets

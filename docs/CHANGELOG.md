@@ -2,6 +2,11 @@
 
 Newest first. Add a line with every change to the project (standing rule in CLAUDE.md).
 
+- **2026-11-17**: Phone journal (from the approved mockup): on phones `/journal` shows the next trade as a card and
+  asks one question per screen (setup, feelings, mistakes, plan, note) with big buttons, Back/Next within thumb reach,
+  suggestions with the reason from the trade's tags ("Hardwon spotted these"), answers kept on the phone until saved, and a
+  "Saved, N to go" screen that opens the next trade. Voice notes on the website: record up to a minute and it is written
+  into the note (the microphone is now allowed for our own pages). Wide screens keep the one-page form.
 - **2026-11-17**: Trade page redesign (from the approved mockup): a one-line summary of the trade, four key figures, a
   "What happened" timeline with the stop's moves, the money as a waterfall, each habit with its fix and its cost across the
   account (costliest first), the journal as a summary with Edit (the form when not journaled), Previous / Next, and the
