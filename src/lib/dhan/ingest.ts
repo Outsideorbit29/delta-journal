@@ -118,7 +118,9 @@ const PRODUCT_TYPES: Record<string, string> = { INTRADAY: "intraday", CNC: "deli
 export function dhanFillMeta(raw: unknown): { productType: string | null; expiryDate: string | null } {
   const t = (raw ?? {}) as Partial<DhanTrade>;
   const productType = PRODUCT_TYPES[String(t.productType ?? "").toUpperCase()] ?? null;
-  const expiry = /^(\d{4}-\d{2}-\d{2})/.exec(String(t.drvExpiryDate ?? ""))?.[1] ?? null;
-  // Dhan writes "0001-01-01" (or nothing) for instruments without an expiry.
+  // Only derivatives expire. For shares Dhan fills drvExpiryDate with the trade's own date (or "0001-01-01"), which
+  // tagged every share as traded on its expiry day. The trade book has no `instrument`, so the segment decides too.
+  const share = String(t.instrument ?? "").toUpperCase() === "EQUITY" || /_EQ$/i.test(String(t.exchangeSegment ?? ""));
+  const expiry = share ? null : (/^(\d{4}-\d{2}-\d{2})/.exec(String(t.drvExpiryDate ?? ""))?.[1] ?? null);
   return { productType, expiryDate: expiry && !expiry.startsWith("0001") ? expiry : null };
 }

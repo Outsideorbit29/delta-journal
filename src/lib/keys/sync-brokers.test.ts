@@ -219,6 +219,10 @@ describe("Dhan product types and expiries", () => {
     expect(dhanFillMeta({ productType: "INTRADAY", drvExpiryDate: "2026-11-20" })).toEqual({ productType: "intraday", expiryDate: "2026-11-20" });
     expect(dhanFillMeta({ productType: "CNC", drvExpiryDate: "0001-01-01" })).toEqual({ productType: "delivery", expiryDate: null });
     expect(dhanFillMeta({ productType: null })).toEqual({ productType: null, expiryDate: null });
+    // Shares never expire: Dhan writes the trade's own date there, from the history and the trade book alike.
+    expect(dhanFillMeta({ productType: "CNC", instrument: "EQUITY", drvExpiryDate: "2024-07-10" }).expiryDate).toBeNull();
+    expect(dhanFillMeta({ productType: "CNC", exchangeSegment: "NSE_EQ", drvExpiryDate: "2024-07-10" }).expiryDate).toBeNull();
+    expect(dhanFillMeta({ productType: "INTRADAY", instrument: "OPTIDX", exchangeSegment: "NSE_FNO", drvExpiryDate: "2026-11-17" }).expiryDate).toBe("2026-11-17");
     expect(segmentOf({ contractType: "options", productType: "intraday" })).toBe("options");
     expect(segmentOf({ contractType: "equity", productType: "delivery" })).toBe("delivery");
     expect(segmentOf({ contractType: "perpetual_futures", productType: null })).toBeNull();
