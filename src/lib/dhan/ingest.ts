@@ -47,24 +47,45 @@ export function dhanInstrumentId(t: Pick<DhanTrade, "securityId" | "isin" | "ins
   return Number(t.securityId);
 }
 
-/** Our id for a Dhan trade: the order plus the trade's number within it, prefixed so it never meets a Delta id. */
-export const dhanFillId = (t: Pick<DhanTrade, "orderId" | "exchangeTradeId">) => `dhan:${t.orderId}:${t.exchangeTradeId}`;
+/**
+ * Our id for a Dhan trade: the order plus the trade's place within it (0 for the first), prefixed so it never meets a
+ * Delta id. Not Dhan's `exchangeTradeId`: today's trade book gives the exchange's trade number ("5037393") while the
+ * history gives "0" for the same trade, so that id stored every trade twice (one lot showed as two).
+ */
+export const dhanFillId = (t: Pick<DhanTrade, "orderId">, n = 0) => `dhan:${t.orderId}:${n}`;
+
+/**
+ * Dhan trades as fills, each numbered by its place within its order: by time, then quantity, price and Dhan's own
+ * trade number, so the trade book and the history number an order's trades alike.
+ */
+export function toDhanFillRows(trades: DhanTrade[]): FillRow[] {
+  const byOrder = new Map<string, DhanTrade[]>();
+  for (const t of trades) byOrder.set(t.orderId, [...(byOrder.get(t.orderId) ?? []), t]);
+  const time = (t: DhanTrade) => istIso(t.exchangeTime && t.exchangeTime !== "NA" ? t.exchangeTime : (t.createTime ?? ""));
+  return [...byOrder.values()].flatMap((group) =>
+    group
+      .map((t) => ({ t, key: [Date.parse(time(t)), num(t.tradedQuantity), num(t.tradedPrice)] as const }))
+      .sort((a, b) => a.key[0] - b.key[0] || a.key[1] - b.key[1] || a.key[2] - b.key[2] || String(a.t.exchangeTradeId).localeCompare(String(b.t.exchangeTradeId)))
+      .map(({ t }, n) => toDhanFillRow(t, n)),
+  );
+}
 
 /**
  * A Dhan trade as a fill. Quantities are in shares or units (lots already multiplied out), so a contract is
  * worth one unit. The product type (intraday or delivery), segment and expiry stay in `raw` for now.
  */
-export function toDhanFillRow(t: DhanTrade): FillRow {
+export function toDhanFillRow(t: DhanTrade, n = 0): FillRow {
+  const id = dhanFillId(t, n);
   const time = t.exchangeTime && t.exchangeTime !== "NA" ? t.exchangeTime : t.createTime;
-  if (!time) throw new Error(`Dhan trade ${dhanFillId(t)} has no time`);
+  if (!time) throw new Error(`Dhan trade ${id} has no time`);
   const createdAt = istIso(time);
   const ts = Date.parse(createdAt);
-  if (!Number.isFinite(ts)) throw new Error(`Dhan trade ${dhanFillId(t)} has an unreadable time`);
+  if (!Number.isFinite(ts)) throw new Error(`Dhan trade ${id} has an unreadable time`);
   const productId = dhanInstrumentId(t);
-  if (!Number.isSafeInteger(productId)) throw new Error(`Dhan trade ${dhanFillId(t)} has an unexpected security id`);
+  if (!Number.isSafeInteger(productId)) throw new Error(`Dhan trade ${id} has an unexpected security id`);
   const instrument = (t.instrument ?? "").toUpperCase();
   return {
-    id: dhanFillId(t),
+    id,
     orderId: `dhan:${t.orderId}`,
     productId,
     symbol: (t.customSymbol || t.tradingSymbol || String(t.securityId)).trim(),

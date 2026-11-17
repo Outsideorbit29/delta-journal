@@ -1,11 +1,12 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, notInArray } from "drizzle-orm";
 import { schema, type Db } from "@/db";
 import { ensureAccount } from "@/lib/accounts";
 import { istDate } from "@/lib/stats";
 import { writeChanged, type RowOwner } from "@/lib/sync";
 import { rebuildTrades, type RebuildSummary } from "@/lib/trades/rebuild";
 import type { DhanClient } from "./client";
-import { toDhanFillRow } from "./ingest";
+import { hasCharges, toDhanFillRows } from "./ingest";
+import type { DhanTrade } from "./types";
 
 const DAY_MS = 86_400_000;
 /** The first sync reaches back this far (Dhan opened its API in 2022; earlier days just come back empty). */
@@ -45,26 +46,50 @@ export async function syncDhan(db: Db, userId: string, client: DhanClient, now =
         const to = Math.min(now, from + (WINDOW_DAYS - 1) * DAY_MS);
         trades.push(...(await client.tradeHistory(istDate(from), istDate(to))));
       }
-      const written = await writeChanged(db, owner, schema.fills, trades.map(toDhanFillRow), (r) => r.id);
-      return { written, lastTs: now };
+      const rows = toDhanFillRows(trades);
+      const written = await writeChanged(db, owner, schema.fills, rows, (r) => r.id);
+      return { written: written + (await dropBookCopies(db, userId, rows)), lastTs: now };
     });
   }
 
   const today = await run(db, userId, "dhan.today", now, async () => {
-    const rows = (await client.todaysTrades()).map(toDhanFillRow);
+    const rows = toDhanFillRows(await client.todaysTrades());
     const stored = rows.length
       ? await db
-          .select({ id: schema.fills.id })
+          .select({ id: schema.fills.id, orderId: schema.fills.orderId, raw: schema.fills.raw })
           .from(schema.fills)
-          .where(and(eq(schema.fills.userId, userId), inArray(schema.fills.id, rows.map((r) => r.id))))
+          .where(and(eq(schema.fills.userId, userId), inArray(schema.fills.orderId, [...new Set(rows.map((r) => r.orderId))])))
       : [];
     const known = new Set(stored.map((r) => r.id));
-    const written = await writeChanged(db, owner, schema.fills, rows.filter((r) => !known.has(r.id)), (r) => r.id);
+    // Orders the history already holds are settled: the trade book never adds to them.
+    const settled = new Set(stored.filter((r) => hasCharges(r.raw as DhanTrade)).map((r) => r.orderId));
+    const fresh = rows.filter((r) => !known.has(r.id) && !settled.has(r.orderId));
+    const written = await writeChanged(db, owner, schema.fills, fresh, (r) => r.id);
     return { written, lastTs: now };
   });
 
   const rebuild = (history ?? 0) + today > 0 ? await rebuildTrades(db, userId) : null;
   return { history, today, rebuild };
+}
+
+/**
+ * Deletes the trade book's copies of orders the history has just written, where the two disagree on an order's
+ * trades (so the history's set stands alone). Returns how many went.
+ */
+async function dropBookCopies(db: Db, userId: string, rows: { id: string; orderId: string }[]): Promise<number> {
+  const orders = [...new Set(rows.map((r) => r.orderId))];
+  let dropped = 0;
+  // Batches keep each statement well under SQLite's variable limit.
+  for (let i = 0; i < orders.length; i += 200) {
+    const batch = orders.slice(i, i + 200);
+    const ids = rows.filter((r) => batch.includes(r.orderId)).map((r) => r.id);
+    const gone = await db
+      .delete(schema.fills)
+      .where(and(eq(schema.fills.userId, userId), inArray(schema.fills.orderId, batch), notInArray(schema.fills.id, ids)))
+      .returning({ id: schema.fills.id });
+    dropped += gone.length;
+  }
+  return dropped;
 }
 
 async function readState(db: Db, userId: string, resource: string) {

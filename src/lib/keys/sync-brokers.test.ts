@@ -15,7 +15,7 @@ process.env.DELTA_KEYS_PUBLIC_KEY = keys.publicKey;
 // Imported after DATABASE_URL is set, so getDb() opens the temporary database.
 const { getDb, schema } = await import("@/db");
 const { DhanApiError, DhanClient, tokenExpiry } = await import("@/lib/dhan/client");
-const { dhanInstrumentId, toDhanFillRow } = await import("@/lib/dhan/ingest");
+const { dhanInstrumentId, toDhanFillRow, toDhanFillRows } = await import("@/lib/dhan/ingest");
 const { checkDhanCredentials, getBrokerStatus, openDhanCredentials, saveDhanCredentials } = await import("./brokers");
 const { DHAN_EXPIRED, mergeSyncResults, syncDhanAccounts } = await import("./sync-brokers");
 const { listTrades } = await import("@/lib/queries");
@@ -27,15 +27,16 @@ const CLIENT = "1100123456";
 const TOKEN = (n: number) => `eyJhbGciOiJIUzUxMiJ9.eyJ0b2tlbiI6${n}abcdefghijklmnop.c2lnbmF0dXJlLXNpZ25hdHVyZQ${n}`;
 let db: Db;
 
-const trade = (order: string, side: "BUY" | "SELL", time: string, price: number, charges = true): DhanTrade => ({
+// The history numbers every trade "0"; today's trade book gives the exchange's trade number instead.
+const trade = (order: string, side: "BUY" | "SELL", time: string, price: number, charges = true, qty = 75): DhanTrade => ({
   orderId: order,
-  exchangeTradeId: "1",
+  exchangeTradeId: charges ? "0" : String(5_000_000 + price * 100 + qty),
   transactionType: side,
   exchangeSegment: "NSE_FNO",
   productType: "INTRADAY",
   customSymbol: "NIFTY 18 NOV 24000 CALL",
   securityId: "45678",
-  tradedQuantity: 75,
+  tradedQuantity: qty,
   tradedPrice: price,
   instrument: "OPTIDX",
   exchangeTime: time,
@@ -57,8 +58,10 @@ function fakeDhan(state: { history: DhanTrade[]; today: DhanTrade[]; renewTo?: s
       if (p === "/profile") return json({ dhanClientId: clientId, tokenValidity: accessToken === state.renewTo ? "17/11/2026 11:30" : "16/11/2026 13:00" });
       if (p === "/RenewToken") return json(state.renewTo ? { accessToken: state.renewTo } : {});
       if (p === "/trades") return json(state.today);
-      const m = /^\/trades\/[\d-]+\/[\d-]+\/(\d+)$/.exec(p);
-      if (m) return json(m[1] === "0" ? state.history : []);
+      const m = /^\/trades\/([\d-]+)\/([\d-]+)\/(\d+)$/.exec(p);
+      // Each window returns its own days' trades, as Dhan does.
+      const inWindow = (t: DhanTrade) => !!m && (t.exchangeTime ?? "").slice(0, 10) >= m[1] && (t.exchangeTime ?? "").slice(0, 10) <= m[2];
+      if (m) return json(m[3] === "0" ? state.history.filter(inWindow) : []);
       return json({ errorCode: "DH-905", errorMessage: `unexpected ${p}` }, 400);
     }, { minGapMs: 0, retryDelaysMs: [0, 0] });
 }
@@ -78,13 +81,23 @@ afterAll(() => {
 describe("Dhan records", () => {
   it("become fills with their charges, in IST, matched on the ISIN for shares", () => {
     const row = toDhanFillRow(trade("o1", "BUY", "2026-11-16T09:20:05", 120));
-    expect(row).toMatchObject({ id: "dhan:o1:1", side: "buy", size: 75, price: 120, contractType: "options", contractValue: 1 });
+    expect(row).toMatchObject({ id: "dhan:o1:0", side: "buy", size: 75, price: 120, contractType: "options", contractValue: 1 });
     expect(row.commission).toBeCloseTo(35.21);
     expect(row.ts).toBe(Date.UTC(2026, 10, 16, 3, 50, 5));
     // The same share on NSE and BSE has two security ids but one ISIN.
     const nse = dhanInstrumentId({ securityId: "2885", isin: "INE002A01018", instrument: "EQUITY" });
     expect(dhanInstrumentId({ securityId: "500325", isin: "INE002A01018", instrument: "EQUITY" })).toBe(nse);
     expect(dhanInstrumentId({ securityId: "45678", isin: "INE002A01018", instrument: "OPTIDX" })).toBe(45678);
+  });
+
+  it("are numbered by their place in the order, so the trade book and the history agree", () => {
+    const fromBook = toDhanFillRows([trade("o9", "BUY", "2026-11-16T14:17:53", 122.6, false)]);
+    const fromHistory = toDhanFillRows([trade("o9", "BUY", "2026-11-16T14:17:53", 122.6)]);
+    expect(fromBook.map((r) => r.id)).toEqual(["dhan:o9:0"]);
+    expect(fromHistory.map((r) => r.id)).toEqual(["dhan:o9:0"]);
+    // An order filled in two parts: the history calls both trades "0", and both are kept, in time order.
+    const parts = toDhanFillRows([trade("o8", "SELL", "2026-11-16T10:00:02", 131, true, 25), trade("o8", "SELL", "2026-11-16T10:00:01", 131, true, 50)]);
+    expect(parts.map((r) => [r.id, r.size])).toEqual([["dhan:o8:0", 50], ["dhan:o8:1", 25]]);
   });
 
   it("read the token's expiry and check pasted credentials", () => {
@@ -130,11 +143,36 @@ describe("syncing Dhan accounts", () => {
     const [r] = await syncDhanAccounts(db, keys.privateKey, { makeClient: fakeDhan(state), now: later });
     expect(r.summary).toMatchObject({ history: null, today: 1 });
     expect(state.calls).not.toContain("/trades/2026-11-09/2026-11-16/0");
-    const [o2] = await db.select().from(schema.fills).where(eq(schema.fills.id, "dhan:o2:1"));
+    const [o2] = await db.select().from(schema.fills).where(eq(schema.fills.id, "dhan:o2:0"));
     expect(o2.commission).toBeCloseTo(35.21);
     // A quiet minute writes nothing and rebuilds nothing.
     const [quiet] = await syncDhanAccounts(db, keys.privateKey, { makeClient: fakeDhan(state), now: later + 60_000 });
     expect(quiet.summary).toMatchObject({ history: null, today: 0, rebuild: null });
+  });
+
+  it("stores a trade once when the trade book and the history both report it", async () => {
+    const at = NOW + 30 * 60_000;
+    // 14:17: a 1-lot buy shows in today's trade book first (no charges, the exchange's trade number).
+    state.today = [trade("o4", "BUY", "2026-11-16T14:17:53", 122.6, false)];
+    await syncDhanAccounts(db, keys.privateKey, { makeClient: fakeDhan(state), now: at });
+    // A copy stored under the old id scheme (the exchange's trade number), as on the live database.
+    const [account] = await db.select().from(schema.accounts).where(and(eq(schema.accounts.userId, U), eq(schema.accounts.broker, "dhan")));
+    const stale = { ...toDhanFillRow(trade("o4", "BUY", "2026-11-16T14:17:53", 122.6, false)), id: "dhan:o4:5049775", userId: U, accountId: account.id };
+    await db.insert(schema.fills).values(stale);
+    // Later the history reports the same trade with its charges, as trade "0".
+    state.history = [...state.history, trade("o4", "BUY", "2026-11-16T14:17:53", 122.6)];
+    const [r] = await syncDhanAccounts(db, keys.privateKey, { makeClient: fakeDhan(state), now: at + 20 * 60_000 });
+    expect(r.error).toBeUndefined();
+    const o4 = await db.select().from(schema.fills).where(and(eq(schema.fills.userId, U), eq(schema.fills.orderId, "dhan:o4")));
+    expect(o4.map((f) => [f.id, f.size])).toEqual([["dhan:o4:0", 75]]);
+    expect(o4[0].commission).toBeCloseTo(35.21);
+    // The trade book keeps reporting it all day without adding it back.
+    const [quiet] = await syncDhanAccounts(db, keys.privateKey, { makeClient: fakeDhan(state), now: at + 21 * 60_000 });
+    expect(quiet.summary).toMatchObject({ history: null, today: 0, rebuild: null });
+    // o4 adds one lot to the o3 position still open on the same contract: two lots, not three.
+    const open = (await listTrades(U)).find((t) => t.id === "dhan:o3:0");
+    expect(open?.maxQty).toBe(150);
+    state.today = [];
   });
 
   it("renews the token before it runs out and keeps using the new one", async () => {
