@@ -23,7 +23,7 @@ const nextConfig: NextConfig = {
     return [
       {
         // Every page: no framing (clickjacking), no MIME sniffing, no full URLs leaking to other sites,
-        // and no camera, microphone or location. HTTPS-only (HSTS) is already sent by Vercel.
+        // no camera or location, and the microphone only for our own pages (voice notes in the phone journal). HTTPS-only (HSTS) is already sent by Vercel.
         source: "/:path*",
         headers: [
           { key: "X-Frame-Options", value: "DENY" },
@@ -31,7 +31,7 @@ const nextConfig: NextConfig = {
           { key: "Content-Security-Policy-Report-Only", value: csp },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=(), payment=(), usb=()" },
         ],
       },
       {

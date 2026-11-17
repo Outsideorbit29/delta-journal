@@ -14,7 +14,7 @@ export const LIMITS = {
   "ai.review": { limit: 10, windowMs: DAY },
   /** AI journal suggestions from a note (web and bot). */
   "ai.suggest": { limit: 60, windowMs: HOUR },
-  /** Telegram voice notes transcribed by AI. */
+  /** Voice notes transcribed by AI (Telegram and the phone journal). */
   "ai.transcribe": { limit: 30, windowMs: HOUR },
   "delta.connect": { limit: 10, windowMs: HOUR },
   "dhan.connect": { limit: 10, windowMs: HOUR },

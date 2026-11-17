@@ -46,8 +46,8 @@ export default function PrivacyPage() {
           fees, stamp duty), which we rebuild into trades with profit and loss.
         </li>
         <li>
-          <strong>What you write:</strong> journal answers, notes and ratings. Voice notes you send on Telegram are turned into text; we keep
-          the text, not the audio. Feedback you send us (from Settings or /feedback) is kept with your account and forwarded to the
+          <strong>What you write:</strong> journal answers, notes and ratings. Voice notes you send on Telegram or record in the journal are turned into
+          text; we keep the text, not the audio. Feedback you send us (from Settings or /feedback) is kept with your account and forwarded to the
           founder&apos;s Telegram, with your email, so we can reply.
         </li>
         <li>

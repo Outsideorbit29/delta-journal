@@ -9,7 +9,7 @@ export const AI_MODELS = {
   review: process.env.AI_REVIEW_MODEL ?? "google/gemini-2.5-flash",
   /** Tagging a note: a small, fast, cheap model is enough. */
   fast: process.env.AI_FAST_MODEL ?? "google/gemini-2.5-flash",
-  /** Telegram voice notes. */
+  /** Voice notes (Telegram and the phone journal). */
   transcribe: process.env.AI_TRANSCRIBE_MODEL ?? "openai/gpt-4o-mini-transcribe",
 };
 
