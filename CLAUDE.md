@@ -130,7 +130,7 @@ Accounts: `users` (Clerk user id, email from Clerk on first visit or backfilled 
 Keys: `delta_credentials` (one per user: `key_hint` = last 4 characters, `sealed` key and secret, `status`
 `pending` | `ok` | `error`, `last_error`, `checked_at`). Other brokers: `broker_credentials` (per user and broker: Dhan
 client id + token sealed with context `edgebook:dhan:<userId>`, `expires_at`, same statuses; migration 0015).
-Dhan fills have ids `dhan:<orderId>:<exchangeTradeId>`; shares are matched on the ISIN (NSE and BSE ids differ).
+Dhan fills have ids `dhan:<orderId>:<n>` (n = the trade's place in its order: the trade book and the history number trades differently); shares are matched on the ISIN (NSE and BSE ids differ).
 Telegram: `telegram_links` (one per user: unique `chat_id`, `chat_name`, `linked_at`, and a pending one-time
 `code_hash` (SHA-256) with `code_expires_at`).
 

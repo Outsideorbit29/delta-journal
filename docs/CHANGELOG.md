@@ -2,6 +2,10 @@
 
 Newest first. Add a line with every change to the project (standing rule in CLAUDE.md).
 
+- **2026-11-17**: Fix: a Dhan trade showed twice (1 lot as 2). Today's trade book and the history give one trade
+  different trade numbers ("5037393" and "0"), and fill ids used that number. Fills are now numbered by their place in
+  their order, the trade book stays out of orders the history holds, and the history replaces leftover copies. One live
+  trade was affected (NIFTY 17 NOV 25150 CALL, 16 Nov). An order filled in parts is now kept whole from the history too.
 - **2026-11-16**: Design polish: each leak gets a bar against the biggest, a one-line fix (`LEAK_FIXES`) and "See N trades";
   symbols are one dropdown; phone trades are grouped by day with the day's net; the phone Journal tab shows how many
   trades from the last 7 days are not journaled (`countToJournal`). Dhan price charts: not possible on Dhan's free plan.

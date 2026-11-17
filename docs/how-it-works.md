@@ -141,7 +141,11 @@ are not journaled, with the page's one filled button, **Journal N trades** → `
   - the **trade history** `/trades/{from}/{to}/{page}` (with charges) every 15 minutes, re-reading 7 days, first time
     from 2020 in 90-day windows; `sync_state` resource `dhan.history` (lastTs = how far it has read).
   - **today's trade book** `/trades` every round, **insert-only**: it has no charges, and must never overwrite the
-    history's copy (which would rewrite and rebuild every minute).
+    history's copy (which would rewrite and rebuild every minute). It never adds to an order the history already holds,
+    and the history replaces any trade-book copies of its orders (`dropBookCopies`).
+  - **Fill ids are `dhan:<orderId>:<n>`**, n = the trade's place in its order (by time, quantity, price;
+    `toDhanFillRows`). Not Dhan's `exchangeTradeId`: the trade book gives the exchange's number ("5037393") and the
+    history "0" for the same trade, which stored a 1-lot trade twice (fixed 2026-11-17).
   - The token is **renewed** (`GET /RenewToken`) once under 4 hours remain; the new token is sealed and stored before
     anything else. Tried on a real token on 2026-11-16: the reply is `{ token, expiryTime, createTime }`, the new token
     works and the old one stops at once. Expired or rejected (DH-901): status `error` with `DHAN_EXPIRED`, told to
