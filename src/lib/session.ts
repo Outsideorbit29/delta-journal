@@ -58,3 +58,9 @@ async function primaryEmail(): Promise<string | null> {
     return null;
   }
 }
+
+/** The time of this request, for pages that show how long ago something was (reading the clock needs a request). */
+export async function requestTime(): Promise<number> {
+  await connection();
+  return Date.now();
+}

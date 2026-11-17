@@ -4,8 +4,8 @@ import { suggestionsFor, type JournalInput } from "@/lib/journal/entry";
 import type { Emotion, Mistake, Setup } from "@/lib/journal/vocab";
 import type { JournalEntry, TradeWithTags } from "@/lib/queries";
 
-/** The journal card for a closed trade: your answers, with hints from the automatic tags. */
-export function JournalSection({ trade, entry, submitLabel }: { trade: TradeWithTags; entry: JournalEntry | null; submitLabel?: string }) {
+/** The journal form for a closed trade, filled with your answers, with hints from the automatic tags. */
+export function TradeJournalForm({ trade, entry, submitLabel }: { trade: TradeWithTags; entry: JournalEntry | null; submitLabel?: string }) {
   const initial: JournalInput | null = entry && {
     setup: entry.setup as Setup | null,
     emotions: entry.emotions as Emotion[],
@@ -17,22 +17,28 @@ export function JournalSection({ trade, entry, submitLabel }: { trade: TradeWith
     plannedTarget: entry.plannedTarget,
   };
   const autoTags = trade.tags.filter((g) => g.source === "auto").map((g) => g.tag);
+  return (
+    <JournalForm
+      key={trade.id}
+      tradeId={trade.id}
+      initial={initial}
+      suggested={suggestionsFor(autoTags)}
+      trade={{ direction: trade.direction, avgEntry: trade.avgEntry, stopPrice: trade.stopPrice, stopMoved: trade.stopMovedAfterSec !== null }}
+      submitLabel={submitLabel}
+      aiEnabled={aiConfigured()}
+    />
+  );
+}
 
+/** The journal card for a closed trade (the journal queue). */
+export function JournalSection({ trade, entry, submitLabel }: { trade: TradeWithTags; entry: JournalEntry | null; submitLabel?: string }) {
   return (
     <section className="bg-paper-2 border-t-4 border-ink px-5 py-8 sm:px-8">
       <h2 className="text-2xl">Journal</h2>
       <p className="mt-1 mb-8 text-base text-ink-2">
         {entry ? "Your notes on this trade." : "Not journaled yet. A few taps now make the habit analysis much sharper."}
       </p>
-      <JournalForm
-        key={trade.id}
-        tradeId={trade.id}
-        initial={initial}
-        suggested={suggestionsFor(autoTags)}
-        trade={{ direction: trade.direction, avgEntry: trade.avgEntry, stopPrice: trade.stopPrice, stopMoved: trade.stopMovedAfterSec !== null }}
-        submitLabel={submitLabel}
-        aiEnabled={aiConfigured()}
-      />
+      <TradeJournalForm trade={trade} entry={entry} submitLabel={submitLabel} />
     </section>
   );
 }

@@ -56,7 +56,7 @@ export const LEAK_FIXES: Record<string, string> = {
 };
 
 /** A habit: a warning tag from the data, or scalping. Journal tags would only repeat these. */
-const isHabit = (tag: string) =>
+export const isHabit = (tag: string) =>
   !isJournalTag(tag) && (isWarningTag(tag) || tag === "hold:scalp" || tag === "expiry_day" || tag === "nse:open");
 
 /** The habits that lost the most money, worst first. */
