@@ -173,12 +173,25 @@ are not journaled, with the page's one filled button, **Journal N trades** → `
   `Content-Security-Policy` in `next.config.ts`. Scripts keep `'unsafe-inline'` (Next's inline scripts; nonces would make
   every page dynamic under Cache Components).
 
+## Trade page (`/trades/[id]`, `components/trade-view.tsx`, `lib/trade-story.ts`, redesigned 2026-11-17)
+One trade told in order: a summary line from its tags (`tradeSummary`: how it went and for how long, what the stop did,
+then size and timing), four key figures (held, size against your usual when oversized, margin share of the wallet or
+charges for rupee accounts, R-multiple), then on wide screens two columns. Left: the price chart (Delta only), **What
+happened** (`tradeTimeline`: fills plus when the stop was placed and moved, a stop moved while losing highlighted),
+**Where the money went** as a waterfall (`moneySteps`), and a closed **All details and fills** with the old facts table.
+Right: **Habits on this trade**, costliest first, each with its detail, its `LEAK_FIXES` line and what it has cost across
+the account (`tagPerformance` over the account's trades, which also give Previous / Next and "Trade n of N"); then **Your
+journal** (`JournalPanel`): a summary with Edit, or the form when the trade is not journaled yet, with a prompt for a
+missing note. On phones the journal and habits come right after the figures. The mockup it came from:
+https://claude.ai/artifact/RCYoSxZGBFHWMnZJMfhMPs (private).
+
 ## Indian-market insights (Phase 4, since 2026-11-16)
 - Trades carry `product_type` (intraday, delivery, margin) and `expiry_date` (migration 0017), read from Dhan's raw record
   at every rebuild (`dhanFillMeta`), so no fill needs rewriting.
 - Rupee accounts get, instead of crypto sessions and the weekend: the part of the NSE day (`nse:open` before 09:45,
   `nse:morning` to 12:00, `nse:midday` to 15:00, `nse:close`; `indianSessions` in `config.ts`), `product:intraday` /
-  `product:delivery`, `expiry_day` (opened on the contract's expiry date) and `won_before_charges` (a warning: positive
+  `product:delivery`, `expiry_day` (opened on the contract's expiry date; derivatives only, since Dhan writes the trade's
+  own date as a share's "expiry", which tagged shares until 2026-11-17) and `won_before_charges` (a warning: positive
   before charges, negative after). `expiry_day` and `nse:open` count as habits for the biggest leaks.
 - The behaviour score leaves Risk control and Stop discipline out for rupee accounts (no stops are visible), instead of
   scoring them perfect. The segment filter (Options, Futures, Intraday stocks, Delivery stocks; `?segment=`) shows

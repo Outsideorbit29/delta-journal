@@ -2,6 +2,13 @@
 
 Newest first. Add a line with every change to the project (standing rule in CLAUDE.md).
 
+- **2026-11-17**: Trade page redesign (from the approved mockup): a one-line summary of the trade, four key figures, a
+  "What happened" timeline with the stop's moves, the money as a waterfall, each habit with its fix and its cost across the
+  account (costliest first), the journal as a summary with Edit (the form when not journaled), Previous / Next, and the
+  facts table and fills folded into "All details". On phones the journal and habits come first.
+- **2026-11-17**: Fix: Dhan shares were tagged "Expiry day" (Dhan writes the trade's date as a share's expiry). Now only
+  derivatives. On the owner's account this moved the habit from −₹1,005.22 to −₹2,750.99: a share's profit had hidden the
+  real cost of expiry-day options.
 - **2026-11-17**: Fix: a Dhan trade showed twice (1 lot as 2). Today's trade book and the history give one trade
   different trade numbers ("5037393" and "0"), and fill ids used that number. Fills are now numbered by their place in
   their order, the trade book stays out of orders the history holds, and the history replaces leftover copies. One live
